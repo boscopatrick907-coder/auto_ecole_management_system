@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "build": "tsc",
     "start": "tsx src/server.ts",
     "db:migrate": "tsx src/scripts/migrate.ts",
     "test:security": "vitest run tests/security",
