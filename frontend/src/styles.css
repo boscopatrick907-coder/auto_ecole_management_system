@@ -1,0 +1,122 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   Emil Kowalski's `mobile-native` + `apple-design` + `emil-design-eng` Rules
+   Theme: AEM Clair — Bleu Marseillaise (#3D8BCD)
+   ========================================================================== */
+
+:root {
+  --aem-blue: #3D8BCD;
+  --aem-blue-light: #5BA4E5;
+  --aem-blue-dark: #2B6CA8;
+  --aem-coral: #D94E28;
+  --aem-gold: #EAB308;
+  --aem-canvas: #F4F7FB;
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-drawer-ios: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+}
+
+body {
+  min-height: 100dvh;
+  background-color: var(--aem-canvas);
+  color: #0F172A;
+  overscroll-behavior: none;
+}
+
+/* Rule 4 (mobile-native): Minimum 16px on inputs to prevent iOS Safari auto-zoom */
+input,
+textarea,
+select {
+  font-size: 16px !important;
+}
+
+/* Rule 5 & 8 (mobile-native): Instant touch manipulation & no accidental label selection */
+button,
+a,
+[role="button"],
+.tappable {
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  transition: transform 140ms var(--ease-out-strong), background-color 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
+}
+
+/* Rule 1 (apple-design): Respond immediately on pointer-down (:active) */
+button:active:not(:disabled),
+.tappable:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* Rule 1 (mobile-native): Gate hover states strictly behind hover+fine pointer capability */
+@media (hover: hover) and (pointer: fine) {
+  .aem-hover-lift:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 25px -5px rgba(61, 139, 205, 0.14);
+  }
+}
+
+/* Rule 12 (apple-design): Translucent Apple Light Frosted Chrome */
+.aem-frosted-bar {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+
+/* Safe area insets for notched iPhones & gesture bars */
+.safe-top {
+  padding-top: max(0.75rem, env(safe-area-inset-top, 0px));
+}
+
+.safe-bottom {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+}
+
+/* Rule 15 (apple-design): Tabular numerals on all FCFA currency, timers, and receipts */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Modal / Sheet animations from scale(0.96), never scale(0) */
+.aem-sheet-enter {
+  animation: aemSheetIn 260ms var(--ease-drawer-ios) forwards;
+}
+
+@keyframes aemSheetIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Rule 14 (apple-design): Accessibility & Reduced Motion / Reduced Transparency */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 120ms !important;
+    transform: none !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .aem-frosted-bar {
+    background: #FFFFFF !important;
+    backdrop-filter: none !important;
+  }
+}

@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+
+<html class="h-full bg-[#F4F7FB]" lang="fr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>Auto-école La Marseillaise (AEM) — Espace Candidat</title>
+<!-- Google Fonts: Plus Jakarta Sans -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS CDN -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            marseille: {
+              50: '#F0F7FD',
+              100: '#DFEEFA',
+              200: '#BEDDF5',
+              300: '#8DC2EE',
+              400: '#4A94D6',
+              500: '#3D8BCD',
+              600: '#2A70AF',
+              700: '#22598E',
+              800: '#1F4C75',
+              900: '#1E4062',
+            },
+            coral: {
+              50: '#FEF3F0',
+              100: '#FDE4DE',
+              500: '#D94E28',
+              600: '#BD3C19',
+            },
+            gold: {
+              500: '#EAB308',
+            },
+            emeraldCustom: {
+              500: '#10B981',
+            }
+          },
+          borderRadius: {
+            "DEFAULT": "0.5rem",
+            "lg": "1rem",
+            "xl": "1.5rem",
+            "2xl": "1.25rem",
+            "3xl": "1.75rem",
+            "full": "9999px"
+          },
+          fontFamily: {
+            headline: ["Plus Jakarta Sans", "sans-serif"],
+            display: ["Plus Jakarta Sans", "sans-serif"],
+            body: ["Plus Jakarta Sans", "sans-serif"],
+            label: ["Plus Jakarta Sans", "sans-serif"]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+    .material-symbols-outlined.fill-1 {
+      font-variation-settings: 'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 24;
+    }
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+    .frosted-glass {
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="min-h-full bg-[#F4F7FB] text-slate-800 antialiased flex justify-center selection:bg-marseille-100 selection:text-marseille-700">
+<!-- Mobile Wrapper Canvas -->
+<div class="w-full max-w-md min-h-screen flex flex-col bg-[#F4F7FB] relative pb-28">
+<!-- 1. TopAppBar (Shared Component Implementation) -->
+<header class="bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl docked full-width top-0 sticky z-40 shadow-sm dark:shadow-none border-b border-slate-900/10 dark:border-white/10">
+<div class="w-full px-4 h-14 flex items-center justify-between max-w-md mx-auto">
+<!-- Brand identity anchor -->
+<div class="flex items-center gap-2.5">
+<div class="h-9 w-9 rounded-xl bg-gradient-to-tr from-marseille-600 to-marseille-400 flex items-center justify-center shadow-md shadow-marseille-500/20 text-white relative">
+<span class="material-symbols-outlined text-[20px]" data-icon="directions_car">directions_car</span>
+<span class="absolute -bottom-1 -right-1 text-[11px] text-amber-400 material-symbols-outlined fill-1" data-icon="star" style="font-variation-settings: 'FILL' 1;">star</span>
+</div>
+<div class="flex flex-col">
+<span class="font-display font-black text-slate-900 dark:text-white tracking-tight text-sm leading-tight">Auto-école La Marseillaise</span>
+<span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+<span>AEM Cameroun</span>
+<span class="w-1 h-1 rounded-full bg-slate-300"></span>
+<span class="text-marseille-600 font-bold">Douala • Yaoundé</span>
+</span>
+</div>
+</div>
+<!-- Trailing info badges -->
+<div class="flex items-center gap-1.5">
+<div class="hidden xs:flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200/80 text-emerald-700 text-[10px] font-bold">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+<span>Hors ligne</span>
+</div>
+<button aria-label="Statut synchronisation" class="p-1.5 text-slate-600 hover:opacity-80 transition-opacity active:scale-[0.97]" type="button">
+<span class="material-symbols-outlined text-emerald-600 text-[22px]" data-icon="cloud_done">cloud_done</span>
+</button>
+</div>
+</div>
+</header>
+<!-- Main Content Stream -->
+<main class="flex-1 px-4 pt-3.5 space-y-4">
+<!-- Candidate Sub-header & Status Pill -->
+<section class="flex items-center justify-between pt-1">
+<div>
+<h1 class="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-1.5">
+            Bonjour Jean-Paul <span class="text-xl">👋</span>
+</h1>
+<p class="text-xs font-medium text-slate-500 mt-0.5">
+            Candidat Permis B (VL) • <span class="font-semibold text-slate-700">Cohorte B2</span>
+</p>
+</div>
+<span class="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-marseille-50 text-marseille-600 border border-marseille-200/60 shadow-xs">
+          Permis B
+        </span>
+</section>
+<!-- 2. Warm Trial Notification Banner -->
+<section class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-50/90 via-orange-50/70 to-rose-50/50 border border-amber-200/80 p-3.5 shadow-sm">
+<div class="flex items-start gap-3">
+<div class="mt-0.5 h-7 w-7 rounded-lg bg-[#D94E28]/10 text-[#D94E28] flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-base fill-1" data-icon="hourglass_top" style="font-variation-settings: 'FILL' 1;">hourglass_top</span>
+</div>
+<div class="space-y-1.5 flex-1">
+<div class="flex items-center justify-between">
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wide uppercase bg-[#D94E28] text-white">
+                Essai gratuit : 11 jours restants
+              </span>
+<span class="text-[11px] font-bold text-amber-900 tabular-nums">Échéance J-11</span>
+</div>
+<p class="text-xs text-slate-700 leading-relaxed font-normal">
+              Réglez votre <strong class="font-semibold text-slate-900">1re tranche (50 000 FCFA)</strong> à l'auto-école pour débloquer votre accès sans limite aux 24 séries d'examens et fiches pratiques.
+            </p>
+<div class="pt-0.5">
+<a class="inline-flex items-center gap-1 text-[11px] font-bold text-[#D94E28] hover:text-coral-600 active:scale-[0.98] transition-transform" href="#agence">
+<span>Localiser mon agence</span>
+<span class="material-symbols-outlined text-[14px]" data-icon="arrow_forward">arrow_forward</span>
+</a>
+</div>
+</div>
+</div>
+</section>
+<!-- 3. Primary Next Step Card (Hero in Rich Azure Blue) -->
+<section class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#4A94D6] via-[#3D8BCD] to-[#2563EB] p-5 text-white shadow-xl shadow-marseille-500/20 active:scale-[0.99] transition-transform">
+<!-- Subtle background watermark & accents -->
+<div class="absolute -right-6 -bottom-6 w-36 h-36 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
+<div class="absolute top-3 right-4 opacity-15 pointer-events-none">
+<span class="material-symbols-outlined text-7xl text-white" data-icon="assignment">assignment</span>
+</div>
+<div class="relative z-10 flex flex-col space-y-3.5">
+<!-- Small badge row -->
+<div class="flex items-center gap-2">
+<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-md text-[10px] font-extrabold uppercase tracking-wider text-white border border-white/20">
+<span class="material-symbols-outlined text-[13px]" data-icon="directions_car">directions_car</span>
+              CONTINUER MA RÉVISION
+            </span>
+<span class="text-[10px] font-semibold text-white/80 flex items-center gap-0.5">
+<span class="text-amber-300 material-symbols-outlined text-[12px] fill-1" data-icon="star" style="font-variation-settings: 'FILL' 1;">star</span>
+              Série officielle CEMAC
+            </span>
+</div>
+<!-- Headline -->
+<div>
+<h2 class="text-lg font-extrabold leading-snug tracking-tight text-white">
+              Examen Blanc Officiel N°1 — Permis B
+            </h2>
+<p class="text-xs text-white/80 mt-1 font-medium">
+              Conforme au code de la route camerounais &amp; questions pièges d'examen.
+            </p>
+</div>
+<!-- Metadata Pill Badges -->
+<div class="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold text-white/90">
+<div class="px-2.5 py-1 rounded-lg bg-black/15 backdrop-blur-sm flex items-center gap-1 border border-white/10">
+<span class="material-symbols-outlined text-[14px]" data-icon="schedule">schedule</span>
+<span class="tabular-nums">20 min</span>
+</div>
+<div class="px-2.5 py-1 rounded-lg bg-black/15 backdrop-blur-sm flex items-center gap-1 border border-white/10">
+<span class="material-symbols-outlined text-[14px]" data-icon="quiz">quiz</span>
+<span class="tabular-nums">40 questions</span>
+</div>
+<div class="px-2.5 py-1 rounded-lg bg-emerald-500/30 text-emerald-100 backdrop-blur-sm flex items-center gap-1 border border-emerald-400/30">
+<span class="material-symbols-outlined text-[14px]" data-icon="bolt">bolt</span>
+<span>Sans internet ✓</span>
+</div>
+</div>
+<!-- CTA Button -->
+<div class="pt-1">
+<button class="w-full h-12 bg-white text-marseille-600 hover:bg-slate-50 font-extrabold text-sm rounded-xl shadow-lg shadow-black/10 flex items-center justify-center gap-2 active:scale-[0.97] transition-all" type="button">
+<span>Commencer l'examen</span>
+<span class="material-symbols-outlined text-[18px]" data-icon="arrow_forward">arrow_forward</span>
+</button>
+</div>
+</div>
+</section>
+<!-- 4. Quick Access Bento Grid ('Mes Cours Téléchargés') -->
+<section class="space-y-2.5">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-md bg-marseille-100 text-marseille-600 flex items-center justify-center">
+<span class="material-symbols-outlined text-[16px]" data-icon="menu_book">menu_book</span>
+</div>
+<div>
+<h3 class="text-sm font-bold text-slate-900 leading-tight">Mes Cours Téléchargés</h3>
+<p class="text-[10px] text-slate-500">Accessibles hors connexion</p>
+</div>
+</div>
+<button class="text-xs font-bold text-marseille-600 hover:text-marseille-700 active:scale-95">Tout voir (6)</button>
+</div>
+<div class="grid grid-cols-2 gap-3">
+<!-- Card 1: Code de la Route (Ready offline) -->
+<div class="bg-white rounded-2xl border border-slate-200/70 p-3.5 shadow-sm flex flex-col justify-between hover:border-slate-300 transition-colors">
+<div class="space-y-2">
+<div class="flex items-center justify-between">
+<span class="text-2xl">📘</span>
+<span class="material-symbols-outlined text-emerald-500 text-[18px]" data-icon="check_circle">check_circle</span>
+</div>
+<div>
+<h4 class="font-bold text-xs text-slate-900 leading-tight">Code de la Route</h4>
+<p class="text-[10px] text-slate-400 font-semibold tabular-nums mt-0.5">PDF • 1.8 Mo</p>
+</div>
+<div class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] font-bold">
+<span>Hors ligne ✓</span>
+</div>
+</div>
+<button class="mt-3 w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[11px] rounded-lg flex items-center justify-center gap-1 active:scale-[0.97] transition-all" type="button">
+<span class="material-symbols-outlined text-[14px]" data-icon="visibility">visibility</span>
+<span>Lire le cours</span>
+</button>
+</div>
+<!-- Card 2: Fiche Panneaux (Not synced / Download CTA) -->
+<div class="bg-white rounded-2xl border border-slate-200/70 p-3.5 shadow-sm flex flex-col justify-between hover:border-slate-300 transition-colors">
+<div class="space-y-2">
+<div class="flex items-center justify-between">
+<span class="text-2xl">🚦</span>
+<span class="material-symbols-outlined text-slate-400 text-[18px]" data-icon="cloud_download">cloud_download</span>
+</div>
+<div>
+<h4 class="font-bold text-xs text-slate-900 leading-tight">Fiche Panneaux</h4>
+<p class="text-[10px] text-slate-400 font-semibold tabular-nums mt-0.5">PDF • 620 Ko</p>
+</div>
+<div class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[9px] font-medium">
+<span>Non synchronisé</span>
+</div>
+</div>
+<button class="mt-3 w-full py-2 bg-marseille-500 hover:bg-marseille-600 text-white font-bold text-[11px] rounded-lg flex items-center justify-center gap-1 active:scale-[0.97] transition-all shadow-xs" type="button">
+<span class="material-symbols-outlined text-[14px]" data-icon="download">download</span>
+<span class="tabular-nums">Télécharger</span>
+</button>
+</div>
+</div>
+</section>
+<!-- 5. Visual Payment Tracker Card -->
+<section class="space-y-2.5">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-md bg-amber-100 text-amber-700 flex items-center justify-center">
+<span class="material-symbols-outlined text-[16px]" data-icon="account_balance_wallet">account_balance_wallet</span>
+</div>
+<div>
+<h3 class="text-sm font-bold text-slate-900 leading-tight">Mes Paiements</h3>
+<p class="text-[10px] text-slate-500">En un coup d'œil</p>
+</div>
+</div>
+<span class="text-[11px] font-extrabold text-slate-600 tabular-nums">Ref: #AEM-2026-B2</span>
+</div>
+<div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm space-y-4">
+<!-- Total summary -->
+<div>
+<div class="flex items-center justify-between">
+<span class="text-xs font-semibold text-slate-500">Total formation Permis B</span>
+<span class="text-xs font-black text-slate-900 tabular-nums tracking-tight">120 000 FCFA</span>
+</div>
+<!-- Numbers Highlights -->
+<div class="mt-2 grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+<div>
+<span class="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Déjà versé</span>
+<span class="text-sm font-black text-emerald-600 tabular-nums">50 000 FCFA</span>
+</div>
+<div class="text-right">
+<span class="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Reste à solder</span>
+<span class="text-sm font-black text-slate-800 tabular-nums">70 000 FCFA</span>
+</div>
+</div>
+<!-- Progress Track -->
+<div class="mt-3 space-y-1">
+<div class="flex items-center justify-between text-[11px]">
+<span class="font-bold text-slate-600">Progression financière</span>
+<span class="font-extrabold text-marseille-600 tabular-nums">41.6%</span>
+</div>
+<div class="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden p-0.5">
+<div class="bg-gradient-to-r from-marseille-400 to-marseille-600 h-full rounded-full transition-all duration-500" style="width: 41.66%;"></div>
+</div>
+</div>
+</div>
+<div class="border-t border-slate-100"></div>
+<!-- Installment Milestones Breakdown -->
+<div class="space-y-2.5">
+<!-- Row 1: 1re tranche Paid -->
+<div class="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-200/60">
+<div class="flex items-start gap-2.5">
+<div class="mt-0.5 w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[13px] font-bold" data-icon="check">check</span>
+</div>
+<div>
+<div class="flex items-center gap-1.5 flex-wrap">
+<span class="text-xs font-extrabold text-slate-900 leading-tight">1re tranche</span>
+<span class="text-xs font-bold text-emerald-700 tabular-nums">50 000 FCFA</span>
+<span class="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 text-[9px] font-extrabold">Payée ✓</span>
+</div>
+<p class="text-[10px] text-slate-500 font-medium mt-0.5">Reçue au guichet Agence Akwa • 14 Janv 2026</p>
+</div>
+</div>
+<button aria-label="Télécharger reçu" class="px-2 py-1 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-[10px] font-bold flex items-center gap-0.5 active:scale-95 shadow-xs" type="button">
+<span>Reçu PDF</span>
+<span class="material-symbols-outlined text-[13px]" data-icon="download">download</span>
+</button>
+</div>
+<!-- Row 2: 2e tranche Scheduled -->
+<div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-50/80 border border-slate-200/60">
+<div class="flex items-start gap-2.5">
+<div class="mt-0.5 w-5 h-5 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[13px]" data-icon="calendar_today">calendar_today</span>
+</div>
+<div>
+<div class="flex items-center gap-1.5 flex-wrap">
+<span class="text-xs font-extrabold text-slate-800 leading-tight">2e tranche</span>
+<span class="text-xs font-bold text-slate-700 tabular-nums">40 000 FCFA</span>
+<span class="px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 border border-amber-200 text-[9px] font-bold">À venir</span>
+</div>
+<p class="text-[10px] text-slate-500 font-medium mt-0.5">Échéance : 05/03/2026 • Avant phase conduite</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-slate-400 text-sm" data-icon="lock">lock</span>
+</div>
+</div>
+<!-- Bottom reassuring micro-copy -->
+<div class="flex items-center justify-center gap-1.5 text-[10px] text-slate-400 pt-0.5">
+<span class="material-symbols-outlined text-[12px] text-slate-400" data-icon="verified">verified</span>
+<span>Quittance officielle délivrée par le secrétariat AEM</span>
+</div>
+</div>
+</section>
+<!-- Student Assistance Card -->
+<section class="bg-white rounded-2xl p-3.5 border border-slate-200/70 flex items-center justify-between">
+<div class="flex items-center gap-2.5">
+<div class="w-8 h-8 rounded-full bg-marseille-50 text-marseille-600 flex items-center justify-center">
+<span class="material-symbols-outlined text-base" data-icon="support_agent">support_agent</span>
+</div>
+<div>
+<h4 class="text-xs font-bold text-slate-900">Besoin d'un moniteur ?</h4>
+<p class="text-[10px] text-slate-500">Permanence WhatsApp AEM disponible 7j/7</p>
+</div>
+</div>
+<a class="px-2.5 py-1.5 bg-marseille-50 hover:bg-marseille-100 text-marseille-700 rounded-lg text-[11px] font-bold flex items-center gap-1 active:scale-95" href="tel:+237600000000">
+<span class="material-symbols-outlined text-[13px]" data-icon="call">call</span>
+<span>Appeler</span>
+</a>
+</section>
+</main>
+<!-- 6. BottomNavBar (Shared Component Implementation) -->
+<!-- Logic check: Home/Accueil page -> exact match is first label "Accueil" -->
+<nav aria-label="Navigation principale" class="bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl docked full-width bottom-0 shadow-[0_-1px_3px_rgba(0,0,0,0.05)] border-t border-slate-900/10 dark:border-white/10 fixed bottom-0 left-0 w-full z-50 flex justify-around items-center h-16 px-4 max-w-md mx-auto inset-x-0">
+<!-- Tab 1: Accueil (ACTIVE) -->
+<button class="flex flex-col items-center justify-center text-slate-900 dark:text-white font-bold py-1 active:scale-[0.97] transition-transform duration-150 group" type="button">
+<div class="relative flex flex-col items-center">
+<span class="material-symbols-outlined text-[24px] text-marseille-500 fill-1 transition-colors" data-icon="home" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="font-label text-xs font-bold text-marseille-600 mt-0.5">Accueil</span>
+<span class="w-1.5 h-1.5 rounded-full bg-marseille-500 mt-0.5"></span>
+</div>
+</button>
+<!-- Tab 2: Cours (INACTIVE) -->
+<button class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 font-medium py-1 hover:text-slate-700 dark:hover:text-slate-300 transition-colors active:scale-[0.97] transition-transform duration-150" type="button">
+<span class="material-symbols-outlined text-[24px]" data-icon="menu_book">menu_book</span>
+<span class="font-label text-xs font-semibold mt-0.5">Cours</span>
+<span class="w-1.5 h-1.5 rounded-full bg-transparent mt-0.5"></span>
+</button>
+<!-- Tab 3: Quiz (INACTIVE) -->
+<button class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 font-medium py-1 hover:text-slate-700 dark:hover:text-slate-300 transition-colors active:scale-[0.97] transition-transform duration-150" type="button">
+<span class="material-symbols-outlined text-[24px]" data-icon="quiz">quiz</span>
+<span class="font-label text-xs font-semibold mt-0.5">Quiz</span>
+<span class="w-1.5 h-1.5 rounded-full bg-transparent mt-0.5"></span>
+</button>
+<!-- Tab 4: Paiements (INACTIVE) -->
+<button class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 font-medium py-1 hover:text-slate-700 dark:hover:text-slate-300 transition-colors active:scale-[0.97] transition-transform duration-150" type="button">
+<span class="material-symbols-outlined text-[24px]" data-icon="account_balance_wallet">account_balance_wallet</span>
+<span class="font-label text-xs font-semibold mt-0.5">Paiements</span>
+<span class="w-1.5 h-1.5 rounded-full bg-transparent mt-0.5"></span>
+</button>
+</nav>
+</div>
+<!-- Lightweight Micro-Interaction for tactile feedback -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Offline sync indicator status toggle simulation
+      const syncBtn = document.querySelector('button[aria-label="Statut synchronisation"]');
+      if (syncBtn) {
+        syncBtn.addEventListener('click', () => {
+          const icon = syncBtn.querySelector('.material-symbols-outlined');
+          icon.textContent = 'sync';
+          icon.classList.add('animate-spin');
+          setTimeout(() => {
+            icon.classList.remove('animate-spin');
+            icon.textContent = 'cloud_done';
+          }, 800);
+        });
+      }
+    });
+  </script>
+</body></html>

@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="fr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
+<title>Auto-école La Marseillaise • Espace Candidat</title>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Plus Jakarta Sans Typography -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS with custom theme token system -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "surface-container": "#191f2f",
+            "surface": "#0d1322",
+            "background": "#0d1322",
+            "inverse-primary": "#005ac2",
+            "primary-fixed": "#d8e2ff",
+            "surface-bright": "#33394a",
+            "on-primary-container": "#00285d",
+            "on-error": "#690005",
+            "on-tertiary-container": "#00311f",
+            "primary-container": "#4d8eff",
+            "outline-variant": "#424754",
+            "surface-tint": "#adc6ff",
+            "on-primary": "#002e6a",
+            "on-tertiary-fixed": "#002113",
+            "tertiary-fixed-dim": "#4edea3",
+            "on-surface": "#dde2f8",
+            "inverse-surface": "#dde2f8",
+            "surface-container-highest": "#2f3445",
+            "on-tertiary-fixed-variant": "#005236",
+            "tertiary-fixed": "#6ffbbe",
+            "tertiary": "#4edea3",
+            "secondary-fixed-dim": "#ffb95f",
+            "surface-dim": "#0d1322",
+            "inverse-on-surface": "#2a3040",
+            "error-container": "#93000a",
+            "on-error-container": "#ffdad6",
+            "primary-fixed-dim": "#adc6ff",
+            "on-surface-variant": "#c2c6d6",
+            "secondary-container": "#ee9800",
+            "surface-variant": "#2f3445",
+            "secondary": "#ffb95f",
+            "tertiary-container": "#00a572",
+            "on-secondary": "#472a00",
+            "primary": "#adc6ff",
+            "on-tertiary": "#003824",
+            "on-secondary-fixed-variant": "#653e00",
+            "on-background": "#dde2f8",
+            "on-secondary-fixed": "#2a1700",
+            "surface-container-high": "#242a3a",
+            "surface-container-lowest": "#080e1d",
+            "on-primary-fixed": "#001a42",
+            "on-secondary-container": "#5b3800",
+            "on-primary-fixed-variant": "#004395",
+            "surface-container-low": "#151b2b",
+            "error": "#ffb4ab",
+            "secondary-fixed": "#ffddb8",
+            "outline": "#8c909f"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "fontFamily": {
+            "label-md": ["Plus Jakarta Sans"],
+            "body-md": ["Plus Jakarta Sans"],
+            "headline-sm": ["Plus Jakarta Sans"],
+            "display-lg": ["Plus Jakarta Sans"],
+            "label-mono": ["Plus Jakarta Sans"],
+            "display-lg-mobile": ["Plus Jakarta Sans"],
+            "body-lg": ["Plus Jakarta Sans"],
+            "label-lg": ["Plus Jakarta Sans"],
+            "headline-md": ["Plus Jakarta Sans"],
+            "body-sm": ["Plus Jakarta Sans"],
+            "label-sm": ["Plus Jakarta Sans"],
+            "headline-lg": ["Plus Jakarta Sans"]
+          },
+          "fontSize": {
+            "label-md": ["14px", { "lineHeight": "18px", "letterSpacing": "0em", "fontWeight": "600" }],
+            "body-md": ["15px", { "lineHeight": "22px", "letterSpacing": "0em", "fontWeight": "400" }],
+            "headline-sm": ["19px", { "lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+            "display-lg": ["36px", { "lineHeight": "44px", "letterSpacing": "-0.03em", "fontWeight": "700" }],
+            "label-mono": ["13px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500" }],
+            "display-lg-mobile": ["30px", { "lineHeight": "38px", "letterSpacing": "-0.025em", "fontWeight": "700" }],
+            "body-lg": ["17px", { "lineHeight": "24px", "letterSpacing": "-0.005em", "fontWeight": "400" }],
+            "label-lg": ["16px", { "lineHeight": "20px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+            "headline-md": ["22px", { "lineHeight": "28px", "letterSpacing": "-0.015em", "fontWeight": "600" }],
+            "body-sm": ["13px", { "lineHeight": "18px", "letterSpacing": "0.005em", "fontWeight": "400" }],
+            "label-sm": ["12px", { "lineHeight": "16px", "letterSpacing": "0.01em", "fontWeight": "600" }],
+            "headline-lg": ["26px", { "lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    /* Tabular numeric alignment for finance and metrics */
+    .tnum {
+      font-feature-settings: 'tnum' 1;
+      font-variant-numeric: tabular-nums;
+    }
+    
+    /* Apple glass specular stroke highlight simulation */
+    .glass-card {
+      background: rgba(15, 23, 42, 0.68);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.12), 0 12px 32px -4px rgba(0, 0, 0, 0.45);
+    }
+    
+    .glass-card-elevated {
+      background: rgba(22, 33, 58, 0.85);
+      backdrop-filter: blur(32px);
+      -webkit-backdrop-filter: blur(32px);
+      box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.18), 0 20px 40px -8px rgba(0, 0, 0, 0.6);
+    }
+    
+    .glass-pill {
+      box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.15);
+    }
+    
+    /* Pulse glow keyframe */
+    @keyframes soft-pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.55; transform: scale(1.15); }
+    }
+    .animate-pulse-glow {
+      animation: soft-pulse 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface antialiased selection:bg-primary-container selection:text-on-primary-container min-h-screen">
+<!-- Container Shell restricted to max-w-md simulating flagship iPhone Pro Max ergonomics -->
+<div class="relative max-w-md mx-auto min-h-screen flex flex-col bg-surface-container-lowest shadow-2xl overflow-x-hidden">
+<!-- ========================================== -->
+<!-- 1. TOP APP BAR (Shared Component Anchor)    -->
+<!-- ========================================== -->
+<header class="sticky top-0 z-40 bg-surface-container/80 dark:bg-surface-container/80 backdrop-blur-xl border-b border-outline-variant/20 dark:border-outline-variant/20 shadow-sm transition-all duration-150">
+<div class="flex justify-between items-center w-full px-4 pt-3 pb-3 max-w-md mx-auto">
+<!-- Leading: Identity + IUSJ Badge -->
+<div class="flex items-center space-x-2.5">
+<div class="relative w-10 h-10 rounded-xl bg-surface-container-high border border-white/10 flex items-center justify-center p-0.5 shadow-inner">
+<span class="material-symbols-outlined text-primary text-[22px]" data-icon="sports_motorsports">sports_motorsports</span>
+<span class="absolute -bottom-1 -right-1 w-4 h-4 bg-tertiary-container text-on-tertiary rounded-full flex items-center justify-center text-[9px] font-bold ring-2 ring-surface">✓</span>
+</div>
+<div>
+<div class="flex items-center space-x-1.5">
+<span class="text-headline-sm font-headline-sm font-bold text-on-surface dark:text-on-surface tracking-tight">La Marseillaise</span>
+</div>
+<div class="flex items-center space-x-1">
+<span class="text-label-sm font-label-sm text-tertiary bg-tertiary-container/20 px-1.5 py-0.2 rounded-full border border-tertiary/20">Partenaire IUSJ</span>
+<span class="text-[10px] text-on-surface-variant font-label-mono tracking-tight">• Douala</span>
+</div>
+</div>
+</div>
+<!-- Trailing: Offline status + Candidate Avatar -->
+<div class="flex items-center space-x-2">
+<!-- Live Offline Sync Status Pill -->
+<div class="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-surface-container-high/90 border border-white/10 text-on-surface glass-pill">
+<span class="relative flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-tertiary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-tertiary animate-pulse-glow"></span>
+</span>
+<span class="text-[11px] font-semibold tracking-tight text-tertiary">Hors ligne</span>
+</div>
+<!-- Trailing Icon Cloud sync status from Shared Components JSON -->
+<button aria-label="État de synchronisation" class="w-9 h-9 rounded-full bg-surface-container-high/80 border border-white/10 flex items-center justify-center text-primary hover:bg-surface-bright/20 transition-transform active:scale-95" type="button">
+<span class="material-symbols-outlined text-[19px]" data-icon="cloud_done">cloud_done</span>
+</button>
+</div>
+</div>
+<!-- Micro Sub-Header Candidate Ribbon -->
+<div class="px-4 py-1.5 bg-surface-container-low/70 border-t border-outline-variant/10 flex items-center justify-between">
+<div class="flex items-center space-x-2">
+<div class="w-5 h-5 rounded-full bg-primary-container text-on-primary-container text-[11px] font-bold flex items-center justify-center">
+            YN
+          </div>
+<span class="text-label-sm font-label-sm text-on-surface">Yvan N. (Cohorte IUSJ B2)</span>
+</div>
+<div class="flex items-center space-x-1">
+<span class="text-[11px] font-label-mono font-semibold px-2 py-0.5 rounded-full bg-secondary-container/20 text-secondary border border-secondary/30 tnum">
+            Permis B • Voiture
+          </span>
+</div>
+</div>
+</header>
+<!-- ========================================== -->
+<!-- MAIN CONTENT CANVAS                        -->
+<!-- ========================================== -->
+<main class="flex-1 px-4 pt-4 pb-32 space-y-4">
+<!-- ========================================== -->
+<!-- 2. 14-DAY FREE TRIAL NOTICE BANNER        -->
+<!-- ========================================== -->
+<section class="relative overflow-hidden rounded-2xl p-4 bg-gradient-to-br from-[#1b1c2e] via-surface-container to-[#1a1829] border border-secondary/30 shadow-lg">
+<!-- Ambient decorative flare -->
+<div class="absolute -right-8 -top-8 w-32 h-32 bg-secondary/15 rounded-full blur-2xl pointer-events-none"></div>
+<div class="relative z-10 space-y-3">
+<!-- Top Row: Badge & Location Chips -->
+<div class="flex items-center justify-between flex-wrap gap-2">
+<div class="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-secondary-container/25 border border-secondary/40 text-secondary">
+<span class="material-symbols-outlined text-[16px] text-secondary" data-icon="hourglass_top">hourglass_top</span>
+<span class="text-label-sm font-label-sm font-bold tracking-tight">Essai gratuit : 11 jours restants</span>
+</div>
+<div class="inline-flex items-center space-x-1 text-[11px] font-label-sm px-2 py-0.5 rounded-full bg-surface-bright/30 border border-white/10 text-on-surface-variant">
+<span class="material-symbols-outlined text-[12px]" data-icon="apartment">apartment</span>
+<span>Secrétariat IUSJ / Agence Centrale</span>
+</div>
+</div>
+<!-- Body message -->
+<p class="text-body-sm font-body-sm text-on-surface">
+            Payez votre 1re tranche (<span class="font-bold text-secondary-fixed tnum">50 000 FCFA</span>) à l'auto-école pour débloquer l'accès illimité aux 24 séries d'examens et sessions pratiques.
+          </p>
+<!-- Micro bottom status pill -->
+<div class="flex items-center justify-between pt-1 border-t border-white/5">
+<span class="text-[11px] text-outline font-label-sm">Validation physique requise</span>
+<div class="flex items-center text-primary text-label-sm font-label-sm font-semibold space-x-1 hover:text-primary-fixed transition-colors">
+<span>Voir les détails de l'agence</span>
+<span class="material-symbols-outlined text-[14px]" data-icon="chevron_right">chevron_right</span>
+</div>
+</div>
+</div>
+</section>
+<!-- ========================================== -->
+<!-- 3. HERO CARD: EXAMEN BLANC OFFICIEL       -->
+<!-- ========================================== -->
+<section class="glass-card-elevated rounded-2xl p-4.5 border border-white/15 relative overflow-hidden">
+<!-- Radial dynamic blue glow -->
+<div class="absolute -left-10 -bottom-10 w-44 h-44 bg-primary-container/20 rounded-full blur-3xl pointer-events-none"></div>
+<div class="relative z-10 space-y-3.5">
+<!-- Card Pill Header -->
+<div class="flex items-center justify-between">
+<div class="flex items-center space-x-1.5">
+<span class="w-2 h-2 rounded-full bg-primary animate-ping"></span>
+<span class="text-label-sm font-label-sm text-primary uppercase tracking-wider font-bold">Évaluation Officielle</span>
+</div>
+<span class="text-[11px] font-label-mono px-2 py-0.5 rounded bg-surface-bright/40 text-on-surface-variant border border-white/10">Code CEMAC 2026</span>
+</div>
+<!-- Title -->
+<div>
+<h2 class="text-headline-md font-headline-md font-bold text-on-surface tracking-tight leading-snug">
+              Examen Blanc Officiel N°1 — Permis B
+            </h2>
+<p class="text-body-sm font-body-sm text-on-surface-variant mt-1">
+              Conforme aux exigences du Ministère des Transports du Cameroun &amp; standards IUSJ.
+            </p>
+</div>
+<!-- Specifications Badge Cluster -->
+<div class="flex items-center flex-wrap gap-2 pt-1">
+<span class="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-surface-container border border-white/10 text-on-surface text-label-sm font-label-sm">
+<span class="material-symbols-outlined text-[15px] text-primary" data-icon="timer">timer</span>
+<span class="tnum font-medium">20 min</span>
+</span>
+<span class="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-surface-container border border-white/10 text-on-surface text-label-sm font-label-sm">
+<span class="material-symbols-outlined text-[15px] text-primary" data-icon="quiz">quiz</span>
+<span class="tnum font-medium">40 questions</span>
+</span>
+<span class="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-tertiary-container/20 border border-tertiary/30 text-tertiary text-label-sm font-label-sm font-semibold">
+<span class="material-symbols-outlined text-[15px]" data-icon="check_circle">check_circle</span>
+<span>Disponible hors ligne</span>
+</span>
+</div>
+<!-- Primary Inviting CTA Button -->
+<button class="w-full h-[52px] rounded-xl bg-gradient-to-r from-primary-container to-inverse-primary text-on-primary font-label-lg text-label-lg font-bold flex items-center justify-center space-x-2 shadow-lg shadow-primary-container/25 active:scale-[0.98] transition-all duration-150 border-t border-white/25" type="button">
+<span>Démarrer le quiz</span>
+<span class="material-symbols-outlined text-[20px]" data-icon="arrow_forward">arrow_forward</span>
+</button>
+</div>
+</section>
+<!-- ========================================== -->
+<!-- 4. SUPPORTS DE COURS (MODE HORS LIGNE)     -->
+<!-- ========================================== -->
+<section class="space-y-3">
+<!-- Section Header with badge -->
+<div class="flex items-center justify-between px-1">
+<div class="flex items-center space-x-2">
+<span class="material-symbols-outlined text-primary text-[20px]" data-icon="folder_zip">folder_zip</span>
+<h3 class="text-headline-sm font-headline-sm font-bold text-on-surface">Supports de Cours</h3>
+</div>
+<span class="text-label-sm font-label-sm px-2.5 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant border border-white/10 font-medium">
+            3 documents disponibles
+          </span>
+</div>
+<!-- Inset List Group -->
+<div class="space-y-2.5">
+<!-- Card 1: Manuel CEMAC (Downloaded) -->
+<div class="glass-card rounded-2xl p-3.5 border border-white/10 flex items-center justify-between transition-all active:scale-[0.99]">
+<div class="flex items-center space-x-3 min-w-0 pr-2">
+<div class="w-11 h-11 rounded-xl bg-primary-container/20 border border-primary/30 flex items-center justify-center flex-shrink-0 text-primary">
+<span class="material-symbols-outlined text-[22px]" data-icon="menu_book">menu_book</span>
+</div>
+<div class="min-w-0">
+<h4 class="text-label-md font-label-md text-on-surface truncate">Manuel Complet du Code de la Route (CEMAC)</h4>
+<div class="flex items-center space-x-2 mt-0.5">
+<span class="text-[11px] font-label-mono text-outline uppercase font-semibold">PDF</span>
+<span class="text-outline text-[11px]">•</span>
+<span class="text-[11px] font-label-mono text-outline tnum">1.8 Mo</span>
+<span class="text-outline text-[11px]">•</span>
+<span class="text-[11px] text-tertiary font-label-sm font-semibold flex items-center space-x-0.5">
+<span class="material-symbols-outlined text-[13px]" data-icon="download_done">download_done</span>
+<span>Téléchargé</span>
+</span>
+</div>
+</div>
+</div>
+<button aria-label="Ouvrir le manuel" class="flex-shrink-0 px-3 py-2 rounded-xl bg-tertiary-container/25 text-tertiary border border-tertiary/30 text-label-sm font-label-sm font-semibold active:scale-95 flex items-center space-x-1" type="button">
+<span class="material-symbols-outlined text-[16px]" data-icon="visibility">visibility</span>
+<span>Lire</span>
+</button>
+</div>
+<!-- Card 2: Panneaux de Signalisation (Downloadable) -->
+<div class="glass-card rounded-2xl p-3.5 border border-white/10 flex items-center justify-between transition-all active:scale-[0.99]">
+<div class="flex items-center space-x-3 min-w-0 pr-2">
+<div class="w-11 h-11 rounded-xl bg-surface-container-high border border-white/10 flex items-center justify-center flex-shrink-0 text-secondary">
+<span class="material-symbols-outlined text-[22px]" data-icon="traffic">traffic</span>
+</div>
+<div class="min-w-0">
+<h4 class="text-label-md font-label-md text-on-surface truncate">Les Panneaux de Signalisation</h4>
+<div class="flex items-center space-x-2 mt-0.5">
+<span class="text-[11px] font-label-mono text-outline uppercase font-semibold">PDF</span>
+<span class="text-outline text-[11px]">•</span>
+<span class="text-[11px] font-label-mono text-outline tnum">620 Ko</span>
+</div>
+</div>
+</div>
+<button class="flex-shrink-0 px-3 py-2 rounded-xl bg-surface-container-high border border-white/10 hover:border-primary/40 text-primary text-label-sm font-label-sm font-semibold active:scale-95 flex items-center space-x-1" type="button">
+<span class="material-symbols-outlined text-[16px]" data-icon="download">download</span>
+<span class="tnum">620 Ko</span>
+</button>
+</div>
+<!-- Card 3: Vidéo Démarrage en côte -->
+<div class="glass-card rounded-2xl p-3.5 border border-white/10 flex items-center justify-between transition-all active:scale-[0.99]">
+<div class="flex items-center space-x-3 min-w-0 pr-2">
+<div class="w-11 h-11 rounded-xl bg-surface-container-high border border-white/10 flex items-center justify-center flex-shrink-0 text-on-surface">
+<span class="material-symbols-outlined text-[22px]" data-icon="smart_display">smart_display</span>
+</div>
+<div class="min-w-0">
+<h4 class="text-label-md font-label-md text-on-surface truncate">Vidéo : Démarrage en côte et créneau</h4>
+<div class="flex items-center space-x-2 mt-0.5">
+<span class="text-[11px] font-label-mono text-outline uppercase font-semibold">Vidéo</span>
+<span class="text-outline text-[11px]">•</span>
+<span class="text-[11px] font-label-mono text-outline tnum">8.4 Mo</span>
+</div>
+</div>
+</div>
+<button class="flex-shrink-0 px-3 py-2 rounded-xl bg-surface-container-high border border-white/10 hover:border-primary/40 text-on-surface text-label-sm font-label-sm font-semibold active:scale-95 flex items-center space-x-1" type="button">
+<span class="material-symbols-outlined text-[16px]" data-icon="download">download</span>
+<span class="tnum">8.4 Mo</span>
+</button>
+</div>
+</div>
+</section>
+<!-- ========================================== -->
+<!-- 5. MON ÉCHÉANCIER & PAIEMENTS (LECTURE)   -->
+<!-- ========================================== -->
+<section class="space-y-3 pt-2">
+<!-- Section Header -->
+<div class="flex items-center justify-between px-1">
+<div class="flex items-center space-x-2">
+<span class="material-symbols-outlined text-secondary text-[20px]" data-icon="account_balance_wallet">account_balance_wallet</span>
+<h3 class="text-headline-sm font-headline-sm font-bold text-on-surface">Mon Échéancier &amp; Paiements</h3>
+</div>
+<span class="text-[11px] font-label-mono px-2 py-0.5 rounded-full bg-outline-variant/30 text-on-surface-variant border border-white/5">
+            Mode Lecture
+          </span>
+</div>
+<!-- Financial Summary Card with Progress Meter -->
+<div class="glass-card rounded-2xl p-4 border border-white/10 space-y-3.5">
+<div class="flex justify-between items-baseline">
+<div>
+<span class="text-[11px] uppercase tracking-wider text-outline font-label-sm">Montant Total Formation</span>
+<p class="text-headline-md font-headline-md font-bold text-on-surface tnum">120 000 FCFA</p>
+</div>
+<div class="text-right">
+<span class="text-[11px] uppercase tracking-wider text-outline font-label-sm">Reste à payer</span>
+<p class="text-headline-md font-headline-md font-bold text-secondary tnum">70 000 FCFA</p>
+</div>
+</div>
+<!-- Custom Specular Progress Bar -->
+<div class="space-y-1.5">
+<div class="w-full h-3 rounded-full bg-surface-container-lowest overflow-hidden p-0.5 border border-white/5 shadow-inner">
+<div class="h-full rounded-full bg-gradient-to-r from-tertiary-container to-tertiary relative transition-all duration-500" style="width: 41.6%;">
+<div class="absolute inset-0 bg-white/20 rounded-full"></div>
+</div>
+</div>
+<div class="flex justify-between items-center text-label-sm font-label-sm text-on-surface-variant tnum">
+<span class="text-tertiary font-semibold">Payé : 50 000 FCFA (41.6%)</span>
+<span>Objectif : 120 000 FCFA</span>
+</div>
+</div>
+<!-- Installment Breakdown Rows (iOS Inset Grouped Table) -->
+<div class="pt-2 border-t border-white/10 space-y-2">
+<!-- Row 1: 1re tranche Payée -->
+<div class="p-3 rounded-xl bg-surface-container-low/80 border border-tertiary/20 flex items-center justify-between">
+<div class="space-y-0.5">
+<div class="flex items-center space-x-2">
+<span class="text-label-md font-label-md font-bold text-on-surface">1re tranche</span>
+<span class="text-[10px] font-label-sm px-1.5 py-0.2 rounded-full bg-tertiary-container/30 text-tertiary border border-tertiary/30 font-semibold">
+                    Payée ✓
+                  </span>
+</div>
+<div class="text-[11px] font-label-mono text-outline">
+                  Validé au secrétariat IUSJ
+                </div>
+<!-- Receipt link button -->
+<a class="inline-flex items-center space-x-1 text-[11px] font-label-sm text-primary hover:underline pt-0.5" href="#receipt">
+<span class="material-symbols-outlined text-[13px]" data-icon="receipt_long">receipt_long</span>
+<span>Reçu LM-2026-000014 (PDF)</span>
+<span class="material-symbols-outlined text-[13px]" data-icon="download">download</span>
+</a>
+</div>
+<div class="text-right">
+<span class="text-body-md font-bold text-on-surface tnum">50 000 FCFA</span>
+</div>
+</div>
+<!-- Row 2: 2e tranche À venir -->
+<div class="p-3 rounded-xl bg-surface-container-low/50 border border-white/5 flex items-center justify-between">
+<div class="space-y-0.5">
+<div class="flex items-center space-x-2">
+<span class="text-label-md font-label-md font-semibold text-on-surface">2e tranche</span>
+<span class="text-[10px] font-label-sm px-1.5 py-0.2 rounded-full bg-surface-bright/40 text-on-surface-variant border border-white/10 font-semibold">
+                    À venir
+                  </span>
+</div>
+<div class="text-[11px] font-label-mono text-outline">
+                  Échéance : 05/12/2026
+                </div>
+</div>
+<div class="text-right">
+<span class="text-body-md font-bold text-outline tnum">40 000 FCFA</span>
+</div>
+</div>
+<!-- Row 3: Solde final -->
+<div class="p-3 rounded-xl bg-surface-container-low/50 border border-white/5 flex items-center justify-between">
+<div class="space-y-0.5">
+<div class="flex items-center space-x-2">
+<span class="text-label-md font-label-md font-semibold text-on-surface">Solde final</span>
+<span class="text-[10px] font-label-sm px-1.5 py-0.2 rounded-full bg-surface-bright/40 text-on-surface-variant border border-white/10 font-semibold">
+                    Avant examen
+                  </span>
+</div>
+<div class="text-[11px] font-label-mono text-outline">
+                  Conditionne le passage pratique
+                </div>
+</div>
+<div class="text-right">
+<span class="text-body-md font-bold text-outline tnum">30 000 FCFA</span>
+</div>
+</div>
+</div>
+<!-- Bottom Notice for Student -->
+<div class="flex items-start space-x-2 pt-1 text-[11px] text-outline">
+<span class="material-symbols-outlined text-[15px] flex-shrink-0 text-secondary" data-icon="info">info</span>
+<span>Les reçus officiels portant le cachet de La Marseillaise sont seuls valables pour l'inscription à la session d'examen d'État.</span>
+</div>
+</div>
+</section>
+</main>
+<!-- ========================================== -->
+<!-- 6. BOTTOM NAVIGATION BAR (Shared Component)-->
+<!-- ========================================== -->
+<!-- Destination count: 4, Active logic: "Accueil" is active for this hub -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-2 pb-6 max-w-md mx-auto left-0 right-0 bg-surface-container-high/85 dark:bg-surface-container-high/85 backdrop-blur-2xl rounded-t-xl shadow-2xl border-t border-outline-variant/20 dark:border-outline-variant/20">
+<!-- Tab 1: Accueil (ACTIVE) -->
+<a aria-current="page" class="flex flex-col items-center justify-center text-primary dark:text-primary font-semibold transition-transform active:scale-95 py-1 px-3" href="#accueil">
+<div class="relative flex flex-col items-center">
+<span class="material-symbols-outlined text-[24px]" data-icon="home" data-weight="fill" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="text-label-sm font-label-sm mt-0.5">Accueil</span>
+<!-- Active pip indicator -->
+<span class="w-1.5 h-1.5 rounded-full bg-primary mt-0.5"></span>
+</div>
+</a>
+<!-- Tab 2: Cours (INACTIVE) -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-on-surface-variant hover:text-on-surface dark:hover:text-on-surface transition-colors active:scale-95 py-1 px-3" href="#cours">
+<span class="material-symbols-outlined text-[24px]" data-icon="menu_book">menu_book</span>
+<span class="text-label-sm font-label-sm mt-0.5">Cours</span>
+<span class="w-1.5 h-1.5 opacity-0 mt-0.5"></span>
+</a>
+<!-- Tab 3: Quiz (INACTIVE) -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-on-surface-variant hover:text-on-surface dark:hover:text-on-surface transition-colors active:scale-95 py-1 px-3" href="#quiz">
+<span class="material-symbols-outlined text-[24px]" data-icon="quiz">quiz</span>
+<span class="text-label-sm font-label-sm mt-0.5">Quiz</span>
+<span class="w-1.5 h-1.5 opacity-0 mt-0.5"></span>
+</a>
+<!-- Tab 4: Paiements (INACTIVE) -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-on-surface-variant hover:text-on-surface dark:hover:text-on-surface transition-colors active:scale-95 py-1 px-3" href="#paiements">
+<span class="material-symbols-outlined text-[24px]" data-icon="account_balance_wallet">account_balance_wallet</span>
+<span class="text-label-sm font-label-sm mt-0.5">Paiements</span>
+<span class="w-1.5 h-1.5 opacity-0 mt-0.5"></span>
+</a>
+</nav>
+</div>
+</body></html>
