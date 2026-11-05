@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+
+<html lang="fr"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_stack" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{width:100vw;margin:0;padding:0;}body{overscroll-behavior:none;font-family:'Inter',sans-serif;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "on-surface": "#181c20", "on-tertiary-fixed-variant": "#005312", "outline": "#737781", "background": "#f7f9ff", "primary": "#00376f", "surface-container-lowest": "#ffffff", "on-secondary-fixed-variant": "#633f00", "error": "#ba1a1a", "on-tertiary-fixed": "#002204", "tertiary": "#00420c", "on-secondary": "#ffffff", "surface": "#f7f9ff", "on-primary-container": "#9ec1ff", "secondary-fixed-dim": "#ffb955", "inverse-on-surface": "#eef1f6", "on-primary": "#ffffff", "on-primary-fixed": "#001b3d", "inverse-surface": "#2d3135", "on-tertiary": "#ffffff", "secondary": "#835500", "primary-container": "#1f4e8c", "surface-variant": "#e0e3e8", "on-error": "#ffffff", "error-container": "#ffdad6", "on-tertiary-container": "#82d37d", "on-surface-variant": "#434750", "tertiary-container": "#005c15", "surface-bright": "#f7f9ff", "inverse-primary": "#a9c7ff", "primary-fixed": "#d6e3ff", "on-secondary-container": "#6b4500", "on-secondary-fixed": "#291800", "on-background": "#181c20", "on-error-container": "#93000a", "primary-fixed-dim": "#a9c7ff", "surface-dim": "#d7dadf", "surface-tint": "#335f9d", "secondary-fixed": "#ffddb4", "on-primary-fixed-variant": "#144684", "surface-container": "#ebeef3", "tertiary-fixed": "#a3f69c", "surface-container-high": "#e5e8ee", "outline-variant": "#c3c6d2", "tertiary-fixed-dim": "#88d982", "surface-container-highest": "#e0e3e8", "secondary-container": "#feae2c", "surface-container-low": "#f1f4f9" }, "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, "spacing": { "space-xs": "0.25rem", "margin": "1rem", "gutter": "1rem", "space-xl": "2rem", "space-sm": "0.5rem", "space-md": "1rem", "space-lg": "1.5rem" }, "fontFamily": { "body-md": ["Inter"], "body-lg": ["Inter"], "headline-lg": ["Inter"], "display-lg": ["Inter"], "body-md-bold": ["Inter"], "headline-md": ["Inter"], "label-md": ["Inter"], "label-sm": ["Inter"], "headline-sm": ["Inter"], "body-lg-bold": ["Inter"] }, "fontSize": { "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }], "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }], "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700" }], "display-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }], "body-md-bold": ["14px", { "lineHeight": "20px", "fontWeight": "600" }], "headline-md": ["20px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600" }], "label-md": ["13px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }], "label-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "700" }], "headline-sm": ["18px", { "lineHeight": "24px", "fontWeight": "600" }], "body-lg-bold": ["16px", { "lineHeight": "24px", "fontWeight": "600" }] } } } };</script><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface font-body-md text-on-surface flex flex-col min-h-screen"><header class="fixed top-0 inset-x-0 z-50 bg-surface/85 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] pt-safe"><div class="h-16 px-margin flex items-center justify-between gap-space-sm"><div class="flex items-center gap-space-xs min-w-0 flex-1"><button aria-label="Rapports et Direction" class="min-w-[48px] min-h-[48px] -ml-2 flex items-center gap-1 px-space-xs text-primary hover:text-primary-container transition-colors rounded-lg" onclick="history.back()"><span class="material-symbols-outlined text-[22px]">arrow_back</span><span class="font-label-md text-label-md hidden sm:inline truncate">Rapports &amp; Direction</span></button><div class="flex flex-col min-w-0 pr-space-xs"><span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider hidden xs:block truncate">Auto-école La Marseillaise</span><h1 class="font-headline-sm text-headline-sm text-on-surface font-bold truncate">Rapport Mensuel Des Recettes</h1></div></div><div class="flex items-center gap-space-xs shrink-0"><button aria-label="Exporter ou imprimer le rapport" class="w-12 h-12 flex items-center justify-center text-on-surface-variant hover:text-primary rounded-lg transition-colors"><span class="material-symbols-outlined text-[24px]">print</span></button><button aria-label="Partager ou exporter le PDF" class="w-12 h-12 flex items-center justify-center text-on-surface-variant hover:text-primary rounded-lg transition-colors"><span class="material-symbols-outlined text-[24px]">ios_share</span></button><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center ml-1 shrink-0"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="flex flex-col relative w-full pt-16 bg-surface flex-1 pb-safe"><div class="flex flex-col w-full pb-12 space-y-space-md">
+<!-- Offline / Sync Status Notification Banner (Brand Requirement) -->
+<aside class="mx-margin mt-space-sm bg-surface-container-low rounded-xl p-space-sm shadow-sm flex items-center justify-between gap-space-sm" role="status">
+<div class="flex items-center gap-space-xs min-w-0">
+<span class="material-symbols-outlined text-tertiary text-[20px] shrink-0" style="font-variation-settings: 'FILL' 1;">cloud_done</span>
+<p class="font-label-sm text-label-sm text-on-surface truncate">
+        Comptabilité en ligne • Caisse Bastos &amp; Yaoundé Centre synchronisées
+      </p>
+</div>
+<span class="font-label-sm text-label-sm text-tertiary-container bg-tertiary-fixed font-bold px-2 py-0.5 rounded-full shrink-0">
+      Direct
+    </span>
+</aside>
+<!-- School Legal Accreditation & Regulatory Header Strip -->
+<section aria-label="Agrément et Direction" class="mx-margin bg-surface-container-lowest rounded-xl p-space-md shadow-sm space-y-space-xs">
+<div class="flex items-start justify-between gap-2">
+<div class="flex items-center gap-2">
+<span class="w-9 h-9 rounded-lg bg-primary-fixed flex items-center justify-center text-primary shrink-0">
+<span class="material-symbols-outlined text-[20px]">verified</span>
+</span>
+<div class="min-w-0">
+<span class="font-label-sm text-label-sm text-secondary uppercase font-bold tracking-wider block truncate">
+            Agrément MINTRANS N° 00412/MINT/DTT
+          </span>
+<h2 class="font-headline-sm text-headline-sm text-on-surface font-bold truncate">
+            Auto-école La Marseillaise
+          </h2>
+</div>
+</div>
+<span class="inline-flex items-center gap-1 bg-tertiary-fixed text-on-tertiary-fixed-variant px-2.5 py-1 rounded-full text-label-sm font-label-sm font-bold shrink-0">
+<span class="material-symbols-outlined text-[14px]">shield</span>
+        Certifié
+      </span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant flex items-center gap-1.5 pt-1">
+<span class="material-symbols-outlined text-outline text-[16px]">domain</span>
+<span>Antennes Bastos &amp; Yaoundé Centre (Immeuble Jaco)</span>
+</p>
+</section>
+<!-- Month Period Switcher & State Controls -->
+<section aria-label="Sélection de la période" class="mx-margin flex flex-col gap-space-xs">
+<div class="bg-surface-container-lowest rounded-xl p-space-sm shadow-sm flex items-center justify-between">
+<button aria-label="Mois précédent: Novembre 2024" class="w-12 h-12 flex items-center justify-center text-on-surface-variant hover:text-primary active:scale-95 transition-transform rounded-lg" type="button">
+<span class="material-symbols-outlined text-[24px]">chevron_left</span>
+</button>
+<div class="flex flex-col items-center text-center">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-primary text-[18px]">calendar_month</span>
+<span class="font-headline-sm text-headline-sm text-primary font-bold">Décembre 2024</span>
+</div>
+<span class="font-label-sm text-label-sm text-secondary-container bg-surface-container font-bold px-2 py-0.5 rounded-full mt-1">
+          Clôture partielle au 24/12
+        </span>
+</div>
+<button aria-label="Mois suivant: Janvier 2025" class="w-12 h-12 flex items-center justify-center text-on-surface-variant hover:text-primary active:scale-95 transition-transform rounded-lg" type="button">
+<span class="material-symbols-outlined text-[24px]">chevron_right</span>
+</button>
+</div>
+</section>
+<!-- Hero KPI Banner Card: Total Recettes Encaissées -->
+<section class="mx-margin bg-primary text-on-primary rounded-xl p-space-lg shadow-md relative overflow-hidden">
+<!-- Faint aesthetic glow pattern -->
+<div class="absolute -right-8 -bottom-8 w-44 h-44 rounded-full bg-primary-container opacity-40 pointer-events-none blur-2xl"></div>
+<div class="relative z-10 space-y-space-md">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-on-primary-container uppercase font-bold tracking-wider">
+          Total Recettes Encaissées
+        </span>
+<span class="inline-flex items-center gap-1 bg-tertiary-fixed text-on-tertiary-fixed-variant px-2.5 py-0.5 rounded-full text-label-sm font-label-sm font-bold">
+<span class="material-symbols-outlined text-[14px]">trending_up</span>
+          +14.2% vs Nov
+        </span>
+</div>
+<div class="space-y-1">
+<div class="flex items-baseline gap-2">
+<span class="font-display-lg text-display-lg font-bold text-on-primary tracking-tight">9 450 000</span>
+<span class="font-headline-sm text-headline-sm text-on-primary-container font-semibold">FCFA</span>
+</div>
+<p class="font-body-md text-body-md text-on-primary-container">
+          Objectif de trésorerie mensuel: <strong class="text-on-primary font-bold">10 000 000 FCFA</strong>
+</p>
+</div>
+<!-- Linear Gauge / Progress bar -->
+<div class="space-y-1.5 pt-1">
+<div class="flex justify-between items-center text-label-sm font-label-sm text-on-primary-container">
+<span>Taux de réalisation objectif</span>
+<span class="font-bold text-on-primary">94.5%</span>
+</div>
+<div class="w-full h-3 bg-on-primary/20 rounded-full overflow-hidden p-0.5">
+<div class="h-full bg-secondary-fixed-dim rounded-full transition-all duration-500" style="width: 94.5%;"></div>
+</div>
+</div>
+</div>
+</section>
+<!-- Secondary Executive KPI Grid (Dossiers & Recouvrement) -->
+<section aria-label="Indicateurs de dossiers et recouvrement" class="mx-margin grid grid-cols-2 gap-space-sm">
+<!-- Candidates card -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm space-y-2 flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-on-surface-variant font-bold uppercase tracking-wider">
+          Nouveaux Inscrits
+        </span>
+<span class="w-8 h-8 rounded-lg bg-surface-container-high flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[18px]">group_add</span>
+</span>
+</div>
+<div>
+<p class="font-headline-lg text-headline-lg font-bold text-on-surface">64</p>
+<p class="font-label-sm text-label-sm text-tertiary font-bold flex items-center gap-0.5 pt-0.5">
+<span class="material-symbols-outlined text-[14px]">check_circle</span>
+          +11 dossiers (Bastos)
+        </p>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">
+        Moyenne: 147 650 F/candidat
+      </span>
+</div>
+<!-- Outstanding debt card -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm space-y-2 flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-on-surface-variant font-bold uppercase tracking-wider">
+          Reste à Recouvrer
+        </span>
+<span class="w-8 h-8 rounded-lg bg-secondary-fixed flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-[18px]">hourglass_top</span>
+</span>
+</div>
+<div>
+<p class="font-headline-sm text-headline-sm font-bold text-secondary">2 350 000 <span class="text-label-sm font-normal">F</span></p>
+<p class="font-label-sm text-label-sm text-on-surface-variant pt-0.5">
+          Taux recouvré: <strong class="text-tertiary">80.1%</strong>
+</p>
+</div>
+<span class="font-label-sm text-label-sm text-outline">
+        Tranches 2 &amp; 3 en attente
+      </span>
+</div>
+</section>
+<!-- Visual Break / Atmosphere Banner with Photographic Insight -->
+<section class="mx-margin relative rounded-xl overflow-hidden shadow-sm">
+<div class="h-32 w-full bg-cover bg-center" data-alt="A clean modern driving school office in Yaoundé Cameroon with learner drivers in front of branded white training dual-control sedans under warm tropical sunlight, instructors in blue branded polos reviewing clipboards outside Bastos academy" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDv1UbGteWwlR1m17KIoSDqrjiUddA2NPZOw3MIQME2J2jlQIi-4JC9yIG4EW_M9RSsfXK7aSNwCxMWZHQrNO5tjXp6pFXcQ-LJKGVSKDTNZEZBCbQfG8HRqF4mbAWF78jqIXwVQ3h5ry6FYnBP0Xdhqigrzu95cqgKe7haP9m_oPG9uORCBkzSYVcJl-TpIVgeZH0L-Vs0rC1EoUUL5J6u0sNbD5LUeORtGUBTR5wY')"></div>
+<div class="absolute inset-0 bg-primary/80 flex items-center justify-between p-space-md text-on-primary">
+<div class="min-w-0 pr-space-sm">
+<p class="font-label-sm text-label-sm uppercase font-bold text-on-primary-container tracking-wider">Flotte &amp; Moniteurs Actifs</p>
+<h3 class="font-headline-sm text-headline-sm font-bold text-on-primary truncate">12 Véhicules Double Commande</h3>
+<p class="font-label-md text-label-md text-on-primary-container line-clamp-1">8 Moniteurs certifiés DTT en exercice continu</p>
+</div>
+<span class="w-12 h-12 rounded-xl bg-surface-container-lowest text-primary flex items-center justify-center shrink-0 shadow-md">
+<span class="material-symbols-outlined text-[24px]">directions_car</span>
+</span>
+</div>
+</section>
+<!-- Payment Channels Breakdown (MoMo, Espèces, Orange Money) -->
+<section aria-label="Canaux de règlement" class="mx-margin bg-surface-container-lowest rounded-xl p-space-md shadow-sm space-y-space-md">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-8 h-8 rounded-lg bg-surface-container-high flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[20px]">account_balance_wallet</span>
+</span>
+<h3 class="font-headline-sm text-headline-sm text-on-surface font-bold">Répartition par Moyen d'Encaissement</h3>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant font-semibold">100% rapproché</span>
+</div>
+<!-- Channels List -->
+<div class="space-y-space-sm">
+<!-- MTN Mobile Money -->
+<div class="bg-surface-container-low rounded-xl p-space-sm space-y-2">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2.5">
+<span class="w-9 h-9 rounded-full bg-secondary-fixed text-on-secondary-fixed flex items-center justify-center font-bold text-label-sm">
+              MoMo
+            </span>
+<div>
+<p class="font-body-md-bold text-body-md-bold text-on-surface">MTN Mobile Money (*126#)</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Merchant ID: 671 20 44 11 • Bastos</p>
+</div>
+</div>
+<div class="text-right">
+<p class="font-body-lg-bold text-body-lg-bold text-on-surface">4 250 000 F</p>
+<span class="font-label-sm text-label-sm font-bold text-secondary">45% du total</span>
+</div>
+</div>
+<div class="w-full h-2 bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-secondary-container rounded-full" style="width: 45%;"></div>
+</div>
+</div>
+<!-- Espèces Guichet Bastos -->
+<div class="bg-surface-container-low rounded-xl p-space-sm space-y-2">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2.5">
+<span class="w-9 h-9 rounded-full bg-tertiary-fixed text-on-tertiary-fixed-variant flex items-center justify-center font-bold text-label-sm">
+<span class="material-symbols-outlined text-[18px]">payments</span>
+</span>
+<div>
+<p class="font-body-md-bold text-body-md-bold text-on-surface">Espèces en Caisse (Guichet Bastos)</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Reçus souche DGI physique émis</p>
+</div>
+</div>
+<div class="text-right">
+<p class="font-body-lg-bold text-body-lg-bold text-on-surface">3 650 000 F</p>
+<span class="font-label-sm text-label-sm font-bold text-tertiary">39% du total</span>
+</div>
+</div>
+<div class="w-full h-2 bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-tertiary-container rounded-full" style="width: 39%;"></div>
+</div>
+</div>
+<!-- Orange Money Cameroun -->
+<div class="bg-surface-container-low rounded-xl p-space-sm space-y-2">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2.5">
+<span class="w-9 h-9 rounded-full bg-error-container text-on-error-container flex items-center justify-center font-bold text-label-sm">
+              OM
+            </span>
+<div>
+<p class="font-body-md-bold text-body-md-bold text-on-surface">Orange Money Cameroun (*150#)</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Marchand Pro: 699 44 88 02</p>
+</div>
+</div>
+<div class="text-right">
+<p class="font-body-lg-bold text-body-lg-bold text-on-surface">1 550 000 F</p>
+<span class="font-label-sm text-label-sm font-bold text-error">16% du total</span>
+</div>
+</div>
+<div class="w-full h-2 bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-error rounded-full" style="width: 16%;"></div>
+</div>
+</div>
+</div>
+<!-- Bank Reconciliation Badge -->
+<div class="bg-surface-container p-space-sm rounded-xl flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-primary text-[22px] shrink-0">account_balance</span>
+<p class="font-label-md text-label-md text-on-surface-variant leading-snug">
+<strong class="text-on-surface font-bold">Réconciliation bancaire 100% OK :</strong> Fonds digitaux reversés sur le compte <strong class="text-primary font-bold">BICEC Agence Centrale</strong> (Ref. VRMT-2412-YAO).
+      </p>
+</div>
+</section>
+<!-- Revenue Breakdown by License Category (Permis A, B, C, D) -->
+<section aria-label="Chiffre d'affaires par permis" class="mx-margin bg-surface-container-lowest rounded-xl p-space-md shadow-sm space-y-space-md">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-8 h-8 rounded-lg bg-primary-fixed flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[20px]">badge</span>
+</span>
+<h3 class="font-headline-sm text-headline-sm text-on-surface font-bold">Chiffre d'Affaires par Permis</h3>
+</div>
+<span class="font-label-sm text-label-sm text-primary font-bold bg-primary-fixed px-2 py-0.5 rounded-full">
+        4 Catégories
+      </span>
+</div>
+<div class="space-y-space-sm">
+<!-- Permis B -->
+<div class="bg-surface-container-low rounded-xl p-space-sm flex items-center justify-between gap-space-sm">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="w-10 h-10 rounded-xl bg-primary text-on-primary flex items-center justify-center font-bold text-headline-sm shrink-0">
+            B
+          </div>
+<div class="min-w-0">
+<h4 class="font-body-md-bold text-body-md-bold text-on-surface truncate">Permis B (Tourisme / Particuliers)</h4>
+<p class="font-label-sm text-label-sm text-on-surface-variant truncate">39 candidats • Forfait standard 150 000 F</p>
+</div>
+</div>
+<div class="text-right shrink-0">
+<p class="font-body-lg-bold text-body-lg-bold text-primary font-bold">5 850 000 F</p>
+<span class="font-label-sm text-label-sm text-on-surface-variant">61.9%</span>
+</div>
+</div>
+<!-- Permis C -->
+<div class="bg-surface-container-low rounded-xl p-space-sm flex items-center justify-between gap-space-sm">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="w-10 h-10 rounded-xl bg-primary-container text-on-primary flex items-center justify-center font-bold text-headline-sm shrink-0">
+            C
+          </div>
+<div class="min-w-0">
+<h4 class="font-body-md-bold text-body-md-bold text-on-surface truncate">Permis C (Poids Lourd / Transport)</h4>
+<p class="font-label-sm text-label-sm text-on-surface-variant truncate">10 candidats • Forfait lourd 220 000 F</p>
+</div>
+</div>
+<div class="text-right shrink-0">
+<p class="font-body-lg-bold text-body-lg-bold text-on-surface font-bold">2 200 000 F</p>
+<span class="font-label-sm text-label-sm text-on-surface-variant">23.3%</span>
+</div>
+</div>
+<!-- Permis A -->
+<div class="bg-surface-container-low rounded-xl p-space-sm flex items-center justify-between gap-space-sm">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="w-10 h-10 rounded-xl bg-secondary text-on-secondary flex items-center justify-center font-bold text-headline-sm shrink-0">
+            A
+          </div>
+<div class="min-w-0">
+<h4 class="font-body-md-bold text-body-md-bold text-on-surface truncate">Permis A (Motos &amp; Tricycles)</h4>
+<p class="font-label-sm text-label-sm text-on-surface-variant truncate">12 candidats • Forfait rapide 75 000 F</p>
+</div>
+</div>
+<div class="text-right shrink-0">
+<p class="font-body-lg-bold text-body-lg-bold text-on-surface font-bold">900 000 F</p>
+<span class="font-label-sm text-label-sm text-on-surface-variant">9.5%</span>
+</div>
+</div>
+<!-- Permis D & VIP -->
+<div class="bg-surface-container-low rounded-xl p-space-sm flex items-center justify-between gap-space-sm">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="w-10 h-10 rounded-xl bg-tertiary-container text-on-tertiary flex items-center justify-center font-bold text-headline-sm shrink-0">
+            D
+          </div>
+<div class="min-w-0">
+<h4 class="font-body-md-bold text-body-md-bold text-on-surface truncate">Permis D &amp; Perfectionnement VIP</h4>
+<p class="font-label-sm text-label-sm text-on-surface-variant truncate">3 inscrits • Cours horaires spécifiques</p>
+</div>
+</div>
+<div class="text-right shrink-0">
+<p class="font-body-lg-bold text-body-lg-bold text-on-surface font-bold">500 000 F</p>
+<span class="font-label-sm text-label-sm text-on-surface-variant">5.3%</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Weekly Evolution Visual (Custom CSS & SVG Column Chart) -->
+<section aria-label="Progression hebdomadaire" class="mx-margin bg-surface-container-lowest rounded-xl p-space-md shadow-sm space-y-space-md">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-8 h-8 rounded-lg bg-surface-container-high flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[20px]">bar_chart</span>
+</span>
+<h3 class="font-headline-sm text-headline-sm text-on-surface font-bold">Évolution Hebdomadaire (FCFA)</h3>
+</div>
+<span class="font-label-sm text-label-sm text-tertiary font-bold">Rythme soutenu</span>
+</div>
+<!-- Styled SVG / HTML Bar Representation -->
+<div class="pt-2">
+<div class="grid grid-cols-4 gap-2 items-end h-40 bg-surface-container-low rounded-xl p-space-sm">
+<!-- Week 1 -->
+<div class="flex flex-col items-center h-full justify-end gap-1.5 group">
+<span class="font-label-sm text-label-sm font-bold text-on-surface-variant">2.1M</span>
+<div class="w-full bg-primary-fixed rounded-t-lg transition-all" style="height: 75%;"></div>
+<span class="font-label-sm text-label-sm text-outline font-semibold">Sem 1</span>
+</div>
+<!-- Week 2 -->
+<div class="flex flex-col items-center h-full justify-end gap-1.5 group">
+<span class="font-label-sm text-label-sm font-bold text-on-surface-variant">2.45M</span>
+<div class="w-full bg-primary-fixed rounded-t-lg transition-all" style="height: 87%;"></div>
+<span class="font-label-sm text-label-sm text-outline font-semibold">Sem 2</span>
+</div>
+<!-- Week 3 (Peak) -->
+<div class="flex flex-col items-center h-full justify-end gap-1.5 group">
+<span class="font-label-sm text-label-sm font-bold text-primary">2.8M</span>
+<div class="w-full bg-primary rounded-t-lg transition-all" style="height: 100%;"></div>
+<span class="font-label-sm text-label-sm text-primary font-bold">Sem 3</span>
+</div>
+<!-- Week 4 (In Progress) -->
+<div class="flex flex-col items-center h-full justify-end gap-1.5 group">
+<span class="font-label-sm text-label-sm font-bold text-secondary">2.1M*</span>
+<div class="w-full bg-secondary-fixed-dim rounded-t-lg transition-all" style="height: 75%;"></div>
+<span class="font-label-sm text-label-sm text-secondary font-bold">Sem 4</span>
+</div>
+</div>
+<p class="font-label-sm text-label-sm text-on-surface-variant text-center pt-2">
+        *Semaine 4 en cours d'enregistrement (jusqu'au 31 décembre 2024)
+      </p>
+</div>
+</section>
+<!-- Payment Installment Health & Collection Alert (Suivi des Tranches) -->
+<section aria-label="Suivi des Tranches" class="mx-margin bg-surface-container-lowest rounded-xl p-space-md shadow-sm space-y-space-md">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-8 h-8 rounded-lg bg-surface-container-high flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[20px]">layers</span>
+</span>
+<h3 class="font-headline-sm text-headline-sm text-on-surface font-bold">Santé du Recouvrement par Tranche</h3>
+</div>
+</div>
+<div class="space-y-space-xs">
+<!-- Tranche 1 -->
+<div class="flex items-center justify-between p-space-xs">
+<div class="flex items-center gap-2 min-w-0">
+<span class="w-2.5 h-2.5 rounded-full bg-tertiary"></span>
+<span class="font-body-md text-body-md text-on-surface truncate">Tranche 1 (Acompte inscription / Code)</span>
+</div>
+<span class="font-body-md-bold text-body-md-bold text-on-surface shrink-0">3 200 000 FCFA</span>
+</div>
+<!-- Tranche 2 -->
+<div class="flex items-center justify-between p-space-xs">
+<div class="flex items-center gap-2 min-w-0">
+<span class="w-2.5 h-2.5 rounded-full bg-primary"></span>
+<span class="font-body-md text-body-md text-on-surface truncate">Tranche 2 (Mi-parcours / Pratique volant)</span>
+</div>
+<span class="font-body-md-bold text-body-md-bold text-on-surface shrink-0">3 950 000 FCFA</span>
+</div>
+<!-- Tranche 3 -->
+<div class="flex items-center justify-between p-space-xs">
+<div class="flex items-center gap-2 min-w-0">
+<span class="w-2.5 h-2.5 rounded-full bg-secondary"></span>
+<span class="font-body-md text-body-md text-on-surface truncate">Tranche 3 (Frais présentation examen DTT)</span>
+</div>
+<span class="font-body-md-bold text-body-md-bold text-on-surface shrink-0">2 300 000 FCFA</span>
+</div>
+</div>
+<!-- Alert / Overdue Debt Callout -->
+<div class="bg-error-container text-on-error-container rounded-xl p-space-md flex items-start justify-between gap-space-sm">
+<div class="flex items-start gap-2.5 min-w-0">
+<span class="material-symbols-outlined text-error text-[22px] shrink-0 mt-0.5">warning</span>
+<div>
+<p class="font-body-md-bold text-body-md-bold text-error">8 Dossiers en retard de paiement (&gt;15j)</p>
+<p class="font-label-sm text-label-sm text-on-error-container">Total dû en attente: 420 000 FCFA sur la pratique</p>
+</div>
+</div>
+<button class="shrink-0 font-label-sm text-label-sm text-error font-bold underline py-1" type="button">
+        Relancer
+      </button>
+</div>
+</section>
+<!-- Certification Sign-off & Audit Note -->
+<section aria-label="Signatures officielles" class="mx-margin bg-surface-container-low rounded-xl p-space-md shadow-sm space-y-space-sm">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-outline uppercase font-bold tracking-wider">
+        Contrôle Interne &amp; Clôture
+      </span>
+<span class="material-symbols-outlined text-tertiary text-[20px]">assignment_turned_in</span>
+</div>
+<div class="flex items-center gap-3 pt-1">
+<div class="w-12 h-12 rounded-full overflow-hidden shrink-0">
+<img class="w-full h-full object-cover" data-alt="Official round circular verification stamp and seal of the Director of Driving School Auto-ecole La Marseillaise Bastos Yaounde Republic of Cameroon in dark navy ink" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCkgM2tAzFNYCk4J4MjgRbclEmKK41pSQjQy_xN_zgQJd2Gv1d1RBlSEqgKQ1On3nREEYzlAB4zDj02AcOGtCBI35MOB9a1phclGxziEKw7N_S4BqZ92Es67GeDEZhFin9MxvLPMQP2LgMiy_P6P9bJ4p8y9MspkB_5m8yISOZ9wVY6nX7uKBmRHqFX6q2AKIjWXRzzhwQMw8acA-nRD5qXm1ulPlVzgccQPefYip3X"/>
+</div>
+<div class="min-w-0">
+<p class="font-body-md-bold text-body-md-bold text-on-surface truncate">
+          Rapport arrêté &amp; validé
+        </p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">
+          Signé par: <strong>Direction Générale</strong> &amp; <strong>Mama Célestine</strong> (Caisse Principale)
+        </p>
+</div>
+</div>
+</section>
+<!-- Executive Action Buttons (Export PDF & Share WhatsApp) -->
+<section aria-label="Actions exécutives" class="mx-margin pt-space-xs space-y-space-sm">
+<!-- Primary PDF Export -->
+<button class="w-full h-[52px] bg-primary text-on-primary rounded-xl font-body-lg-bold text-body-lg-bold flex items-center justify-center gap-2 shadow-md active:bg-primary-container transition-colors" type="button">
+<span class="material-symbols-outlined text-[20px]">picture_as_pdf</span>
+<span>Télécharger le Rapport Financier PDF</span>
+</button>
+<!-- Secondary WhatsApp Share to Partners -->
+<button class="w-full h-[52px] bg-surface-container-lowest text-primary rounded-xl font-body-lg-bold text-body-lg-bold flex items-center justify-center gap-2 shadow-sm hover:bg-surface-container transition-colors" type="button">
+<span class="material-symbols-outlined text-tertiary text-[20px]">share</span>
+<span>Envoyer la Synthèse WhatsApp aux Associés</span>
+</button>
+</section>
+</div>
+<script>
+  // Simple micro-interaction for touch feedback on summary badges
+  document.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('touchstart', () => btn.classList.add('opacity-90'), { passive: true });
+    btn.addEventListener('touchend', () => btn.classList.remove('opacity-90'), { passive: true });
+  });
+</script></main></body></html>

@@ -8,212 +8,250 @@ import { ApiService } from '../services/api.service';
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="min-h-[100dvh] bg-[#F4F7FB] flex flex-col justify-between px-4 py-6 max-w-md mx-auto">
-      <!-- Top Brand Hero (AEM Clair — Bleu Marseillaise) -->
-      <div>
-        <div class="flex items-center justify-between mb-5">
-          <div class="flex items-center gap-3">
-            <img src="/aem-icon.svg" alt="AEM Logo" class="w-12 h-12 rounded-2xl shadow-sm" />
-            <div>
-              <div class="flex items-center gap-1.5">
-                <span class="text-[11px] font-bold tracking-wider uppercase text-[#D94E28]">LA MARSEILLAISE</span>
-                <span class="text-[#EAB308] text-xs">★</span>
-              </div>
-              <h1 class="text-xl font-extrabold text-[#0F1E36] tracking-tight leading-none">
-                Auto-École <span class="text-[#3D8BCD]">AEM</span>
-              </h1>
-              <p class="text-xs text-[#4A607A] mt-0.5">Cameroun • Permis A, B, C, D</p>
+    <div class="min-h-[100dvh] bg-surface text-on-surface flex flex-col justify-between max-w-md mx-auto pb-safe">
+      <!-- Top Frosted Header (Clarté Routière + Bleu Marseillaise) -->
+      <header class="sticky top-0 z-40 bg-surface-container-lowest/90 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] px-4 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <img src="/aem-icon.svg" alt="AEM Logo" class="w-10 h-10 rounded-xl shadow-xs" />
+          <div>
+            <div class="flex items-center gap-1">
+              <span class="material-symbols-outlined text-primary text-[16px]">verified</span>
+              <span class="text-[11px] font-bold uppercase tracking-wider text-primary">Auto-école La Marseillaise</span>
             </div>
+            <h1 class="text-sm font-extrabold text-on-surface leading-tight">
+              Yaoundé Bastos &amp; Douala Akwa
+            </h1>
           </div>
-
-          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[#E8F2FC] text-[#2B6CA8] border border-[#3D8BCD]/20">
-            <span class="w-1.5 h-1.5 rounded-full bg-[#3D8BCD]"></span>
-            14j Essai Gratuit
-          </span>
         </div>
+        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-primary-fixed text-on-primary-fixed-variant">
+          <span class="material-symbols-outlined text-[14px]">timer</span>
+          14j Gratuits
+        </span>
+      </header>
 
-        <!-- Mode Segmented Control (Apple Light Style) -->
-        <div class="grid grid-cols-3 gap-1 p-1 rounded-2xl bg-[#E8EEF6] border border-[#CBD5E1]/70 mb-5">
+      <main class="flex-1 px-4 pt-4 space-y-4">
+        <!-- Segmented Switcher -->
+        <div class="grid grid-cols-3 gap-1 p-1 rounded-2xl bg-surface-container border border-outline-variant/40">
           <button
             type="button"
             (click)="switchMode('login')"
             [class]="mode() === 'login'
-              ? 'py-2.5 px-2 rounded-xl text-xs font-bold bg-white text-[#0F1E36] shadow-sm transition-all'
-              : 'py-2.5 px-2 rounded-xl text-xs font-semibold text-[#4A607A] transition-all'"
+              ? 'min-h-[44px] px-2 rounded-xl text-xs font-bold bg-surface-container-lowest text-primary shadow-sm flex items-center justify-center gap-1 transition-all'
+              : 'min-h-[44px] px-2 rounded-xl text-xs font-semibold text-on-surface-variant flex items-center justify-center gap-1 transition-all'"
           >
-            Connexion
+            <span class="material-symbols-outlined text-[16px]">login</span>
+            <span>Connexion</span>
           </button>
           <button
             type="button"
             (click)="switchMode('register')"
             [class]="mode() === 'register'
-              ? 'py-2.5 px-2 rounded-xl text-xs font-bold bg-white text-[#3D8BCD] shadow-sm transition-all'
-              : 'py-2.5 px-2 rounded-xl text-xs font-semibold text-[#4A607A] transition-all'"
+              ? 'min-h-[44px] px-2 rounded-xl text-xs font-bold bg-surface-container-lowest text-primary shadow-sm flex items-center justify-center gap-1 transition-all'
+              : 'min-h-[44px] px-2 rounded-xl text-xs font-semibold text-on-surface-variant flex items-center justify-center gap-1 transition-all'"
           >
-            Inscription (14j)
+            <span class="material-symbols-outlined text-[16px]">person_add</span>
+            <span>Inscription</span>
           </button>
           <button
             type="button"
             (click)="switchMode('invite')"
             [class]="mode() === 'invite'
-              ? 'py-2.5 px-2 rounded-xl text-xs font-bold bg-white text-[#D94E28] shadow-sm transition-all'
-              : 'py-2.5 px-2 rounded-xl text-xs font-semibold text-[#4A607A] transition-all'"
+              ? 'min-h-[44px] px-2 rounded-xl text-xs font-bold bg-surface-container-lowest text-secondary shadow-sm flex items-center justify-center gap-1 transition-all'
+              : 'min-h-[44px] px-2 rounded-xl text-xs font-semibold text-on-surface-variant flex items-center justify-center gap-1 transition-all'"
           >
-            Code Agence
+            <span class="material-symbols-outlined text-[16px]">key</span>
+            <span>Code Agence</span>
           </button>
         </div>
 
-        <!-- Error / Info Banner -->
+        <!-- Feedback Banners -->
         @if (errorMsg()) {
-          <div class="mb-4 p-3.5 rounded-2xl bg-[#FEF2F2] border border-[#DC2626]/20 text-xs font-medium text-[#DC2626] flex items-start justify-between gap-2">
-            <span>{{ errorMsg() }}</span>
-            <button type="button" (click)="errorMsg.set('')" class="font-bold text-sm leading-none">×</button>
+          <div class="p-3.5 rounded-xl bg-error-container text-on-error-container text-xs font-bold flex items-start justify-between gap-2 shadow-xs">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[18px]">error</span>
+              <span>{{ errorMsg() }}</span>
+            </div>
+            <button type="button" (click)="errorMsg.set('')" class="font-bold text-base leading-none">×</button>
           </div>
         }
 
         @if (infoMsg()) {
-          <div class="mb-4 p-3.5 rounded-2xl bg-[#E8F2FC] border border-[#3D8BCD]/30 text-xs font-medium text-[#1E4F82]">
-            {{ infoMsg() }}
+          <div class="p-3.5 rounded-xl bg-primary-fixed text-on-primary-fixed text-xs font-semibold flex items-center gap-2 shadow-xs">
+            <span class="material-symbols-outlined text-[18px]">info</span>
+            <span>{{ infoMsg() }}</span>
           </div>
         }
 
         <!-- ==================== 1. CONNEXION ==================== -->
         @if (mode() === 'login') {
-          <form (ngSubmit)="submitLogin()" class="aem-card p-5 space-y-4">
-            <div>
-              <h2 class="text-base font-bold text-[#0F1E36]">Bon retour parmi nous</h2>
-              <p class="text-xs text-[#4A607A]">Connectez-vous avec votre numéro (+237) ou email.</p>
+          <form (ngSubmit)="submitLogin()" class="bg-surface-container-lowest rounded-2xl p-5 shadow-sm border border-outline-variant/30 space-y-4">
+            <div class="flex items-center gap-3">
+              <div class="w-11 h-11 rounded-xl bg-primary-fixed text-primary flex items-center justify-center shrink-0">
+                <span class="material-symbols-outlined text-[24px]">directions_car</span>
+              </div>
+              <div>
+                <h2 class="text-base font-bold text-on-surface">Espace Apprenant &amp; Direction</h2>
+                <p class="text-xs text-on-surface-variant">Connectez-vous avec votre numéro (+237) ou email</p>
+              </div>
             </div>
 
             <div>
-              <label class="block text-xs font-semibold text-[#0F1E36] mb-1.5">Téléphone ou Email</label>
-              <input
-                type="text"
-                name="identifier"
-                [(ngModel)]="loginIdentifier"
-                placeholder="+237 699 00 00 01"
-                required
-                class="aem-input"
-              />
+              <label class="block text-xs font-bold text-on-surface mb-1.5">Numéro de téléphone (+237) ou Email</label>
+              <div class="relative">
+                <span class="material-symbols-outlined text-outline text-[20px] absolute left-3.5 top-1/2 -translate-y-1/2">call</span>
+                <input
+                  type="text"
+                  name="identifier"
+                  [(ngModel)]="loginIdentifier"
+                  placeholder="+237 699 00 00 01"
+                  required
+                  class="aem-input pl-11"
+                />
+              </div>
             </div>
 
             <div>
-              <label class="block text-xs font-semibold text-[#0F1E36] mb-1.5">Mot de passe</label>
-              <input
-                type="password"
-                name="password"
-                [(ngModel)]="loginPassword"
-                placeholder="••••••••"
-                required
-                class="aem-input"
-              />
+              <label class="block text-xs font-bold text-on-surface mb-1.5">Mot de passe</label>
+              <div class="relative">
+                <span class="material-symbols-outlined text-outline text-[20px] absolute left-3.5 top-1/2 -translate-y-1/2">lock</span>
+                <input
+                  type="password"
+                  name="password"
+                  [(ngModel)]="loginPassword"
+                  placeholder="••••••••"
+                  required
+                  class="aem-input pl-11"
+                />
+              </div>
             </div>
 
             <button
               type="submit"
               [disabled]="loading()"
-              class="w-full py-3.5 px-4 rounded-xl font-bold text-sm aem-btn-primary shadow-sm disabled:opacity-50"
+              class="w-full min-h-[52px] px-4 rounded-xl font-bold text-sm bg-primary text-on-primary shadow-md flex items-center justify-center gap-2 active:scale-[0.99] transition-all disabled:opacity-50"
             >
-              {{ loading() ? 'Connexion en cours...' : 'Se connecter' }}
+              <span class="material-symbols-outlined text-[20px]">login</span>
+              <span>{{ loading() ? 'Connexion en cours...' : 'Accéder à mon espace' }}</span>
             </button>
 
-            <!-- Demo Quick Access (1-Tap Evaluation) -->
-            <div class="pt-3 border-t border-[#E2E8F0]">
-              <p class="text-[11px] font-semibold uppercase tracking-wider text-[#64748B] mb-2">
-                Accès rapide démo (1 clic)
-              </p>
-              <div class="grid grid-cols-2 gap-2">
+            <!-- 1-Tap Demo Access (Mama Célestine Admin & New Student) -->
+            <div class="pt-3 border-t border-surface-container-high space-y-2">
+              <span class="block text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">
+                Accès rapide Démonstration (1 clic)
+              </span>
+              <div class="grid grid-cols-2 gap-2.5">
                 <button
                   type="button"
                   (click)="fillAdminDemo()"
-                  class="py-2.5 px-3 rounded-xl text-xs font-bold bg-[#F0F6FC] text-[#2B6CA8] border border-[#3D8BCD]/25 text-left"
+                  class="p-3 rounded-xl bg-primary-fixed/60 hover:bg-primary-fixed text-left transition-colors border border-primary/15"
                 >
-                  <span class="block text-[10px] text-[#D94E28] font-extrabold">DIRECTION / CAISSE</span>
-                  Admin Démo
+                  <div class="flex items-center gap-1.5 text-primary font-bold text-xs">
+                    <span class="material-symbols-outlined text-[18px]">admin_panel_settings</span>
+                    <span>Mama Célestine</span>
+                  </div>
+                  <span class="block text-[10px] text-on-surface-variant mt-0.5">Direction &amp; Caisse Bastos</span>
                 </button>
                 <button
                   type="button"
                   (click)="switchMode('register')"
-                  class="py-2.5 px-3 rounded-xl text-xs font-bold bg-[#F8FAFC] text-[#0F1E36] border border-[#CBD5E1] text-left"
+                  class="p-3 rounded-xl bg-secondary-fixed/60 hover:bg-secondary-fixed text-left transition-colors border border-secondary/15"
                 >
-                  <span class="block text-[10px] text-[#3D8BCD] font-extrabold">NOUVEL ÉLÈVE</span>
-                  Créer en 30 sec
+                  <div class="flex items-center gap-1.5 text-on-secondary-fixed font-bold text-xs">
+                    <span class="material-symbols-outlined text-[18px]">school</span>
+                    <span>Nouvel Élève</span>
+                  </div>
+                  <span class="block text-[10px] text-on-secondary-fixed-variant mt-0.5">Essai 14j gratuit immédiat</span>
                 </button>
               </div>
             </div>
           </form>
         }
 
-        <!-- ==================== 2. INSCRIPTION ÉLÈVE (14J ESSAI GRATUIT) ==================== -->
+        <!-- ==================== 2. INSCRIPTION ÉLÈVE (Screen 01 Stitch) ==================== -->
         @if (mode() === 'register') {
-          <div class="aem-card p-5 space-y-4">
-            <div class="flex items-start justify-between gap-2">
-              <div>
-                <h2 class="text-base font-bold text-[#0F1E36]">Inscription Élève en ligne</h2>
-                <p class="text-xs text-[#4A607A]">14 jours d'accès gratuit aux cours & quiz du Code.</p>
+          <div class="bg-surface-container-lowest rounded-2xl p-5 shadow-sm border border-outline-variant/30 space-y-4">
+            <!-- Hero Trial Badge -->
+            <div class="bg-secondary-fixed/60 text-on-secondary-fixed p-3.5 rounded-xl flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2.5">
+                <span class="material-symbols-outlined text-secondary text-[24px]">timer</span>
+                <div>
+                  <span class="text-xs font-extrabold block">14 Jours d'Essai Gratuit Inclus</span>
+                  <span class="text-[11px] text-on-secondary-fixed-variant">Code CEMAC, cours PDF hors-ligne &amp; examens blancs</span>
+                </div>
               </div>
-              <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#ECFDF5] text-[#16A34A]">
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-surface-container-lowest text-secondary">
                 Étape {{ otpSent() ? '2/2' : '1/2' }}
               </span>
             </div>
 
+            <!-- 1. Tactile Permit Category Tiles (Stitch Design) -->
+            <div class="space-y-1.5">
+              <label class="block text-xs font-bold text-on-surface">1. Choisir votre catégorie de permis</label>
+              <div class="grid grid-cols-2 gap-2">
+                @for (cat of categories(); track cat.code) {
+                  <button
+                    type="button"
+                    (click)="selectCategory(cat.code)"
+                    [class]="regCategoryCode === cat.code
+                      ? 'p-3 rounded-xl bg-primary text-on-primary flex items-center gap-2.5 text-left shadow-sm transition-all'
+                      : 'p-3 rounded-xl bg-surface-container-low text-on-surface hover:bg-surface-container flex items-center gap-2.5 text-left transition-all'"
+                  >
+                    <span class="material-symbols-outlined text-[24px]">
+                      {{ cat.code === 'A' ? 'two_wheeler' : cat.code === 'C' ? 'local_shipping' : cat.code === 'D' ? 'directions_bus' : 'directions_car' }}
+                    </span>
+                    <div class="min-w-0">
+                      <span class="text-xs font-bold block leading-tight">Permis {{ cat.code }}</span>
+                      <span class="text-[10px] opacity-80 block truncate font-tabular">{{ cat.default_fee | number }} FCFA</span>
+                    </div>
+                  </button>
+                }
+              </div>
+            </div>
+
+            <!-- 2. Group / Session Selection -->
             <div>
-              <label class="block text-xs font-semibold text-[#0F1E36] mb-1">Nom complet</label>
+              <label class="block text-xs font-bold text-on-surface mb-1">2. Vague / Session souhaitée</label>
+              <select [(ngModel)]="regGroupId" class="aem-input text-xs font-semibold">
+                <option value="">Attribution automatique (Session ouverte)</option>
+                @for (grp of filteredGroups(); track grp.id) {
+                  <option [value]="grp.id">{{ grp.name }} ({{ grp.available_seats }} places)</option>
+                }
+              </select>
+            </div>
+
+            <!-- 3. Student Identity & Phone -->
+            <div>
+              <label class="block text-xs font-bold text-on-surface mb-1">3. Nom et Prénoms (comme sur la CNI)</label>
               <input
                 type="text"
                 [(ngModel)]="regFullName"
-                placeholder="Ex: Jean-marc Ngono"
+                placeholder="Ex: Jean-Paul Mvondo"
                 class="aem-input"
               />
             </div>
 
             <div>
-              <label class="block text-xs font-semibold text-[#0F1E36] mb-1">Téléphone WhatsApp / SMS (+237)</label>
+              <label class="block text-xs font-bold text-on-surface mb-1">4. Numéro WhatsApp / SMS (+237)</label>
               <div class="flex gap-2">
                 <input
                   type="tel"
                   [(ngModel)]="regPhone"
-                  placeholder="+237 690 12 34 56"
+                  placeholder="+237 699 45 12 30"
                   class="aem-input flex-1"
                 />
                 <button
                   type="button"
                   (click)="requestOtp()"
                   [disabled]="loading() || !regPhone"
-                  class="px-3.5 py-2.5 rounded-xl text-xs font-bold bg-[#E8F2FC] text-[#2B6CA8] border border-[#3D8BCD]/30 shrink-0"
+                  class="px-3.5 rounded-xl text-xs font-bold bg-primary-fixed text-on-primary-fixed-variant shrink-0"
                 >
-                  {{ otpSent() ? 'Renvoyer' : 'Recevoir code' }}
+                  {{ otpSent() ? 'Renvoyer' : 'Code SMS' }}
                 </button>
               </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-2.5">
-              <div>
-                <label class="block text-xs font-semibold text-[#0F1E36] mb-1">Catégorie Permis</label>
-                <select
-                  [(ngModel)]="regCategoryCode"
-                  (ngModelChange)="onCategoryChange()"
-                  class="aem-input text-sm"
-                >
-                  @for (cat of categories(); track cat.id) {
-                    <option [value]="cat.code">Permis {{ cat.code }} ({{ cat.default_fee | number }} F)</option>
-                  }
-                </select>
-              </div>
-
-              <div>
-                <label class="block text-xs font-semibold text-[#0F1E36] mb-1">Vague / Session</label>
-                <select [(ngModel)]="regGroupId" class="aem-input text-sm">
-                  <option value="">Choisir plus tard</option>
-                  @for (grp of filteredGroups(); track grp.id) {
-                    <option [value]="grp.id">{{ grp.name }} ({{ grp.available_seats }} pl.)</option>
-                  }
-                </select>
-              </div>
-            </div>
-
             <div>
-              <label class="block text-xs font-semibold text-[#0F1E36] mb-1">Créer un mot de passe (min. 6 car.)</label>
+              <label class="block text-xs font-bold text-on-surface mb-1">5. Créer un mot de passe (min. 6 car.)</label>
               <input
                 type="password"
                 [(ngModel)]="regPassword"
@@ -223,12 +261,12 @@ import { ApiService } from '../services/api.service';
             </div>
 
             @if (otpSent()) {
-              <div class="p-3.5 rounded-2xl bg-[#F0F7FF] border border-[#3D8BCD]/30 space-y-2">
+              <div class="p-4 rounded-xl bg-primary-fixed/50 border border-primary/20 space-y-2">
                 <div class="flex items-center justify-between">
-                  <label class="text-xs font-bold text-[#1E4F82]">Code de vérification à 6 chiffres</label>
+                  <label class="text-xs font-bold text-primary">Code de vérification à 6 chiffres</label>
                   @if (devOtpPreview()) {
-                    <span class="px-2 py-0.5 rounded bg-[#3D8BCD] text-white text-[11px] font-mono font-bold">
-                      Code : {{ devOtpPreview() }}
+                    <span class="px-2 py-0.5 rounded bg-primary text-on-primary text-[11px] font-mono font-bold">
+                      Code démo : {{ devOtpPreview() }}
                     </span>
                   }
                 </div>
@@ -237,7 +275,7 @@ import { ApiService } from '../services/api.service';
                   maxlength="6"
                   [(ngModel)]="regOtpCode"
                   placeholder="123456"
-                  class="aem-input text-center font-mono text-lg font-bold tracking-widest"
+                  class="aem-input text-center font-mono text-lg font-extrabold tracking-widest"
                 />
               </div>
 
@@ -245,38 +283,43 @@ import { ApiService } from '../services/api.service';
                 type="button"
                 (click)="submitRegister()"
                 [disabled]="loading()"
-                class="w-full py-3.5 px-4 rounded-xl font-bold text-sm aem-btn-primary shadow-sm"
+                class="w-full min-h-[52px] px-4 rounded-xl font-bold text-sm bg-tertiary-container text-on-tertiary shadow-md flex items-center justify-center gap-2"
               >
-                {{ loading() ? 'Activation en cours...' : 'Activer mes 14 jours gratuits' }}
+                <span class="material-symbols-outlined text-[20px]">check_circle</span>
+                <span>{{ loading() ? 'Activation en cours...' : 'Démarrer mes 14 jours gratuits' }}</span>
               </button>
             } @else {
               <button
                 type="button"
                 (click)="requestOtp()"
                 [disabled]="loading()"
-                class="w-full py-3.5 px-4 rounded-xl font-bold text-sm aem-btn-primary shadow-sm"
+                class="w-full min-h-[52px] px-4 rounded-xl font-bold text-sm bg-primary text-on-primary shadow-md flex items-center justify-center gap-2"
               >
-                {{ loading() ? 'Envoi du code...' : 'Continuer & vérifier mon numéro' }}
+                <span class="material-symbols-outlined text-[20px]">sms</span>
+                <span>{{ loading() ? 'Envoi du code...' : 'Recevoir mon code de validation' }}</span>
               </button>
             }
           </div>
         }
 
-        <!-- ==================== 3. CODE INVITATION AGENCE (WALK-IN) ==================== -->
+        <!-- ==================== 3. CODE INVITATION AGENCE (Walk-In) ==================== -->
         @if (mode() === 'invite') {
-          <form (ngSubmit)="submitClaimInvite()" class="aem-card p-5 space-y-4">
-            <div>
-              <span class="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-[#FFF7ED] text-[#D94E28] mb-1">
-                INSCRIT AU SECRÉTARIAT
-              </span>
-              <h2 class="text-base font-bold text-[#0F1E36]">Activer mon Code Agence</h2>
-              <p class="text-xs text-[#4A607A]">
-                Saisissez le code à 8 caractères remis sur votre fiche ou par WhatsApp.
-              </p>
+          <form (ngSubmit)="submitClaimInvite()" class="bg-surface-container-lowest rounded-2xl p-5 shadow-sm border border-outline-variant/30 space-y-4">
+            <div class="flex items-start gap-3">
+              <div class="w-11 h-11 rounded-xl bg-secondary-fixed text-secondary flex items-center justify-center shrink-0">
+                <span class="material-symbols-outlined text-[24px]">storefront</span>
+              </div>
+              <div>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-secondary block">Inscrit au Guichet Bastos / Akwa</span>
+                <h2 class="text-base font-bold text-on-surface">Activer mon Code Agence</h2>
+                <p class="text-xs text-on-surface-variant mt-0.5">
+                  Saisissez le code à 8 caractères remis par Mama Célestine au secrétariat.
+                </p>
+              </div>
             </div>
 
             <div>
-              <label class="block text-xs font-semibold text-[#0F1E36] mb-1">Code d'invitation (8 caractères)</label>
+              <label class="block text-xs font-bold text-on-surface mb-1">Code d'invitation (8 caractères)</label>
               <input
                 type="text"
                 name="inviteCode"
@@ -289,7 +332,7 @@ import { ApiService } from '../services/api.service';
             </div>
 
             <div>
-              <label class="block text-xs font-semibold text-[#0F1E36] mb-1">Votre numéro de téléphone (+237)</label>
+              <label class="block text-xs font-bold text-on-surface mb-1">Votre numéro de téléphone (+237)</label>
               <input
                 type="tel"
                 name="invitePhone"
@@ -301,7 +344,7 @@ import { ApiService } from '../services/api.service';
             </div>
 
             <div>
-              <label class="block text-xs font-semibold text-[#0F1E36] mb-1">Choisissez votre mot de passe</label>
+              <label class="block text-xs font-bold text-on-surface mb-1">Choisissez votre mot de passe</label>
               <input
                 type="password"
                 name="invitePassword"
@@ -315,20 +358,24 @@ import { ApiService } from '../services/api.service';
             <button
               type="submit"
               [disabled]="loading()"
-              class="w-full py-3.5 px-4 rounded-xl font-bold text-sm aem-btn-coral shadow-sm"
+              class="w-full min-h-[52px] px-4 rounded-xl font-bold text-sm bg-primary text-on-primary shadow-md flex items-center justify-center gap-2"
             >
-              {{ loading() ? 'Vérification...' : 'Activer mon compte élève' }}
+              <span class="material-symbols-outlined text-[20px]">verified_user</span>
+              <span>{{ loading() ? 'Activation...' : 'Activer mon dossier élève' }}</span>
             </button>
           </form>
         }
-      </div>
+      </main>
 
-      <!-- Footer -->
-      <div class="pt-6 text-center">
-        <p class="text-[11px] font-medium text-[#64748B]">
-          Auto-École La Marseillaise (AEM) • Application Officielle Hors-Ligne
+      <!-- Regulatory Footer -->
+      <footer class="px-4 py-5 text-center space-y-1">
+        <p class="text-[11px] font-bold text-primary">
+          Agrément MINTRANS N° 00412 / MINT / DTT • République du Cameroun
         </p>
-      </div>
+        <p class="text-[10px] text-on-surface-variant">
+          Application PWA Offline-First • Fonctionne sans connexion Internet
+        </p>
+      </footer>
     </div>
   `,
 })
@@ -341,20 +388,17 @@ export class AuthViewComponent implements OnInit {
   errorMsg = signal<string>('');
   infoMsg = signal<string>('');
 
-  // Catalogue
   categories = signal<any[]>([
-    { id: '1', code: 'B', name: 'Permis B — Voiture légère', default_fee: 85000 },
-    { id: '2', code: 'A', name: 'Permis A — Moto', default_fee: 55000 },
-    { id: '3', code: 'C', name: 'Permis C — Poids lourd', default_fee: 125000 },
-    { id: '4', code: 'D', name: 'Permis D — Transport en commun', default_fee: 140000 },
+    { id: '1', code: 'B', name: 'Permis B — Voiture légère', default_fee: 150000 },
+    { id: '2', code: 'A', name: 'Permis A — Moto & Tricycle', default_fee: 75000 },
+    { id: '3', code: 'C', name: 'Permis C — Poids Lourd', default_fee: 220000 },
+    { id: '4', code: 'D', name: 'Permis D — Transport en commun', default_fee: 250000 },
   ]);
   groups = signal<any[]>([]);
 
-  // Login form
   loginIdentifier = '';
   loginPassword = '';
 
-  // Register form
   regFullName = '';
   regPhone = '+237 6';
   regCategoryCode = 'B';
@@ -364,7 +408,6 @@ export class AuthViewComponent implements OnInit {
   otpSent = signal<boolean>(false);
   devOtpPreview = signal<string>('');
 
-  // Invite form
   inviteCode = '';
   invitePhone = '+237 6';
   invitePassword = '';
@@ -380,8 +423,13 @@ export class AuthViewComponent implements OnInit {
       }
       this.onCategoryChange();
     } catch {
-      // Keep default offline categories
+      // Offline defaults kept
     }
+  }
+
+  selectCategory(code: string) {
+    this.regCategoryCode = code;
+    this.onCategoryChange();
   }
 
   filteredGroups() {
@@ -416,7 +464,7 @@ export class AuthViewComponent implements OnInit {
       await this.api.login(this.loginIdentifier.trim(), this.loginPassword);
       this.authenticated.emit();
     } catch (err: any) {
-      this.errorMsg.set(err?.error?.error || 'Identifiants incorrects ou connexion indisponible.');
+      this.errorMsg.set(err?.message || err?.error?.message || 'Identifiants incorrects.');
     } finally {
       this.loading.set(false);
     }
@@ -445,9 +493,9 @@ export class AuthViewComponent implements OnInit {
         this.devOtpPreview.set(res.devOtp);
         this.regOtpCode = res.devOtp;
       }
-      this.infoMsg.set(res?.message || 'Code envoyé par WhatsApp / SMS.');
+      this.infoMsg.set(res?.message || 'Code de vérification généré.');
     } catch (err: any) {
-      this.errorMsg.set(err?.error?.error || "Impossible d'envoyer le code OTP.");
+      this.errorMsg.set(err?.message || "Impossible d'envoyer le code OTP.");
     } finally {
       this.loading.set(false);
     }
@@ -461,17 +509,19 @@ export class AuthViewComponent implements OnInit {
     }
     this.loading.set(true);
     try {
+      const selectedCat = this.categories().find((c) => c.code === this.regCategoryCode);
       await this.api.registerStudent({
         fullName: this.regFullName.trim(),
         phone: this.regPhone.trim(),
         password: this.regPassword,
         otpCode: this.regOtpCode.trim(),
+        licenceCategoryId: selectedCat?.id,
         categoryCode: this.regCategoryCode,
         groupId: this.regGroupId || undefined,
       });
       this.authenticated.emit();
     } catch (err: any) {
-      this.errorMsg.set(err?.error?.error || "Erreur lors de l'inscription.");
+      this.errorMsg.set(err?.message || "Erreur lors de l'inscription.");
     } finally {
       this.loading.set(false);
     }
@@ -492,7 +542,7 @@ export class AuthViewComponent implements OnInit {
       });
       this.authenticated.emit();
     } catch (err: any) {
-      this.errorMsg.set(err?.error?.error || "Code d'invitation invalide ou expiré.");
+      this.errorMsg.set(err?.message || "Code d'invitation invalide ou expiré.");
     } finally {
       this.loading.set(false);
     }

@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+
+<html lang="fr"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_stack" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "surface-container-lowest": "#ffffff", "on-tertiary-container": "#82d37d", "surface-dim": "#d7dadf", "tertiary-container": "#005c15", "tertiary-fixed": "#a3f69c", "surface-variant": "#e0e3e8", "on-primary": "#ffffff", "surface-tint": "#335f9d", "on-background": "#181c20", "on-surface": "#181c20", "surface-container-highest": "#e0e3e8", "on-primary-container": "#9ec1ff", "primary-fixed-dim": "#a9c7ff", "on-secondary-fixed-variant": "#633f00", "on-tertiary-fixed-variant": "#005312", "on-error": "#ffffff", "secondary": "#835500", "outline": "#737781", "error": "#ba1a1a", "inverse-primary": "#a9c7ff", "surface-container": "#ebeef3", "on-primary-fixed": "#001b3d", "on-tertiary-fixed": "#002204", "on-secondary-container": "#6b4500", "error-container": "#ffdad6", "inverse-surface": "#2d3135", "surface-container-low": "#f1f4f9", "on-secondary-fixed": "#291800", "surface": "#f7f9ff", "on-tertiary": "#ffffff", "tertiary": "#00420c", "surface-container-high": "#e5e8ee", "outline-variant": "#c3c6d2", "surface-bright": "#f7f9ff", "primary-fixed": "#d6e3ff", "background": "#f7f9ff", "on-error-container": "#93000a", "secondary-container": "#feae2c", "on-secondary": "#ffffff", "on-primary-fixed-variant": "#144684", "secondary-fixed-dim": "#ffb955", "inverse-on-surface": "#eef1f6", "secondary-fixed": "#ffddb4", "primary-container": "#1f4e8c", "on-surface-variant": "#434750", "tertiary-fixed-dim": "#88d982", "primary": "#00376f" }, "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, "spacing": { "gutter": "1rem", "space-lg": "1.5rem", "margin": "1rem", "space-xs": "0.25rem", "space-md": "1rem", "space-sm": "0.5rem", "space-xl": "2rem" }, "fontFamily": { "body-lg": ["Inter"], "body-md-bold": ["Inter"], "headline-lg": ["Inter"], "headline-sm": ["Inter"], "body-md": ["Inter"], "body-lg-bold": ["Inter"], "label-md": ["Inter"], "label-sm": ["Inter"], "display-lg": ["Inter"], "headline-md": ["Inter"] }, "fontSize": { "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }], "body-md-bold": ["14px", { "lineHeight": "20px", "fontWeight": "600" }], "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700" }], "headline-sm": ["18px", { "lineHeight": "24px", "fontWeight": "600" }], "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }], "body-lg-bold": ["16px", { "lineHeight": "24px", "fontWeight": "600" }], "label-md": ["13px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }], "label-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "700" }], "display-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }], "headline-md": ["20px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600" }] } } } };</script><style>@layer base{html,body{width:100%;margin:0;padding:0;}body{overscroll-behavior:none;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface font-body-md text-on-surface min-h-screen flex flex-col antialiased"><header class="fixed top-0 inset-x-0 z-50 bg-surface-container-lowest/90 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] pt-safe"><div class="h-16 px-margin flex items-center justify-between gap-space-sm"><div class="flex items-center gap-space-sm min-w-0 flex-1"><button aria-label="Retour" class="w-11 h-11 -ml-1.5 flex items-center justify-center rounded-xl text-on-surface hover:bg-surface-container-low transition-colors" onclick="history.back()"><span class="material-symbols-outlined text-[24px]">arrow_back</span></button><div class="flex flex-col min-w-0"><span class="font-label-sm text-label-sm text-primary uppercase tracking-wider truncate">Administration</span><h1 class="font-headline-sm text-headline-sm text-on-surface truncate">Fiche Élève</h1></div></div><div class="flex items-center gap-space-xs flex-shrink-0"><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="flex flex-col relative w-full pt-16 bg-surface min-h-screen"><div class="flex flex-col w-full pb-10">
+<!-- Bannière Alerte Retard / Situation Comptable -->
+<div class="px-margin pt-space-md">
+<div class="bg-secondary-container/20 p-space-md rounded-xl flex items-start gap-space-sm shadow-sm">
+<div class="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center flex-shrink-0 text-on-secondary-container">
+<span class="material-symbols-outlined text-[22px]" style="font-variation-settings: 'FILL' 1;">warning</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center justify-between gap-space-xs">
+<span class="font-label-sm text-label-sm text-on-secondary-fixed-variant uppercase tracking-wider">Alerte Caisse</span>
+<span class="font-label-sm text-label-sm bg-secondary-fixed px-2 py-0.5 rounded-full text-on-secondary-fixed">Retard : 12 jours</span>
+</div>
+<p class="font-body-md-bold text-body-md-bold text-on-secondary-container mt-0.5">Tranche 2 en souffrance (50 000 FCFA)</p>
+<p class="font-body-md text-body-md text-on-surface-variant text-xs mt-0.5">Échéance dépassée depuis le 20/12/2024. Leçon pratique #7 conditionnée au règlement.</p>
+</div>
+</div>
+</div>
+<!-- Carte Identité Élève -->
+<div class="px-margin mt-space-md">
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm">
+<div class="flex items-start gap-space-md">
+<!-- Photo de profil avec badge certifié -->
+<div class="relative flex-shrink-0">
+<img class="w-20 h-20 rounded-xl object-cover shadow-sm" data-alt="Portrait souriant d'un jeune homme camerounais dans la vingtaine, regard direct confiant, portant une chemise polo blanche simple, lumière naturelle douce en intérieur d'agence, cadrage serré de type pièce d'identité officielle soignée." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC5Cht-bQxIiIQe7uCHHy45gWFtgn30-5KU7JaxpDbfryd335pBMo49i1GjKWpgBIEtcehCCJ-dNdC5cBZtZTFEepoBlUrPkr1wlk-m9U5sjDVJh54NeeEUfImG_LGOM1yW5ThZjeX1vQ-sLDsOKG5iUkzUGlssQT1NNhUwe7Z9wfQ3uqX8W6XJsOGoaz4wcPX_AP0hG0JkFLl7dSiIHO_-_R4ZuAzNlx0Oh99g-_PY"/>
+<div class="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-primary flex items-center justify-center text-on-primary shadow-sm" title="Dossier validé">
+<span class="material-symbols-outlined text-[14px]">verified</span>
+</div>
+</div>
+<!-- Informations administratives -->
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-space-xs flex-wrap">
+<span class="bg-primary-container text-on-primary-container font-label-sm text-label-sm px-2.5 py-0.5 rounded-full">Permis B</span>
+<span class="bg-surface-container-high text-on-surface-variant font-label-sm text-label-sm px-2 py-0.5 rounded-full">#LM-4092</span>
+</div>
+<h2 class="font-headline-sm text-headline-sm text-on-surface mt-1 truncate">Jean-Paul Mvondo</h2>
+<p class="font-body-md text-body-md text-on-surface-variant flex items-center gap-1 text-xs mt-0.5">
+<span class="material-symbols-outlined text-[14px]">location_on</span>
+            Ngoa-Ekellé, Yaoundé
+          </p>
+<div class="mt-2 flex items-center gap-1.5 text-xs text-on-surface-variant">
+<span class="w-2 h-2 rounded-full bg-tertiary-container inline-block"></span>
+<span>Matinée B (Moniteur M. Talla)</span>
+</div>
+</div>
+</div>
+<!-- Métriques d'inscription condensées -->
+<div class="grid grid-cols-2 gap-space-sm mt-space-md p-space-sm rounded-lg bg-surface-container-low">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">Inscription</span>
+<span class="font-body-md-bold text-body-md-bold text-on-surface">02 Déc. 2024</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">Examen visé</span>
+<span class="font-body-md-bold text-body-md-bold text-primary">Session Janvier 2025</span>
+</div>
+</div>
+<!-- Raccourcis d'actions rapides directes -->
+<div class="grid grid-cols-3 gap-space-sm mt-space-md">
+<!-- WhatsApp -->
+<a class="flex flex-col items-center justify-center p-2.5 rounded-xl bg-[#25D366]/10 hover:bg-[#25D366]/20 transition-all text-center" href="https://wa.me/237699451230?text=Bonjour%20Jean-Paul,%20Mama%20C%C3%A9lestine%20de%20l'Auto-%C3%A9cole%20La%20Marseillaise.%20Concernant%20votre%20dossier%20LM-4092...">
+<div class="w-8 h-8 rounded-full bg-[#25D366] text-white flex items-center justify-center mb-1 shadow-sm">
+<span class="material-symbols-outlined text-[18px]">chat</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface">WhatsApp</span>
+<span class="font-label-sm text-[10px] text-outline">699 45 12 30</span>
+</a>
+<!-- Appel GSM -->
+<a class="flex flex-col items-center justify-center p-2.5 rounded-xl bg-surface-container-low hover:bg-surface-container transition-all text-center" href="tel:+237699451230">
+<div class="w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center mb-1 shadow-sm">
+<span class="material-symbols-outlined text-[18px]">call</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface">Appeler</span>
+<span class="font-label-sm text-[10px] text-outline">Direct GSM</span>
+</a>
+<!-- Encaisser guichet -->
+<button class="flex flex-col items-center justify-center p-2.5 rounded-xl bg-secondary/10 hover:bg-secondary/20 transition-all text-center" onclick="document.getElementById('caisse-modal').classList.remove('hidden')">
+<div class="w-8 h-8 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center mb-1 shadow-sm">
+<span class="material-symbols-outlined text-[18px]">payments</span>
+</div>
+<span class="font-label-sm text-label-sm text-secondary">Encaisser</span>
+<span class="font-label-sm text-[10px] text-secondary">Versement</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Bloc 2 : Suivi Financier & Échéancier (Cœur Guichet) -->
+<div class="px-margin mt-space-lg">
+<div class="flex items-center justify-between mb-space-sm">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-primary text-[20px]">account_balance_wallet</span>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Situation Financière</h3>
+</div>
+<span class="font-label-sm text-label-sm text-outline uppercase tracking-wider">Forfait 150 000 F</span>
+</div>
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm">
+<!-- Synthèse chiffrée -->
+<div class="grid grid-cols-3 gap-2 pb-space-sm text-center">
+<div class="p-2 rounded-lg bg-surface-container-low">
+<span class="font-label-sm text-label-sm text-outline block">Total Dû</span>
+<span class="font-body-md-bold text-body-md-bold text-on-surface">150 000 F</span>
+</div>
+<div class="p-2 rounded-lg bg-tertiary-fixed/30">
+<span class="font-label-sm text-label-sm text-tertiary-container block">Déjà Reçu</span>
+<span class="font-body-md-bold text-body-md-bold text-tertiary-container">50 000 F</span>
+</div>
+<div class="p-2 rounded-lg bg-error-container/40">
+<span class="font-label-sm text-label-sm text-error block">Reste Net</span>
+<span class="font-body-md-bold text-body-md-bold text-error">100 000 F</span>
+</div>
+</div>
+<!-- Jauge visuelle de recouvrement (33%) -->
+<div class="mt-space-sm">
+<div class="flex justify-between items-center text-xs mb-1">
+<span class="font-body-md-bold text-body-md-bold text-on-surface">Recouvrement actuel</span>
+<span class="font-body-md-bold text-body-md-bold text-primary">33% (1/3 tranches)</span>
+</div>
+<div class="w-full h-3 bg-surface-container rounded-full overflow-hidden flex">
+<div class="h-full bg-tertiary-container rounded-full" style="width: 33.3%;"></div>
+</div>
+<div class="flex justify-between text-[11px] text-outline mt-1 font-label-sm">
+<span>Acompte validé</span>
+<span class="text-error font-body-md-bold">50 000 F attendus</span>
+<span>Solde DTT</span>
+</div>
+</div>
+<!-- Découpage détaillé des 3 Tranches réglementaires -->
+<div class="mt-space-md space-y-space-sm">
+<!-- Tranche 1 : PAYÉE -->
+<div class="p-space-sm rounded-lg bg-surface-container-low flex flex-col gap-2">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-6 h-6 rounded-full bg-tertiary-container text-on-tertiary flex items-center justify-center">
+<span class="material-symbols-outlined text-[16px]">check</span>
+</span>
+<div>
+<p class="font-body-md-bold text-body-md-bold text-on-surface">Tranche 1 • Inscription &amp; Dossier</p>
+<p class="font-label-sm text-label-sm text-outline">Reçu #RC-2024-0741 • 02/12/2024 • Espèces</p>
+</div>
+</div>
+<span class="font-body-md-bold text-body-md-bold text-tertiary-container">50 000 FCFA</span>
+</div>
+<div class="flex justify-end gap-2 pt-1">
+<button class="px-3 py-1.5 rounded-lg bg-surface-container-lowest text-primary text-xs font-body-md-bold flex items-center gap-1 shadow-sm" onclick="alert('Reçu RC-2024-0741 transmis par WhatsApp au 699451230')">
+<span class="material-symbols-outlined text-[14px]">share</span>
+              Renvoyer Reçu WhatsApp
+            </button>
+</div>
+</div>
+<!-- Tranche 2 : EN RETARD (Mise en avant) -->
+<div class="p-space-sm rounded-lg bg-secondary-container/15 flex flex-col gap-2">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-6 h-6 rounded-full bg-error text-on-error flex items-center justify-center">
+<span class="material-symbols-outlined text-[16px]">priority_high</span>
+</span>
+<div>
+<p class="font-body-md-bold text-body-md-bold text-on-surface">Tranche 2 • Mi-parcours Pratique</p>
+<p class="font-label-sm text-label-sm text-error font-body-md-bold">Échéance : 20/12/2024 (12 jours de retard)</p>
+</div>
+</div>
+<span class="font-body-md-bold text-body-md-bold text-error">50 000 FCFA</span>
+</div>
+<div class="flex items-center justify-end gap-space-xs pt-1">
+<a class="px-3 py-2 rounded-lg bg-surface-container-lowest text-on-surface-variant text-xs font-body-md-bold flex items-center gap-1 shadow-sm" href="https://wa.me/237699451230?text=Bonjour%20Jean-Paul,%20rappel%20de%20la%20caisse%20de%20l'Auto-Ecole%20La%20Marseillaise.%20Votre%202e%20tranche%20de%2050%20000%20FCFA%20est%20en%20retard%20depuis%20le%2020%20D%C3%A9cembre.%20Merci%20de%20passer%20au%20bureau%20ou%20verser%20par%20MTN%20MoMo.">
+<span class="material-symbols-outlined text-[14px] text-[#25D366]">forward_to_inbox</span>
+              Relancer SMS/WA
+            </a>
+<button class="px-3.5 py-2 rounded-lg bg-primary text-on-primary text-xs font-body-md-bold flex items-center gap-1 shadow-sm" onclick="document.getElementById('caisse-modal').classList.remove('hidden')">
+<span class="material-symbols-outlined text-[14px]">point_of_sale</span>
+              Encaisser 50 000 F
+            </button>
+</div>
+</div>
+<!-- Tranche 3 : À VENIR -->
+<div class="p-space-sm rounded-lg bg-surface-container-low flex items-center justify-between opacity-80">
+<div class="flex items-center gap-2">
+<span class="w-6 h-6 rounded-full bg-surface-variant text-outline flex items-center justify-center">
+<span class="material-symbols-outlined text-[16px]">schedule</span>
+</span>
+<div>
+<p class="font-body-md-bold text-body-md-bold text-on-surface">Tranche 3 • Dépôt Examen DTT</p>
+<p class="font-label-sm text-label-sm text-outline">Échéance prévue : Avant le 25/01/2025</p>
+</div>
+</div>
+<span class="font-body-md-bold text-body-md-bold text-on-surface-variant">50 000 FCFA</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Bloc 3 : Progression Pédagogique & Assiduité (Contrôle Mama Célestine) -->
+<div class="px-margin mt-space-lg">
+<div class="flex items-center justify-between mb-space-sm">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-primary text-[20px]">school</span>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Pédagogie &amp; Assiduité</h3>
+</div>
+<span class="bg-tertiary-fixed/30 text-tertiary-container font-label-sm text-label-sm px-2.5 py-0.5 rounded-full">En règle de cours</span>
+</div>
+<div class="space-y-space-sm">
+<!-- Section Code de la route -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[20px]">menu_book</span>
+</span>
+<div>
+<h4 class="font-body-md-bold text-body-md-bold text-on-surface">Code de la Route (Théorie)</h4>
+<p class="font-label-sm text-label-sm text-outline">Présences : 9 séances sur 12 au centre</p>
+</div>
+</div>
+<span class="font-body-md-bold text-body-md-bold text-primary">18 / 40 h</span>
+</div>
+<!-- Progression barre -->
+<div class="w-full h-2 bg-surface-container rounded-full mt-3 overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 45%;"></div>
+</div>
+<!-- Performance Dernier Quiz Blanc -->
+<div class="mt-3 p-space-sm rounded-lg bg-surface-container-low flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-tertiary-container text-[20px]">verified</span>
+<div>
+<p class="font-body-md-bold text-xs text-on-surface">Dernier examen blanc : 38 / 40 (95%)</p>
+<p class="text-[11px] text-outline">Moyenne générale sur 8 tests : 76%</p>
+</div>
+</div>
+<span class="font-label-sm text-[11px] bg-tertiary-fixed text-on-tertiary-fixed px-2 py-0.5 rounded-full font-body-md-bold">Apte Blanc</span>
+</div>
+</div>
+<!-- Section Conduite pratique -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[20px]">directions_car</span>
+</span>
+<div>
+<h4 class="font-body-md-bold text-body-md-bold text-on-surface">Conduite Pratique (Volant)</h4>
+<p class="font-label-sm text-label-sm text-outline">Toyota Yaris #04 • Boîte Manuelle</p>
+</div>
+</div>
+<span class="font-body-md-bold text-body-md-bold text-on-surface">6 / 20 h</span>
+</div>
+<div class="w-full h-2 bg-surface-container rounded-full mt-3 overflow-hidden">
+<div class="h-full bg-secondary-container rounded-full" style="width: 30%;"></div>
+</div>
+<!-- Étapes validées sur piste -->
+<div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+<div class="flex items-center gap-1.5 text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px] text-tertiary-container">check_circle</span>
+<span>Démarrage en côte (Validé)</span>
+</div>
+<div class="flex items-center gap-1.5 text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px] text-tertiary-container">check_circle</span>
+<span>Créneau gauche/droite</span>
+</div>
+<div class="flex items-center gap-1.5 text-on-surface col-span-2 bg-surface-container-low p-2 rounded-lg">
+<span class="material-symbols-outlined text-[16px] text-secondary">pending</span>
+<span>En cours : Ronds-points &amp; axe Carrefour Emia</span>
+</div>
+</div>
+</div>
+<!-- Pièces & Dossier Officiel MINTRANS -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm">
+<h4 class="font-body-md-bold text-body-md-bold text-on-surface mb-2 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[18px]">folder_shared</span>
+          Pièces Dossier MINTRANS (Yaoundé)
+        </h4>
+<div class="space-y-2 text-xs">
+<div class="flex items-center justify-between p-2 rounded-lg bg-surface-container-low">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-tertiary-container text-[18px]">check_box</span>
+<span class="text-on-surface font-body-md-bold">CNI certifiée conforme</span>
+</div>
+<span class="text-outline">Expire le 14/09/2028</span>
+</div>
+<div class="flex items-center justify-between p-2 rounded-lg bg-surface-container-low">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-tertiary-container text-[18px]">check_box</span>
+<span class="text-on-surface font-body-md-bold">Certificat Médical d'aptitude</span>
+</div>
+<span class="text-outline">Dr. Essomba (Validé)</span>
+</div>
+<div class="flex items-center justify-between p-2 rounded-lg bg-surface-container-low">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary text-[18px]">indeterminate_check_box</span>
+<span class="text-on-surface font-body-md-bold">4 Photos 4x4 d'identité</span>
+</div>
+<span class="text-secondary font-body-md-bold">2 remises / 4 requises</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Bloc 4 : Actions Administratives Complémentaires (Mama Célestine) -->
+<div class="px-margin mt-space-lg">
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-space-sm flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-primary text-[20px]">admin_panel_settings</span>
+      Actions Secrétariat
+    </h3>
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm space-y-space-sm">
+<!-- Imprimer attestation MINTRANS -->
+<button class="w-full flex items-center justify-between p-3 rounded-lg bg-surface-container-low hover:bg-surface-container transition-colors text-left" onclick="alert('Génération de l\'Attestation d\'inscription officielle MINTRANS pour Jean-Paul Mvondo (#LM-4092)...')">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-primary-fixed flex items-center justify-center text-on-primary-fixed">
+<span class="material-symbols-outlined text-[20px]">print</span>
+</div>
+<div>
+<p class="font-body-md-bold text-body-md-bold text-on-surface">Éditer Attestation d'Inscription</p>
+<p class="font-label-sm text-label-sm text-outline">Format officiel avec cachet du centre</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline">chevron_right</span>
+</button>
+<!-- Changement de créneau / moniteur -->
+<button class="w-full flex items-center justify-between p-3 rounded-lg bg-surface-container-low hover:bg-surface-container transition-colors text-left" onclick="alert('Ouverture du planning pour réaffectation de groupe ou moniteur.')">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-secondary-fixed flex items-center justify-center text-on-secondary-fixed">
+<span class="material-symbols-outlined text-[20px]">calendar_month</span>
+</div>
+<div>
+<p class="font-body-md-bold text-body-md-bold text-on-surface">Changer de groupe ou horaires</p>
+<p class="font-label-sm text-label-sm text-outline">Actuellement : Matinée B (08h - 10h)</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline">chevron_right</span>
+</button>
+<!-- Suspension temporaire de dossier -->
+<button class="w-full flex items-center justify-between p-3 rounded-lg bg-error-container/30 hover:bg-error-container/50 transition-colors text-left" onclick="if(confirm('Confirmer la suspension temporaire de Jean-Paul Mvondo ? Ses leçons seront gelées.')) alert('Dossier temporairement suspendu.');">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-error text-on-error flex items-center justify-center">
+<span class="material-symbols-outlined text-[20px]">pause_circle</span>
+</div>
+<div>
+<p class="font-body-md-bold text-body-md-bold text-error">Suspendre l'accès aux cours</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Bloquer réservation pratique pour impayé</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-error">chevron_right</span>
+</button>
+</div>
+</div>
+<!-- Note interne secrétariat -->
+<div class="px-margin mt-space-md">
+<div class="bg-surface-container-low p-space-md rounded-xl">
+<div class="flex items-center justify-between mb-1">
+<span class="font-label-sm text-label-sm text-outline uppercase tracking-wider flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">edit_note</span>
+          Note interne guichet (Mama Célestine)
+        </span>
+<span class="text-[10px] text-outline">22/12/2024</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant text-xs italic">
+        "A promis de régler les 50 000 FCFA de la Tranche 2 via MTN Mobile Money le vendredi 29/12 après son salaire. Ne pas lui autoriser le créneau de circulation lourde sans le reçu."
+      </p>
+</div>
+</div>
+<!-- Modalité d'Encaissement Rapide Guichet (Interactif) -->
+<div class="fixed inset-0 z-50 bg-inverse-surface/60 backdrop-blur-sm hidden flex items-end justify-center p-0" id="caisse-modal">
+<div class="bg-surface-container-lowest w-full max-w-lg rounded-t-2xl p-space-lg shadow-xl animate-in slide-in-from-bottom">
+<div class="flex items-center justify-between mb-space-md">
+<div class="flex items-center gap-2">
+<div class="w-10 h-10 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-[20px]">payments</span>
+</div>
+<div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Encaisser un versement</h3>
+<p class="font-label-sm text-label-sm text-outline">Jean-Paul Mvondo • Permis B</p>
+</div>
+</div>
+<button class="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center text-on-surface" onclick="document.getElementById('caisse-modal').classList.add('hidden')">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+<div class="space-y-space-md">
+<div>
+<label class="block font-body-md-bold text-xs text-on-surface mb-1">Montant à encaisser (FCFA)</label>
+<div class="relative">
+<input class="w-full h-12 bg-surface-container-low rounded-xl px-4 font-headline-sm text-primary text-headline-sm focus:outline-none" type="number" value="50000"/>
+<span class="absolute right-4 top-3 text-xs font-body-md-bold text-outline">FCFA</span>
+</div>
+<p class="font-label-sm text-[11px] text-error mt-1">Solder la Tranche 2 (Échéance 20/12/2024)</p>
+</div>
+<div>
+<label class="block font-body-md-bold text-xs text-on-surface mb-1">Mode de règlement</label>
+<div class="grid grid-cols-3 gap-2">
+<label class="p-2.5 rounded-xl bg-surface-container-low hover:bg-surface-container flex flex-col items-center cursor-pointer text-center">
+<input checked="" class="mb-1" name="payment_mode" type="radio"/>
+<span class="font-body-md-bold text-xs">Espèces</span>
+<span class="text-[10px] text-outline">Guichet</span>
+</label>
+<label class="p-2.5 rounded-xl bg-surface-container-low hover:bg-surface-container flex flex-col items-center cursor-pointer text-center">
+<input class="mb-1" name="payment_mode" type="radio"/>
+<span class="font-body-md-bold text-xs">MTN MoMo</span>
+<span class="text-[10px] text-outline">67X XX XX XX</span>
+</label>
+<label class="p-2.5 rounded-xl bg-surface-container-low hover:bg-surface-container flex flex-col items-center cursor-pointer text-center">
+<input class="mb-1" name="payment_mode" type="radio"/>
+<span class="font-body-md-bold text-xs">Orange Money</span>
+<span class="text-[10px] text-outline">69X XX XX XX</span>
+</label>
+</div>
+</div>
+<div class="pt-2 flex gap-space-sm">
+<button class="w-1/3 h-12 rounded-xl bg-surface-container-high text-on-surface font-body-md-bold text-xs" onclick="document.getElementById('caisse-modal').classList.add('hidden')">
+            Annuler
+          </button>
+<button class="w-2/3 h-12 rounded-xl bg-primary text-on-primary font-body-lg-bold text-body-lg-bold flex items-center justify-center gap-2 shadow-md" onclick="alert('Versement de 50 000 FCFA validé avec succès ! Reçu #RC-2024-0812 généré.'); document.getElementById('caisse-modal').classList.add('hidden')">
+<span class="material-symbols-outlined text-[18px]">check_circle</span>
+            Valider le reçu
+          </button>
+</div>
+</div>
+</div>
+</div>
+</div></main></body></html>

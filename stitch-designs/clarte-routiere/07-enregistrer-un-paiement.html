@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+
+<html lang="fr"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_stack" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "surface-container-lowest": "#ffffff", "on-tertiary-container": "#82d37d", "surface-dim": "#d7dadf", "tertiary-container": "#005c15", "tertiary-fixed": "#a3f69c", "surface-variant": "#e0e3e8", "on-primary": "#ffffff", "surface-tint": "#335f9d", "on-background": "#181c20", "on-surface": "#181c20", "surface-container-highest": "#e0e3e8", "on-primary-container": "#9ec1ff", "primary-fixed-dim": "#a9c7ff", "on-secondary-fixed-variant": "#633f00", "on-tertiary-fixed-variant": "#005312", "on-error": "#ffffff", "secondary": "#835500", "outline": "#737781", "error": "#ba1a1a", "inverse-primary": "#a9c7ff", "surface-container": "#ebeef3", "on-primary-fixed": "#001b3d", "on-tertiary-fixed": "#002204", "on-secondary-container": "#6b4500", "error-container": "#ffdad6", "inverse-surface": "#2d3135", "surface-container-low": "#f1f4f9", "on-secondary-fixed": "#291800", "surface": "#f7f9ff", "on-tertiary": "#ffffff", "tertiary": "#00420c", "surface-container-high": "#e5e8ee", "outline-variant": "#c3c6d2", "surface-bright": "#f7f9ff", "primary-fixed": "#d6e3ff", "background": "#f7f9ff", "on-error-container": "#93000a", "secondary-container": "#feae2c", "on-secondary": "#ffffff", "on-primary-fixed-variant": "#144684", "secondary-fixed-dim": "#ffb955", "inverse-on-surface": "#eef1f6", "secondary-fixed": "#ffddb4", "primary-container": "#1f4e8c", "on-surface-variant": "#434750", "tertiary-fixed-dim": "#88d982", "primary": "#00376f" }, "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, "spacing": { "gutter": "1rem", "space-lg": "1.5rem", "margin": "1rem", "space-xs": "0.25rem", "space-md": "1rem", "space-sm": "0.5rem", "space-xl": "2rem" }, "fontFamily": { "body-lg": ["Inter"], "body-md-bold": ["Inter"], "headline-lg": ["Inter"], "headline-sm": ["Inter"], "body-md": ["Inter"], "body-lg-bold": ["Inter"], "label-md": ["Inter"], "label-sm": ["Inter"], "display-lg": ["Inter"], "headline-md": ["Inter"] }, "fontSize": { "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }], "body-md-bold": ["14px", { "lineHeight": "20px", "fontWeight": "600" }], "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700" }], "headline-sm": ["18px", { "lineHeight": "24px", "fontWeight": "600" }], "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }], "body-lg-bold": ["16px", { "lineHeight": "24px", "fontWeight": "600" }], "label-md": ["13px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }], "label-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "700" }], "display-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }], "headline-md": ["20px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600" }] } } } };</script><style>@layer base{html,body{width:100%;margin:0;padding:0;}body{overscroll-behavior:none;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface font-body-md text-on-surface min-h-screen flex flex-col antialiased"><header class="fixed top-0 inset-x-0 z-50 bg-surface-container-lowest/90 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] pt-safe"><div class="h-16 px-margin flex items-center justify-between gap-space-sm"><div class="flex items-center gap-space-sm min-w-0 flex-1"><button aria-label="Retour" class="w-11 h-11 -ml-1.5 flex items-center justify-center rounded-xl text-on-surface hover:bg-surface-container-low transition-colors" onclick="history.back()"><span class="material-symbols-outlined text-[24px]">arrow_back</span></button><div class="flex flex-col min-w-0"><span class="font-label-sm text-label-sm text-primary uppercase tracking-wider truncate">Administration</span><h1 class="font-headline-sm text-headline-sm text-on-surface truncate">Fiche Élève</h1></div></div><div class="flex items-center gap-space-xs flex-shrink-0"><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="flex flex-col relative w-full pt-16 bg-surface min-h-screen"><div class="flex flex-col w-full pb-safe">
+<!-- Offline / Sync Status Indicator Bar -->
+<div class="w-full bg-secondary-container text-on-secondary-container px-margin py-space-xs flex items-center justify-between">
+<div class="flex items-center gap-space-xs min-w-0">
+<span class="material-symbols-outlined text-[18px]">wifi</span>
+<span class="font-label-sm text-label-sm truncate">Guichet connecté • Synchronisation en temps réel</span>
+</div>
+<span class="font-label-sm text-label-sm font-body-md-bold px-2 py-0.5 rounded-full bg-surface-container-lowest text-secondary">Poste Caisse #1</span>
+</div>
+<div class="px-margin flex flex-col gap-space-md pt-space-sm pb-space-xl">
+<!-- 1. En-tête contextuel & Navigation interne -->
+<div class="flex flex-col gap-space-xs">
+<button class="self-start inline-flex items-center gap-space-xs text-primary font-body-md-bold text-body-md-bold min-h-[48px] px-space-sm -ml-space-sm rounded-lg active:bg-surface-container transition-colors" onclick="history.back()">
+<span class="material-symbols-outlined text-[20px]">arrow_back</span>
+<span>Retour au tableau de bord</span>
+</button>
+<div class="flex items-start justify-between gap-space-sm">
+<div class="flex flex-col">
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Enregistrer un versement</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Élève identifié et reçu numérique automatique</p>
+</div>
+<div class="w-12 h-12 rounded-xl bg-primary-fixed text-on-primary-fixed flex items-center justify-center shadow-sm flex-shrink-0">
+<span class="material-symbols-outlined text-[26px]">payments</span>
+</div>
+</div>
+</div>
+<!-- 2. Barre de recherche et validation rapide de l'élève -->
+<div class="flex flex-col gap-space-xs">
+<label class="font-body-md-bold text-body-md-bold text-on-surface flex items-center gap-space-xs" for="student-search">
+<span class="material-symbols-outlined text-[18px] text-primary">person_search</span>
+        Dossier ou contact de l'élève
+      </label>
+<div class="relative w-full">
+<div class="relative flex items-center">
+<input class="w-full min-h-[52px] bg-surface-container-lowest text-on-surface font-body-md-bold text-body-md pl-11 pr-28 rounded-xl shadow-sm focus:outline-none" id="student-search" readonly="" type="text" value="Jean-Paul Mvondo (+237 699 12 34 56)"/>
+<span class="absolute left-3.5 material-symbols-outlined text-outline text-[22px]">search</span>
+<div class="absolute right-2 px-2.5 py-1 rounded-full bg-tertiary-fixed text-on-tertiary-fixed flex items-center gap-1 shadow-sm">
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="font-label-sm text-label-sm">Trouvé</span>
+</div>
+</div>
+</div>
+</div>
+<!-- 3. Carte récapitulative détaillée de l'élève sélectionné -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col gap-space-md">
+<!-- Identité de l'élève -->
+<div class="flex items-center gap-space-md">
+<div class="relative w-14 h-14 rounded-full overflow-hidden bg-surface-container flex-shrink-0">
+<img class="w-full h-full object-cover" data-alt="Portrait photography of Jean-Paul Mvondo, a confident young Cameroonian student smiling warmly in a natural daylight setting, clean aesthetic, realistic studio lighting, sharp facial details" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC4FuLN8OEGh4OQaUfMU2WLJ225rP3gCsdMWEeBbQEqd3JYQWIPsMUFezWFjvVcCO9qvvcpcMfvdgQgzQ7KofqoXyco9yYc9kZLQ4FNB8ghHzUEuvxKljxyhdNTZInVBytns4-T-cdGcuFq3TBLOEt0Mmq4hqQ4RsFHcSH14Qga7zomDcESNosJksO8_icdcVkOJsjgzOClN4mBJ2uc9rTJgGd5QowgJB4CLc0fwPH1"/>
+</div>
+<div class="flex flex-col min-w-0 flex-1">
+<div class="flex items-center gap-space-xs flex-wrap">
+<h3 class="font-headline-sm text-headline-sm text-on-surface truncate">Jean-Paul Mvondo</h3>
+<span class="font-label-sm text-label-sm bg-surface-container text-on-surface-variant px-2 py-0.5 rounded-full">#LM-4092</span>
+</div>
+<div class="flex items-center gap-space-xs text-on-surface-variant font-body-md text-body-md truncate">
+<span class="material-symbols-outlined text-[16px] text-primary">directions_car</span>
+<span>Permis B (Véhicule léger)</span>
+</div>
+<p class="font-label-sm text-label-sm text-primary">Groupe Matinée • Session Décembre</p>
+</div>
+</div>
+<!-- Situation Financière Visuelle -->
+<div class="bg-surface-container-low rounded-lg p-space-sm flex flex-col gap-space-sm">
+<div class="flex items-center justify-between font-label-md text-label-md text-on-surface-variant">
+<span>Progression du règlement</span>
+<span class="font-body-md-bold text-on-surface">33% encaissé</span>
+</div>
+<!-- Jauge d'avancement -->
+<div class="w-full h-2.5 bg-surface-variant rounded-full overflow-hidden flex">
+<div class="bg-tertiary h-full rounded-full" style="width: 33.33%;"></div>
+</div>
+<div class="grid grid-cols-3 gap-space-xs pt-space-xs">
+<div class="flex flex-col bg-surface-container-lowest p-2 rounded-lg text-center shadow-sm">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Déjà versé</span>
+<span class="font-body-md-bold text-body-md-bold text-tertiary">50 000 F</span>
+</div>
+<div class="flex flex-col bg-surface-container-lowest p-2 rounded-lg text-center shadow-sm">
+<span class="font-label-sm text-label-sm text-secondary">Échéance</span>
+<span class="font-body-md-bold text-body-md-bold text-secondary">Tranche 2/3</span>
+</div>
+<div class="flex flex-col bg-surface-container-lowest p-2 rounded-lg text-center shadow-sm">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Reste à solder</span>
+<span class="font-body-md-bold text-body-md-bold text-error">100 000 F</span>
+</div>
+</div>
+</div>
+</div>
+<!-- 4. Formulaire d'encaissement simplifié -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col gap-space-md">
+<!-- Champ Montant -->
+<div class="flex flex-col gap-space-xs">
+<label class="font-body-md-bold text-body-md-bold text-on-surface flex items-center justify-between" for="amount-input">
+<span>Montant à encaisser aujourd'hui</span>
+<span class="font-label-sm text-label-sm text-tertiary bg-tertiary-fixed px-2 py-0.5 rounded-full">Tranche attendue</span>
+</label>
+<div class="relative flex items-center">
+<input class="w-full min-h-[64px] bg-surface-container-low text-on-surface font-display-lg text-display-lg px-space-md rounded-xl text-center shadow-inner focus:outline-none" id="amount-input" inputmode="numeric" type="text" value="50 000"/>
+<span class="absolute right-4 font-headline-md text-headline-md text-outline">FCFA</span>
+</div>
+<!-- Touches rapides tactiles -->
+<div class="grid grid-cols-3 gap-space-xs pt-1">
+<button class="min-h-[48px] px-2 py-2 rounded-lg bg-surface-container hover:bg-surface-variant text-on-surface font-label-md text-label-md transition-colors text-center active:scale-95 flex flex-col items-center justify-center" onclick="updateAmount('25 000')" type="button">
+<span>25 000 F</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Acompte</span>
+</button>
+<button class="min-h-[48px] px-2 py-2 rounded-lg bg-primary text-on-primary font-label-md text-label-md shadow-sm transition-colors text-center active:scale-95 flex flex-col items-center justify-center" onclick="updateAmount('50 000')" type="button">
+<span>50 000 F</span>
+<span class="font-label-sm text-label-sm text-on-primary-container">Tranche standard</span>
+</button>
+<button class="min-h-[48px] px-2 py-2 rounded-lg bg-surface-container hover:bg-surface-variant text-on-surface font-label-md text-label-md transition-colors text-center active:scale-95 flex flex-col items-center justify-center" onclick="updateAmount('100 000')" type="button">
+<span>100 000 F</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Solde complet</span>
+</button>
+</div>
+</div>
+<!-- Mode de règlement -->
+<div class="flex flex-col gap-space-xs pt-space-xs">
+<label class="font-body-md-bold text-body-md-bold text-on-surface">Mode de règlement reçu au guichet</label>
+<div class="grid grid-cols-2 gap-space-xs" id="payment-methods-grid">
+<!-- Option Espèces (Actif par défaut) -->
+<button class="payment-method-card min-h-[56px] p-space-sm rounded-xl bg-primary-container text-on-primary flex items-center justify-between text-left shadow-sm transition-all" onclick="selectMethod(this, 'ESPECES')" type="button">
+<div class="flex items-center gap-space-xs min-w-0">
+<span class="material-symbols-outlined text-[24px]">payments</span>
+<div class="flex flex-col min-w-0">
+<span class="font-body-md-bold text-body-md truncate">Espèces</span>
+<span class="font-label-sm text-label-sm text-on-primary-container">Main propre</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-[20px] check-icon" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</button>
+<!-- Option MTN MoMo -->
+<button class="payment-method-card min-h-[56px] p-space-sm rounded-xl bg-surface-container-low text-on-surface flex items-center justify-between text-left shadow-sm transition-all" onclick="selectMethod(this, 'MTN')" type="button">
+<div class="flex items-center gap-space-xs min-w-0">
+<span class="material-symbols-outlined text-[24px] text-secondary">phone_iphone</span>
+<div class="flex flex-col min-w-0">
+<span class="font-body-md-bold text-body-md truncate">MTN MoMo</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">*126#</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-[20px] text-outline opacity-0 check-icon">check_circle</span>
+</button>
+<!-- Option Orange Money -->
+<button class="payment-method-card min-h-[56px] p-space-sm rounded-xl bg-surface-container-low text-on-surface flex items-center justify-between text-left shadow-sm transition-all" onclick="selectMethod(this, 'OM')" type="button">
+<div class="flex items-center gap-space-xs min-w-0">
+<span class="material-symbols-outlined text-[24px] text-secondary">contactless</span>
+<div class="flex flex-col min-w-0">
+<span class="font-body-md-bold text-body-md truncate">Orange Money</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">#150#</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-[20px] text-outline opacity-0 check-icon">check_circle</span>
+</button>
+<!-- Option Virement / Chèque -->
+<button class="payment-method-card min-h-[56px] p-space-sm rounded-xl bg-surface-container-low text-on-surface flex items-center justify-between text-left shadow-sm transition-all" onclick="selectMethod(this, 'BANQUE')" type="button">
+<div class="flex items-center gap-space-xs min-w-0">
+<span class="material-symbols-outlined text-[24px] text-primary">account_balance</span>
+<div class="flex flex-col min-w-0">
+<span class="font-body-md-bold text-body-md truncate">Banque / Chèque</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Bordereau</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-[20px] text-outline opacity-0 check-icon">check_circle</span>
+</button>
+</div>
+</div>
+<!-- Référence manuelle ou Note interne -->
+<div class="flex flex-col gap-space-xs pt-space-xs">
+<label class="font-body-md-bold text-body-md-bold text-on-surface flex items-center justify-between" for="reference-input">
+<span>Référence ou bordereau papier</span>
+<span class="font-label-sm text-label-sm text-outline">Facultatif</span>
+</label>
+<div class="relative flex items-center">
+<input class="w-full min-h-[52px] bg-surface-container-low text-on-surface font-body-md text-body-md px-space-md rounded-xl focus:outline-none placeholder:text-outline" id="reference-input" placeholder="ex: Souche manuelle N°042 ou Réf MoMo..." type="text"/>
+<span class="absolute right-3.5 material-symbols-outlined text-outline text-[20px]">edit_note</span>
+</div>
+</div>
+</div>
+<!-- 5. Bouton Principal d'Action Imposant & Réassurance -->
+<div class="flex flex-col gap-space-xs pt-space-xs">
+<button class="w-full min-h-[56px] py-space-sm px-space-md rounded-xl bg-primary hover:bg-primary-container text-on-primary font-body-lg-bold text-body-lg flex items-center justify-center gap-space-sm shadow-md active:scale-[0.98] transition-transform" id="submit-payment-btn" onclick="confirmPayment()">
+<span class="material-symbols-outlined text-[26px]" style="font-variation-settings: 'FILL' 1;">task_alt</span>
+<span id="btn-submit-text">Valider l'encaissement de 50 000 FCFA</span>
+</button>
+<div class="flex items-center justify-center gap-space-xs text-on-surface-variant text-center py-1">
+<span class="material-symbols-outlined text-[16px] text-tertiary">lock</span>
+<span class="font-label-sm text-label-sm">Génère instantanément un reçu officiel certifié et scellé</span>
+</div>
+</div>
+<!-- 6. Confirmation Flottante du Reçu Généré (Interactif) -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-lg flex flex-col gap-space-md" id="receipt-modal-box">
+<!-- En-tête reçu officiel -->
+<div class="flex items-center justify-between pb-space-sm bg-surface-container-low -mx-space-md -mt-space-md p-space-md rounded-t-xl">
+<div class="flex items-center gap-space-xs">
+<div class="w-8 h-8 rounded-full bg-tertiary-fixed text-on-tertiary-fixed flex items-center justify-center">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">verified</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-primary uppercase font-body-md-bold">Enregistrement Validé</span>
+<span class="font-headline-sm text-headline-sm text-on-surface">Reçu #RC-2024-0891</span>
+</div>
+</div>
+<span class="font-label-sm text-label-sm bg-surface-container-lowest text-on-surface px-2.5 py-1 rounded-full shadow-sm">Aujourd'hui, 11:42</span>
+</div>
+<!-- Corps du Reçu Récapitulatif -->
+<div class="flex flex-col gap-space-xs font-body-md text-body-md">
+<div class="flex justify-between py-1">
+<span class="text-on-surface-variant">Bénéficiaire :</span>
+<span class="font-body-md-bold text-on-surface">Jean-Paul Mvondo (Permis B)</span>
+</div>
+<div class="flex justify-between py-1">
+<span class="text-on-surface-variant">Montant perçu :</span>
+<span class="font-body-lg-bold text-body-lg text-tertiary" id="receipt-display-amount">50 000 FCFA</span>
+</div>
+<div class="flex justify-between py-1">
+<span class="text-on-surface-variant">Mode d'encaissement :</span>
+<span class="font-body-md-bold text-on-surface" id="receipt-display-method">Espèces (Guichet)</span>
+</div>
+<div class="flex justify-between py-1">
+<span class="text-on-surface-variant">Nouveau solde restant :</span>
+<span class="font-body-md-bold text-error">50 000 FCFA</span>
+</div>
+</div>
+<!-- Actions de Distribution Directe -->
+<div class="flex flex-col gap-space-xs pt-space-xs">
+<!-- Action WhatsApp Primordiale -->
+<a class="w-full min-h-[52px] px-space-md py-space-sm rounded-xl bg-tertiary hover:bg-tertiary-container text-on-tertiary font-body-lg-bold text-body-lg flex items-center justify-center gap-space-sm shadow-sm transition-all active:scale-[0.98]" href="https://wa.me/237699123456?text=Bonjour%20Jean-Paul,%20voici%20votre%20re%C3%A7u%20de%20versement%20Auto-%C3%A9cole%20La%20Marseillaise%20N%C2%B0RC-2024-0891" target="_blank">
+<span class="material-symbols-outlined text-[24px]">chat</span>
+<span class="truncate">Envoyer le reçu à Jean-Paul sur WhatsApp</span>
+</a>
+<div class="grid grid-cols-2 gap-space-xs">
+<!-- Action Imprimer -->
+<button class="min-h-[48px] px-space-sm py-2 rounded-xl bg-surface-container text-on-surface font-body-md-bold text-body-md flex items-center justify-center gap-space-xs hover:bg-surface-variant transition-colors" onclick="window.print()" type="button">
+<span class="material-symbols-outlined text-[20px] text-primary">print</span>
+<span class="truncate">Imprimer souche</span>
+</button>
+<!-- Action Nouveau Dossier -->
+<button class="min-h-[48px] px-space-sm py-2 rounded-xl bg-surface-container text-on-surface font-body-md-bold text-body-md flex items-center justify-center gap-space-xs hover:bg-surface-variant transition-colors" onclick="resetForm()" type="button">
+<span class="material-symbols-outlined text-[20px] text-secondary">person_add</span>
+<span class="truncate">Autre encaissement</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Bannière d'aide rapide pour la secrétaire -->
+<div class="bg-surface-container-low rounded-xl p-space-md flex items-center gap-space-md">
+<div class="w-10 h-10 rounded-full bg-secondary-fixed text-on-secondary-fixed flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-[20px]">support_agent</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-body-md-bold text-body-md-bold text-on-surface">Erreur de saisie ?</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Les annulations de versements se font avec validation de la direction sous 24h.</span>
+</div>
+</div>
+</div>
+</div>
+<script>
+  let currentMethodLabel = 'Espèces (Guichet)';
+
+  function updateAmount(val) {
+    const amountInput = document.getElementById('amount-input');
+    const submitBtnText = document.getElementById('btn-submit-text');
+    const receiptAmount = document.getElementById('receipt-display-amount');
+    
+    amountInput.value = val;
+    submitBtnText.textContent = "Valider l'encaissement de " + val + " FCFA";
+    receiptAmount.textContent = val + " FCFA";
+  }
+
+  function selectMethod(el, type) {
+    const cards = document.querySelectorAll('.payment-method-card');
+    cards.forEach(card => {
+      card.classList.remove('bg-primary-container', 'text-on-primary');
+      card.classList.add('bg-surface-container-low', 'text-on-surface');
+      const icon = card.querySelector('.check-icon');
+      if (icon) {
+        icon.classList.add('opacity-0');
+        icon.style.fontVariationSettings = "'FILL' 0";
+      }
+    });
+
+    el.classList.remove('bg-surface-container-low', 'text-on-surface');
+    el.classList.add('bg-primary-container', 'text-on-primary');
+    
+    const activeIcon = el.querySelector('.check-icon');
+    if (activeIcon) {
+      activeIcon.classList.remove('opacity-0');
+      activeIcon.style.fontVariationSettings = "'FILL' 1";
+    }
+
+    if (type === 'ESPECES') currentMethodLabel = 'Espèces (Guichet)';
+    if (type === 'MTN') currentMethodLabel = 'MTN Mobile Money';
+    if (type === 'OM') currentMethodLabel = 'Orange Money';
+    if (type === 'BANQUE') currentMethodLabel = 'Virement / Chèque bancaire';
+
+    document.getElementById('receipt-display-method').textContent = currentMethodLabel;
+  }
+
+  function confirmPayment() {
+    const modalBox = document.getElementById('receipt-modal-box');
+    modalBox.scrollIntoView({ behavior: 'smooth' });
+    
+    // Feedback tactile
+    const btn = document.getElementById('submit-payment-btn');
+    btn.classList.add('bg-tertiary');
+    setTimeout(() => {
+      btn.classList.remove('bg-tertiary');
+    }, 1200);
+  }
+
+  function resetForm() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // Écouteur direct de saisie libre du montant
+  document.getElementById('amount-input').addEventListener('input', function(e) {
+    const rawVal = e.target.value;
+    document.getElementById('btn-submit-text').textContent = "Valider l'encaissement de " + rawVal + " FCFA";
+    document.getElementById('receipt-display-amount').textContent = rawVal + " FCFA";
+  });
+</script></main></body></html>

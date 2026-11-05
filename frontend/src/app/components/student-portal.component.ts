@@ -1,834 +1,985 @@
-import { Component, EventEmitter, Output, inject, signal, OnInit } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ApiService } from '../services/api.service';
-import { LocalDbService } from '../services/local-db.service';
-import { ReceiptExportService } from '../services/receipt-export.service';
 
 @Component({
   selector: 'app-student-portal',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   template: `
-    <div class="min-h-[100dvh] bg-[#F4F7FB] pb-24 max-w-md mx-auto relative">
-      <!-- ==================== FROSTED LIGHT HEADER ==================== -->
-      <header class="sticky top-0 z-30 aem-frosted-chrome px-4 py-3 flex items-center justify-between">
-        <div class="flex items-center gap-2.5">
-          <img src="/aem-icon.svg" alt="AEM" class="w-9 h-9 rounded-xl shadow-xs" />
+    <div class="min-h-screen bg-surface pb-28 text-on-surface font-body">
+      <!-- Top App Bar (Stitch Clarté Routière) -->
+      <header class="sticky top-0 z-50 bg-surface-container-lowest/90 backdrop-blur-xl px-4 py-3 flex items-center justify-between border-b border-outline-variant/20 shadow-[0_12px_32px_-4px_rgba(24,28,34,0.06)]">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center text-white font-headline font-bold text-lg shadow-sm relative">
+            <span>AEM</span>
+            <span class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-aem-orange border-2 border-white"></span>
+          </div>
           <div>
-            <div class="flex items-center gap-1.5">
-              <span class="text-[10px] font-extrabold uppercase tracking-wider text-[#D94E28]">AEM • ÉLÈVE</span>
-              @if (!api.isOnline()) {
-                <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#FEF3C7] text-[#D97706]">HORS-LIGNE</span>
-              }
+            <p class="font-headline font-bold text-[#00376f] text-sm leading-tight">Auto-école La Marseillaise</p>
+            <div class="flex items-center gap-1.5 mt-0.5">
+              <span class="w-2 h-2 rounded-full" [ngClass]="activeTab === 'expired' ? 'bg-error' : 'bg-tertiary'"></span>
+              <span class="text-[11px] text-on-surface-variant font-medium">
+                {{ activeTab === 'expired' ? 'Accès suspendu • Réactivation' : 'Candidat Permis ' + (user?.license_type || 'B') }}
+              </span>
             </div>
-            <h1 class="text-sm font-bold text-[#0F1E36] truncate max-w-[170px]">
-              {{ profile()?.full_name || 'Mon Espace Élève' }}
-            </h1>
           </div>
         </div>
 
         <div class="flex items-center gap-2">
-          <!-- Install PWA Guide Button -->
+          <!-- Toggle to preview Stitch Screen 05 (Accès Expiré - Réactivation) -->
           <button
-            type="button"
-            (click)="showInstallSheet.set(true)"
-            class="px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-[#E8F2FC] text-[#2B6CA8] border border-[#3D8BCD]/20"
+            (click)="activeTab = activeTab === 'expired' ? 'home' : 'expired'"
+            class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all border"
+            [ngClass]="activeTab === 'expired' ? 'bg-error text-white border-error' : 'bg-secondary-fixed/50 text-secondary border-secondary/20 hover:bg-secondary-fixed'"
+            title="Aperçu Écran Stitch 05 : Accès Expiré"
           >
-            📲 Installer
+            <span class="material-symbols-outlined text-sm">timer_off</span>
+            <span class="hidden sm:inline">{{ activeTab === 'expired' ? 'Quitter Aperçu Expiré' : 'Écran Essai Expiré' }}</span>
           </button>
+
           <button
-            type="button"
             (click)="logout.emit()"
-            class="p-2 rounded-xl text-xs font-semibold text-[#4A607A] bg-[#F1F5F9]"
+            class="w-10 h-10 rounded-full bg-surface-container-low hover:bg-surface-container-high flex items-center justify-center text-on-surface-variant transition-colors"
             title="Déconnexion"
           >
-            Sortir
+            <span class="material-symbols-outlined text-xl">logout</span>
           </button>
         </div>
       </header>
 
-      <!-- ==================== MAIN CONTENT ==================== -->
-      <main class="px-4 pt-4 space-y-4">
-        <!-- Clock Tamper Security Alert -->
-        @if (clockTampered()) {
-          <div class="p-4 rounded-2xl bg-[#FEF2F2] border border-[#DC2626]/30 text-xs text-[#DC2626] space-y-1">
-            <p class="font-extrabold">⚠️ Horloge du téléphone modifiée</p>
-            <p>Veuillez remettre votre téléphone à la date et l'heure automatiques et vous reconnecter à Internet.</p>
-          </div>
-        }
+      <main class="max-w-lg mx-auto px-4 pt-5 space-y-6">
 
-        <!-- Trial / Access Status Banner -->
-        @if (profile()) {
-          @if (!profile().has_access) {
-            <div class="p-4 rounded-2xl bg-[#FFF7ED] border border-[#D94E28]/35 space-y-2.5">
-              <div class="flex items-center justify-between">
-                <span class="px-2 py-0.5 rounded text-[10px] font-extrabold bg-[#D94E28] text-white uppercase">
-                  Période d'essai terminée
-                </span>
-                <span class="text-xs font-bold text-[#D94E28] font-tabular">14 jours écoulés</span>
-              </div>
-              <h2 class="text-sm font-extrabold text-[#0F1E36]">
-                Réglez votre 1er versement pour débloquer tous les cours & quiz
-              </h2>
-              <p class="text-xs text-[#4A607A]">
-                Rendez-vous au secrétariat de l'Auto-École La Marseillaise ou contactez-nous sur WhatsApp pour activer votre accès illimité.
-              </p>
-              <div class="flex gap-2 pt-1">
-                <a
-                  href="https://wa.me/237699000001?text=Bonjour%20Auto-%C3%89cole%20La%20Marseillaise%2C%20je%20souhaite%20r%C3%A9gler%20mon%20versement%20pour%20d%C3%A9bloquer%20mon%20compte."
-                  target="_blank"
-                  rel="noopener"
-                  class="flex-1 py-2.5 px-3 rounded-xl text-xs font-bold text-center bg-[#16A34A] text-white"
-                >
-                  💬 WhatsApp Secrétariat
-                </a>
-                <button
-                  type="button"
-                  (click)="activeTab.set('payments')"
-                  class="py-2.5 px-3 rounded-xl text-xs font-bold bg-white text-[#0F1E36] border border-[#CBD5E1]"
-                >
-                  Voir mes frais
-                </button>
-              </div>
-            </div>
-          } @else if (!profile().has_paid) {
-            <div class="p-3.5 rounded-2xl bg-gradient-to-r from-[#3D8BCD] to-[#2B6CA8] text-white flex items-center justify-between shadow-sm">
+        <!-- ======================================================= -->
+        <!-- STITCH SCREEN 02 : ACCUEIL APPRENANT                    -->
+        <!-- ======================================================= -->
+        <ng-container *ngIf="activeTab === 'home'">
+          <!-- Candidate Hero Greeting & Status Banner -->
+          <section class="space-y-3">
+            <div class="flex items-center justify-between">
               <div>
-                <span class="text-[10px] font-bold uppercase tracking-wider text-white/85 block">
-                  Essai Gratuit Actif • Permis {{ enrollment()?.category_code || 'B' }}
-                </span>
-                <p class="text-sm font-extrabold">
-                  {{ profile().trial_days_remaining }} jour(s) gratuit(s) restant(s)
+                <p class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Espace Candidat • Yaoundé</p>
+                <h1 class="font-headline text-2xl font-extrabold text-on-surface tracking-tight">
+                  Bonjour, {{ firstName }} 👋
+                </h1>
+              </div>
+              <span class="px-3 py-1 rounded-full bg-primary/10 text-primary font-headline font-bold text-xs">
+                Dossier #LM-4092
+              </span>
+            </div>
+
+            <!-- Trial / Status Alert Banner -->
+            <div class="bg-secondary-fixed/60 border border-secondary/20 rounded-xl p-3.5 flex items-center justify-between gap-3">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-secondary-container/40 flex items-center justify-center text-secondary shrink-0">
+                  <span class="material-symbols-outlined">schedule</span>
+                </div>
+                <div>
+                  <p class="text-xs font-bold text-on-secondary-fixed">Période d'essai gratuite active</p>
+                  <p class="text-[11px] text-on-secondary-fixed-variant">
+                    Validez votre 1ère tranche ({{ formatFcfa(40000) }} FCFA) pour débloquer les 40h de cours.
+                  </p>
+                </div>
+              </div>
+              <button
+                (click)="activeTab = 'payments'"
+                class="shrink-0 px-3 py-2 rounded-lg bg-primary text-white text-xs font-bold shadow-sm active:scale-95 transition-transform"
+              >
+                Régler
+              </button>
+            </div>
+          </section>
+
+          <!-- Primary CTA Card: Reprendre ma formation -->
+          <section class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary to-primary-container text-white p-6 shadow-lg">
+            <div class="relative z-10 space-y-4">
+              <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 backdrop-blur-md text-xs font-semibold">
+                <span class="material-symbols-outlined text-sm text-secondary-container">menu_book</span>
+                <span>Module 2 • Signalisation Routière CEMAC</span>
+              </div>
+
+              <div>
+                <h2 class="font-headline text-xl font-extrabold leading-snug">
+                  Les panneaux d'interdiction et de priorité à Yaoundé
+                </h2>
+                <p class="text-xs text-on-primary-container mt-1">
+                  Chapitre 4 sur 8 • Temps estimé : 12 min
                 </p>
               </div>
-              <button
-                type="button"
-                (click)="activeTab.set('payments')"
-                class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white text-[#2B6CA8]"
-              >
-                Mon dossier
+
+              <!-- Progress bar -->
+              <div class="space-y-1.5">
+                <div class="flex justify-between text-xs font-semibold">
+                  <span>Progression globale du Code</span>
+                  <span class="tabular-nums">{{ progressPercent }}%</span>
+                </div>
+                <div class="w-full h-2.5 bg-white/20 rounded-full overflow-hidden">
+                  <div class="h-full bg-secondary-container rounded-full transition-all duration-500" [style.width.%]="progressPercent"></div>
+                </div>
+              </div>
+
+              <div class="flex flex-wrap gap-2.5 pt-1">
+                <button
+                  (click)="activeTab = 'courses'"
+                  class="flex-1 min-h-[48px] bg-white text-primary font-headline font-bold text-sm px-4 py-3 rounded-xl flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition-transform"
+                >
+                  <span class="material-symbols-outlined text-lg">play_arrow</span>
+                  <span>Reprendre le cours</span>
+                </button>
+                <button
+                  (click)="activeTab = 'quiz'"
+                  class="min-h-[48px] bg-white/15 hover:bg-white/25 text-white font-headline font-bold text-sm px-4 py-3 rounded-xl flex items-center justify-center gap-1.5 border border-white/20 active:scale-[0.98] transition-transform"
+                >
+                  <span class="material-symbols-outlined text-lg">quiz</span>
+                  <span>Quiz Express</span>
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <!-- 2x2 Bento Pedagogical KPIs -->
+          <section class="grid grid-cols-2 gap-3.5">
+            <div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/20 shadow-sm space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-medium text-on-surface-variant">Heures de Code</span>
+                <span class="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                  <span class="material-symbols-outlined text-lg">school</span>
+                </span>
+              </div>
+              <p class="font-headline text-2xl font-extrabold text-on-surface tabular-nums">18h <span class="text-xs font-normal text-on-surface-variant">/ 40h</span></p>
+              <p class="text-[11px] text-tertiary font-semibold flex items-center gap-1">
+                <span class="material-symbols-outlined text-xs">check_circle</span> Assiduité régulière
+              </p>
+            </div>
+
+            <div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/20 shadow-sm space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-medium text-on-surface-variant">Moyenne Quiz</span>
+                <span class="w-8 h-8 rounded-lg bg-tertiary/10 text-tertiary flex items-center justify-center">
+                  <span class="material-symbols-outlined text-lg">workspace_premium</span>
+                </span>
+              </div>
+              <p class="font-headline text-2xl font-extrabold text-on-surface tabular-nums">{{ lastScore || 16 }} <span class="text-xs font-normal text-on-surface-variant">/ 20</span></p>
+              <p class="text-[11px] text-on-surface-variant">Seuil examen MINTRANS : 16/20</p>
+            </div>
+          </section>
+
+          <!-- Situation Financière Card (3 Tranches) -->
+          <section class="bg-surface-container-lowest rounded-2xl p-5 border border-outline-variant/25 shadow-sm space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="font-headline font-bold text-base text-on-surface">Situation Financière (3 Tranches)</h3>
+                <p class="text-xs text-on-surface-variant">Forfait Permis {{ user?.license_type || 'B' }} • Total {{ formatFcfa(totalDue) }} FCFA</p>
+              </div>
+              <button (click)="activeTab = 'payments'" class="text-xs font-bold text-primary flex items-center gap-0.5">
+                <span>Détails</span>
+                <span class="material-symbols-outlined text-base">chevron_right</span>
               </button>
             </div>
-          } @else {
-            <div class="p-3 rounded-2xl bg-[#ECFDF5] border border-[#16A34A]/25 flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <span class="w-2.5 h-2.5 rounded-full bg-[#16A34A]"></span>
-                <span class="text-xs font-bold text-[#15803D]">
-                  Compte Élève Confirmé • Accès Illimité (Permis {{ enrollment()?.category_code || 'B' }})
-                </span>
-              </div>
-              <span class="text-[11px] font-bold text-[#16A34A] font-tabular">Actif ✓</span>
-            </div>
-          }
-        }
 
-        <!-- ==================== TAB 1: ACCUEIL ==================== -->
-        @if (activeTab() === 'home') {
-          <!-- Financial Progress Summary Card -->
-          @if (enrollment()) {
-            <div class="aem-card p-4 space-y-3">
-              <div class="flex items-center justify-between">
-                <div>
-                  <span class="text-[11px] font-bold uppercase tracking-wider text-[#3D8BCD]">
-                    {{ enrollment().category_name || 'Permis B' }}
-                  </span>
-                  <h3 class="text-base font-extrabold text-[#0F1E36]">
-                    {{ enrollment().group_name || 'Session en cours' }}
-                  </h3>
+            <div class="grid grid-cols-3 gap-2">
+              <div class="p-3 rounded-xl bg-tertiary-fixed/40 border border-tertiary/20">
+                <div class="flex items-center justify-between text-[11px] font-bold text-tertiary">
+                  <span>Tranche 1</span>
+                  <span class="material-symbols-outlined text-sm">check_circle</span>
                 </div>
-                <span class="px-2.5 py-1 rounded-full text-xs font-extrabold bg-[#E8F2FC] text-[#2B6CA8] font-tabular">
-                  {{ paymentPercent() }}% réglé
-                </span>
+                <p class="font-headline font-extrabold text-sm text-on-surface mt-1 tabular-nums">40 000 F</p>
+                <p class="text-[10px] text-tertiary font-semibold">Inscription</p>
               </div>
 
-              <!-- Progress Bar -->
-              <div class="w-full h-2.5 rounded-full bg-[#E2E8F0] overflow-hidden">
+              <div class="p-3 rounded-xl bg-secondary-fixed/50 border border-secondary/30">
+                <div class="flex items-center justify-between text-[11px] font-bold text-secondary">
+                  <span>Tranche 2</span>
+                  <span class="material-symbols-outlined text-sm">pending</span>
+                </div>
+                <p class="font-headline font-extrabold text-sm text-on-surface mt-1 tabular-nums">35 000 F</p>
+                <p class="text-[10px] text-secondary font-semibold">En cours</p>
+              </div>
+
+              <div class="p-3 rounded-xl bg-surface-container-low border border-outline-variant/20">
+                <div class="flex items-center justify-between text-[11px] font-bold text-on-surface-variant">
+                  <span>Tranche 3</span>
+                  <span class="material-symbols-outlined text-sm">lock</span>
+                </div>
+                <p class="font-headline font-extrabold text-sm text-on-surface mt-1 tabular-nums">20 000 F</p>
+                <p class="text-[10px] text-on-surface-variant">Avant examen</p>
+              </div>
+            </div>
+          </section>
+
+          <!-- Prochain Cours en Salle / Pratique -->
+          <section class="bg-surface-container-lowest rounded-2xl p-5 border border-outline-variant/25 shadow-sm flex items-center justify-between gap-4">
+            <div class="flex items-center gap-3.5">
+              <div class="w-12 h-12 rounded-xl bg-primary-fixed flex flex-col items-center justify-center text-primary font-headline">
+                <span class="text-[10px] font-bold uppercase">Jeu</span>
+                <span class="text-lg font-extrabold leading-none">18h</span>
+              </div>
+              <div>
+                <span class="inline-block px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold mb-1">Vague du Soir • Bastos</span>
+                <h4 class="font-headline font-bold text-sm text-on-surface">Pratique Créneau & Démarrage en côte</h4>
+                <p class="text-xs text-on-surface-variant">Moniteur : M. Essomba • Toyota Yaris #04</p>
+              </div>
+            </div>
+            <a
+              href="https://wa.me/237677000000"
+              target="_blank"
+              class="w-11 h-11 rounded-xl bg-[#25D366]/15 text-[#128C7E] flex items-center justify-center shrink-0"
+              title="Contacter le secrétariat WhatsApp"
+            >
+              <span class="material-symbols-outlined">chat</span>
+            </a>
+          </section>
+        </ng-container>
+
+        <!-- ======================================================= -->
+        <!-- STITCH SCREEN 03 : MES COURS (CATALOGUE & LEÇON)        -->
+        <!-- ======================================================= -->
+        <ng-container *ngIf="activeTab === 'courses'">
+          <section class="space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs font-bold uppercase tracking-wider text-primary">Programme Officiel MINTRANS</p>
+                <h1 class="font-headline text-2xl font-extrabold text-on-surface">Mes Cours de Code & Conduite</h1>
+              </div>
+              <span class="px-3 py-1.5 rounded-xl bg-surface-container-low text-xs font-bold text-on-surface-variant tabular-nums">
+                {{ courses.length }} modules
+              </span>
+            </div>
+
+            <!-- Filter Pills -->
+            <div class="flex gap-2 overflow-x-auto pb-1">
+              <button
+                *ngFor="let cat of courseCategories"
+                (click)="selectedCategory = cat.id"
+                class="px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all"
+                [ngClass]="selectedCategory === cat.id ? 'bg-primary text-white shadow-sm' : 'bg-surface-container-lowest text-on-surface-variant border border-outline-variant/25'"
+              >
+                {{ cat.label }}
+              </button>
+            </div>
+
+            <!-- Course List -->
+            <div class="space-y-3">
+              <div
+                *ngFor="let course of filteredCourses; let i = index"
+                (click)="selectedCourse = course"
+                class="bg-surface-container-lowest rounded-2xl p-4 border transition-all cursor-pointer"
+                [ngClass]="selectedCourse?.id === course.id ? 'border-primary ring-2 ring-primary/15 shadow-md' : 'border-outline-variant/25 hover:border-primary/40 shadow-sm'"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="flex items-start gap-3.5">
+                    <div
+                      class="w-11 h-11 rounded-xl flex items-center justify-center font-headline font-extrabold text-sm shrink-0"
+                      [ngClass]="i === 0 ? 'bg-tertiary-fixed text-tertiary' : i === 1 ? 'bg-primary text-white' : 'bg-surface-container-low text-on-surface-variant'"
+                    >
+                      <span class="material-symbols-outlined text-xl">
+                        {{ i === 0 ? 'check_circle' : i === 1 ? 'menu_book' : 'play_lesson' }}
+                      </span>
+                    </div>
+                    <div>
+                      <div class="flex items-center gap-2">
+                        <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-primary/10 text-primary">
+                          Module {{ course.order_index || (i + 1) }}
+                        </span>
+                        <span class="text-[11px] text-on-surface-variant font-medium">• {{ course.duration_minutes || 25 }} min</span>
+                      </div>
+                      <h3 class="font-headline font-bold text-base text-on-surface mt-1">{{ course.title_fr }}</h3>
+                      <p class="text-xs text-on-surface-variant line-clamp-2 mt-1">{{ course.summary_fr }}</p>
+                    </div>
+                  </div>
+                  <span class="material-symbols-outlined text-on-surface-variant">
+                    {{ selectedCourse?.id === course.id ? 'expand_less' : 'chevron_right' }}
+                  </span>
+                </div>
+
+                <!-- Expanded Reader View -->
+                <div *ngIf="selectedCourse?.id === course.id" class="mt-4 pt-4 border-t border-outline-variant/25 space-y-4">
+                  <div class="p-4 rounded-xl bg-surface-container-low text-sm text-on-surface leading-relaxed space-y-2">
+                    <p class="font-semibold text-primary flex items-center gap-1.5">
+                      <span class="material-symbols-outlined text-base">lightbulb</span>
+                      <span>Points clés à retenir pour l'examen :</span>
+                    </p>
+                    <p>{{ course.content_markdown }}</p>
+                  </div>
+
+                  <div class="flex items-center justify-between gap-3">
+                    <button
+                      (click)="activeTab = 'quiz'; $event.stopPropagation()"
+                      class="flex-1 min-h-[46px] bg-primary text-white font-headline font-bold text-xs px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 shadow-sm"
+                    >
+                      <span class="material-symbols-outlined text-base">quiz</span>
+                      <span>Tester mes connaissances sur ce module</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </ng-container>
+
+        <!-- ======================================================= -->
+        <!-- STITCH SCREEN 04 : ENTRAÎNEMENT QUIZ INTERACTIF         -->
+        <!-- ======================================================= -->
+        <ng-container *ngIf="activeTab === 'quiz'">
+          <section class="space-y-4" *ngIf="questions.length > 0 && !quizSubmitted">
+            <!-- Quiz Top Progress Bar -->
+            <div class="bg-surface-container-lowest p-4 rounded-2xl border border-outline-variant/25 shadow-sm space-y-3">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span class="px-2.5 py-1 rounded-lg bg-primary text-white font-headline font-bold text-xs tabular-nums">
+                    Question {{ currentQuestionIndex + 1 }} / {{ questions.length }}
+                  </span>
+                  <span class="text-xs font-semibold text-on-surface-variant">Code CEMAC • Examen Blanc</span>
+                </div>
+                <div class="flex items-center gap-1 text-secondary font-headline font-bold text-xs tabular-nums bg-secondary-fixed/50 px-2.5 py-1 rounded-lg">
+                  <span class="material-symbols-outlined text-sm">timer</span>
+                  <span>00:28</span>
+                </div>
+              </div>
+
+              <div class="w-full h-2 bg-surface-container-high rounded-full overflow-hidden">
                 <div
-                  class="h-full rounded-full bg-[#3D8BCD] transition-all duration-300"
-                  [style.width.%]="paymentPercent()"
+                  class="h-full bg-primary transition-all duration-300 rounded-full"
+                  [style.width.%]="((currentQuestionIndex + 1) / questions.length) * 100"
                 ></div>
               </div>
+            </div>
 
-              <div class="grid grid-cols-3 gap-2 pt-1 text-center">
-                <div class="p-2 rounded-xl bg-[#F8FAFC]">
-                  <span class="block text-[10px] font-semibold text-[#64748B]">Total Formation</span>
-                  <span class="text-xs font-extrabold text-[#0F1E36] font-tabular">
-                    {{ enrollment().total_fee | number }} F
+            <!-- Question Visual Card -->
+            <div class="bg-surface-container-lowest rounded-2xl overflow-hidden border border-outline-variant/25 shadow-sm">
+              <!-- Simulated Road Scenario Banner -->
+              <div class="bg-gradient-to-r from-[#00376f] via-[#1f4e8c] to-[#00376f] p-5 text-white relative">
+                <div class="flex items-center justify-between mb-3">
+                  <span class="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-white/15">
+                    Situation Routière #{{ currentQuestionIndex + 1 }}
                   </span>
+                  <span class="material-symbols-outlined text-2xl text-secondary-container">traffic</span>
                 </div>
-                <div class="p-2 rounded-xl bg-[#ECFDF5]">
-                  <span class="block text-[10px] font-semibold text-[#16A34A]">Déjà Payé</span>
-                  <span class="text-xs font-extrabold text-[#16A34A] font-tabular">
-                    {{ enrollment().total_paid | number }} F
+                <h2 class="font-headline font-bold text-lg leading-snug">
+                  {{ currentQuestion.question_fr }}
+                </h2>
+              </div>
+
+              <!-- Answer Choices (48px+ Tactile Targets) -->
+              <div class="p-4 space-y-2.5">
+                <button
+                  *ngFor="let opt of currentQuestion.options; let idx = index"
+                  (click)="selectOption(idx)"
+                  class="w-full min-h-[56px] p-3.5 rounded-xl border text-left flex items-center justify-between gap-3 transition-all"
+                  [ngClass]="getOptionClass(idx)"
+                >
+                  <div class="flex items-center gap-3">
+                    <span
+                      class="w-8 h-8 rounded-lg font-headline font-extrabold text-xs flex items-center justify-center shrink-0"
+                      [ngClass]="selectedAnswers[currentQuestion.id] === idx ? 'bg-primary text-white' : 'bg-surface-container-low text-on-surface'"
+                    >
+                      {{ ['A', 'B', 'C', 'D'][idx] }}
+                    </span>
+                    <span class="text-sm font-medium text-on-surface">{{ opt }}</span>
+                  </div>
+                  <span *ngIf="selectedAnswers[currentQuestion.id] === idx" class="material-symbols-outlined text-primary">
+                    check_circle
                   </span>
-                </div>
-                <div class="p-2 rounded-xl bg-[#FFF7ED]">
-                  <span class="block text-[10px] font-semibold text-[#D94E28]">Reste à Payer</span>
-                  <span class="text-xs font-extrabold text-[#D94E28] font-tabular">
-                    {{ enrollment().balance_due | number }} F
-                  </span>
-                </div>
+                </button>
+              </div>
+
+              <!-- Instant Pedagogical Explanation (shown once option picked) -->
+              <div
+                *ngIf="selectedAnswers[currentQuestion.id] !== undefined && currentQuestion.explanation_fr"
+                class="mx-4 mb-4 p-3.5 rounded-xl bg-primary-fixed/40 border border-primary/20 text-xs text-on-primary-fixed space-y-1"
+              >
+                <p class="font-bold flex items-center gap-1 text-primary">
+                  <span class="material-symbols-outlined text-sm">info</span>
+                  <span>Rappel réglementaire MINTRANS :</span>
+                </p>
+                <p>{{ currentQuestion.explanation_fr }}</p>
+              </div>
+
+              <!-- Bottom Navigation -->
+              <div class="px-4 py-3.5 bg-surface-container-low border-t border-outline-variant/20 flex items-center justify-between gap-3">
+                <button
+                  (click)="prevQuestion()"
+                  [disabled]="currentQuestionIndex === 0"
+                  class="min-h-[48px] px-4 rounded-xl font-headline font-bold text-xs text-on-surface-variant bg-surface-container-lowest border border-outline-variant/30 disabled:opacity-40 flex items-center gap-1"
+                >
+                  <span class="material-symbols-outlined text-base">arrow_back</span>
+                  <span>Précédent</span>
+                </button>
+
+                <button
+                  *ngIf="currentQuestionIndex < questions.length - 1"
+                  (click)="nextQuestion()"
+                  class="flex-1 min-h-[48px] bg-primary text-white font-headline font-bold text-sm rounded-xl flex items-center justify-center gap-1.5 shadow-sm"
+                >
+                  <span>Question suivante</span>
+                  <span class="material-symbols-outlined text-base">arrow_forward</span>
+                </button>
+
+                <button
+                  *ngIf="currentQuestionIndex === questions.length - 1"
+                  (click)="submitQuiz()"
+                  class="flex-1 min-h-[48px] bg-tertiary text-white font-headline font-bold text-sm rounded-xl flex items-center justify-center gap-1.5 shadow-sm"
+                >
+                  <span class="material-symbols-outlined text-base">task_alt</span>
+                  <span>Valider ma série</span>
+                </button>
               </div>
             </div>
-          }
+          </section>
 
-          <!-- Quick Action Cards -->
-          <div class="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              (click)="activeTab.set('courses')"
-              class="aem-card p-4 text-left space-y-2 hover:border-[#3D8BCD] transition-all"
+          <!-- Quiz Result Card -->
+          <section *ngIf="quizSubmitted" class="bg-surface-container-lowest rounded-2xl p-6 border border-outline-variant/25 shadow-sm text-center space-y-5">
+            <div
+              class="w-16 h-16 rounded-2xl mx-auto flex items-center justify-center"
+              [ngClass]="quizResult.passed ? 'bg-tertiary-fixed text-tertiary' : 'bg-secondary-fixed text-secondary'"
             >
-              <div class="w-10 h-10 rounded-xl bg-[#E8F2FC] text-[#3D8BCD] flex items-center justify-center font-bold text-lg">
-                📘
-              </div>
-              <div>
-                <h4 class="text-sm font-extrabold text-[#0F1E36]">Cours du Code</h4>
-                <p class="text-[11px] text-[#4A607A]">{{ resources().length }} chapitres PDF & Hors-ligne</p>
-              </div>
-            </button>
+              <span class="material-symbols-outlined text-4xl">
+                {{ quizResult.passed ? 'emoji_events' : 'Menu_book' }}
+              </span>
+            </div>
 
-            <button
-              type="button"
-              (click)="activeTab.set('quizzes')"
-              class="aem-card p-4 text-left space-y-2 hover:border-[#D94E28] transition-all"
-            >
-              <div class="w-10 h-10 rounded-xl bg-[#FFF7ED] text-[#D94E28] flex items-center justify-center font-bold text-lg">
-                🎯
-              </div>
-              <div>
-                <h4 class="text-sm font-extrabold text-[#0F1E36]">Quiz & Examens</h4>
-                <p class="text-[11px] text-[#4A607A]">{{ quizzes().length }} séries chronométrées</p>
-              </div>
-            </button>
-          </div>
-
-          <!-- Recent Quiz Scores -->
-          <div class="aem-card p-4 space-y-3">
-            <div class="flex items-center justify-between">
-              <h3 class="text-sm font-extrabold text-[#0F1E36]">Mes derniers résultats de Quiz</h3>
-              <button
-                type="button"
-                (click)="activeTab.set('quizzes')"
-                class="text-xs font-bold text-[#3D8BCD]"
+            <div>
+              <span
+                class="px-3 py-1 rounded-full text-xs font-bold"
+                [ngClass]="quizResult.passed ? 'bg-tertiary-fixed text-tertiary' : 'bg-secondary-fixed text-secondary'"
               >
-                S'entraîner →
+                {{ quizResult.passed ? "FÉLICITATIONS • APTE À L'EXAMEN BLANC" : "EN PROGRESSION • CONTINUEZ L'ENTRAÎNEMENT" }}
+              </span>
+              <h2 class="font-headline text-3xl font-extrabold text-on-surface mt-3 tabular-nums">
+                {{ quizResult.score }} / {{ quizResult.total }}
+              </h2>
+              <p class="text-xs text-on-surface-variant mt-1">
+                Soit {{ quizResult.percentage }}% de bonnes réponses • Score enregistré dans votre dossier #LM-4092
+              </p>
+            </div>
+
+            <div class="flex gap-3 pt-2">
+              <button
+                (click)="resetQuiz()"
+                class="flex-1 min-h-[48px] bg-primary text-white font-headline font-bold text-sm rounded-xl flex items-center justify-center gap-2"
+              >
+                <span class="material-symbols-outlined text-lg">replay</span>
+                <span>Nouvelle série</span>
+              </button>
+              <button
+                (click)="activeTab = 'home'"
+                class="flex-1 min-h-[48px] bg-surface-container-low text-on-surface font-headline font-bold text-sm rounded-xl"
+              >
+                Retour à l'accueil
               </button>
             </div>
+          </section>
+        </ng-container>
 
-            @if (attempts().length === 0) {
-              <p class="text-xs text-[#64748B] py-2">
-                Vous n'avez pas encore passé de test. Lancez votre premier quiz pour évaluer votre niveau !
-              </p>
-            } @else {
-              <div class="space-y-2">
-                @for (att of attempts().slice(0, 4); track att.id) {
-                  <div class="flex items-center justify-between p-2.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0]">
-                    <div>
-                      <p class="text-xs font-bold text-[#0F1E36]">{{ att.quiz_title }}</p>
-                      <p class="text-[10px] text-[#64748B]">{{ att.completed_at | date:'dd/MM/yyyy HH:mm' }}</p>
-                    </div>
-                    <span
-                      [class]="att.passed
-                        ? 'px-2.5 py-1 rounded-lg text-xs font-extrabold bg-[#ECFDF5] text-[#16A34A] font-tabular'
-                        : 'px-2.5 py-1 rounded-lg text-xs font-extrabold bg-[#FEF2F2] text-[#DC2626] font-tabular'"
-                    >
-                      {{ att.score_percent }}% {{ att.passed ? 'Réussi' : 'À revoir' }}
-                    </span>
-                  </div>
-                }
-              </div>
-            }
-          </div>
-        }
-
-        <!-- ==================== TAB 2: COURS & PDF HORS-LIGNE ==================== -->
-        @if (activeTab() === 'courses') {
-          <div class="flex items-center justify-between">
+        <!-- ======================================================= -->
+        <!-- MES PAIEMENTS & REÇUS OFFICIELS                         -->
+        <!-- ======================================================= -->
+        <ng-container *ngIf="activeTab === 'payments'">
+          <section class="space-y-4">
             <div>
-              <h2 class="text-base font-extrabold text-[#0F1E36]">Supports de Cours Officiels</h2>
-              <p class="text-xs text-[#4A607A]">Téléchargeables pour réviser sans connexion Internet</p>
+              <p class="text-xs font-bold uppercase tracking-wider text-primary">Trésorerie & Quittances</p>
+              <h1 class="font-headline text-2xl font-extrabold text-on-surface">Mes Paiements & Reçus</h1>
             </div>
-          </div>
 
-          @if (selectedResource()) {
-            <!-- In-App Course Reader Modal / View -->
-            <div class="aem-card p-5 space-y-4">
-              <div class="flex items-center justify-between border-b border-[#E2E8F0] pb-3">
-                <div>
-                  <span class="text-[10px] font-bold uppercase text-[#3D8BCD]">
-                    Fiche de révision • Permis {{ selectedResource().category_code || 'B' }}
-                  </span>
-                  <h3 class="text-base font-extrabold text-[#0F1E36]">{{ selectedResource().title }}</h3>
-                </div>
-                <button
-                  type="button"
-                  (click)="selectedResource.set(null)"
-                  class="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#F1F5F9] text-[#0F1E36]"
-                >
-                  Fermer
-                </button>
+            <div class="bg-gradient-to-br from-primary to-primary-container text-white rounded-2xl p-5 shadow-md space-y-4">
+              <div class="flex items-center justify-between">
+                <span class="text-xs uppercase tracking-wider text-on-primary-container font-semibold">Solde Restant à Payer</span>
+                <span class="px-2.5 py-1 rounded-full bg-white/15 text-xs font-bold">Permis {{ user?.license_type || 'B' }}</span>
               </div>
-
-              <p class="text-xs text-[#4A607A] leading-relaxed">
-                {{ selectedResource().description }}
+              <p class="font-headline text-3xl font-extrabold tabular-nums">
+                {{ formatFcfa(remainingBalance) }} <span class="text-sm font-normal">FCFA</span>
               </p>
-
-              <!-- Structured Course Digest for Instant Mobile Reading -->
-              <div class="p-4 rounded-2xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-3 text-xs text-[#0F1E36]">
-                <h4 class="font-extrabold text-[#2B6CA8]">Points Clés à Retenir (Code CEMAC / Cameroun) :</h4>
-                <ul class="list-disc pl-4 space-y-1.5 text-[#334155]">
-                  <li><strong>Priorité à droite :</strong> En l'absence de panneaux ou de feux, cédez toujours le passage aux véhicules venant de votre droite.</li>
-                  <li><strong>Limitations de vitesse :</strong> 50 km/h en agglomération, 90 km/h sur route ordinaire, 110 km/h sur autoroute.</li>
-                  <li><strong>Équipements obligatoires :</strong> Triangle de pré-signalisation, extincteur fonctionnel, boîte à pharmacie, gilet rétro-réfléchissant.</li>
-                  <li><strong>Distances de sécurité :</strong> Laissez au minimum 2 secondes d'intervalle avec le véhicule qui vous précède (3 secondes sous la pluie).</li>
-                </ul>
-              </div>
-
-              <div class="flex gap-2">
-                <button
-                  type="button"
-                  (click)="downloadCourseOffline(selectedResource())"
-                  class="flex-1 py-3 px-4 rounded-xl text-xs font-bold aem-btn-primary"
-                >
-                  {{ isCached(selectedResource().id) ? '✓ Enregistré Hors-Ligne' : '📥 Enregistrer Hors-Ligne' }}
-                </button>
-              </div>
-            </div>
-          } @else {
-            <div class="space-y-3">
-              @for (res of resources(); track res.id) {
-                <div class="aem-card p-4 flex items-start justify-between gap-3">
-                  <div class="space-y-1 flex-1">
-                    <div class="flex items-center gap-2">
-                      <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-[#E8F2FC] text-[#2B6CA8] uppercase">
-                        {{ res.kind === 'pdf' ? 'PDF' : res.kind }}
-                      </span>
-                      @if (res.is_free_preview) {
-                        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-[#ECFDF5] text-[#16A34A]">
-                          Aperçu Gratuit
-                        </span>
-                      }
-                      @if (isCached(res.id)) {
-                        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-[#F0F9FF] text-[#0284C7]">
-                          Hors-ligne ✓
-                        </span>
-                      }
-                    </div>
-                    <h3 class="text-sm font-extrabold text-[#0F1E36]">{{ res.title }}</h3>
-                    <p class="text-xs text-[#4A607A]">{{ res.description }}</p>
-                  </div>
-
-                  <div class="flex flex-col gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      (click)="openCourse(res)"
-                      class="px-3.5 py-2 rounded-xl text-xs font-bold aem-btn-primary"
-                    >
-                      Lire
-                    </button>
-                    <button
-                      type="button"
-                      (click)="downloadCourseOffline(res)"
-                      class="px-3 py-1.5 rounded-xl text-[11px] font-semibold bg-[#F1F5F9] text-[#4A607A]"
-                    >
-                      {{ isCached(res.id) ? 'Sauvegardé' : 'Hors-ligne' }}
-                    </button>
-                  </div>
-                </div>
-              }
-            </div>
-          }
-        }
-
-        <!-- ==================== TAB 3: QUIZ INTERACTIF & EXAMEN BLANC ==================== -->
-        @if (activeTab() === 'quizzes') {
-          @if (!activeQuiz()) {
-            <div>
-              <h2 class="text-base font-extrabold text-[#0F1E36]">Séries de Code & Examens Blancs</h2>
-              <p class="text-xs text-[#4A607A]">Correction instantanée avec explication officielle</p>
-            </div>
-
-            <div class="space-y-3">
-              @for (q of quizzes(); track q.id) {
-                <div class="aem-card p-4 space-y-3">
-                  <div class="flex items-start justify-between gap-2">
-                    <div>
-                      <span class="text-[10px] font-extrabold uppercase tracking-wider text-[#D94E28]">
-                        ⏱ {{ q.time_limit_sec ? (q.time_limit_sec / 60 | number:'1.0-0') + ' min' : 'Libre' }} • Seuil réussite {{ q.pass_threshold }}%
-                      </span>
-                      <h3 class="text-sm font-extrabold text-[#0F1E36] mt-0.5">{{ q.title }}</h3>
-                      <p class="text-xs text-[#4A607A]">{{ q.description }}</p>
-                    </div>
-                    <span class="px-2.5 py-1 rounded-xl text-xs font-extrabold bg-[#E8F2FC] text-[#2B6CA8] font-tabular shrink-0">
-                      {{ q.questions?.length || 0 }} Q.
-                    </span>
-                  </div>
-
-                  <button
-                    type="button"
-                    (click)="startQuiz(q)"
-                    class="w-full py-3 rounded-xl text-xs font-bold aem-btn-primary"
-                  >
-                    Démarrer la série
-                  </button>
-                </div>
-              }
-            </div>
-          } @else {
-            <!-- Active Interactive Quiz Engine -->
-            <div class="aem-card p-5 space-y-4">
-              <div class="flex items-center justify-between border-b border-[#E2E8F0] pb-3">
+              <div class="grid grid-cols-2 gap-3 pt-2 border-t border-white/15 text-xs">
                 <div>
-                  <span class="text-[10px] font-bold uppercase text-[#3D8BCD]">
-                    Question {{ currentQuestionIndex() + 1 }} / {{ activeQuiz().questions.length }}
-                  </span>
-                  <h3 class="text-sm font-extrabold text-[#0F1E36]">{{ activeQuiz().title }}</h3>
+                  <span class="text-on-primary-container block">Total Versé</span>
+                  <span class="font-headline font-bold text-base tabular-nums">{{ formatFcfa(totalPaid) }} FCFA</span>
                 </div>
-                <button
-                  type="button"
-                  (click)="quitQuiz()"
-                  class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#F1F5F9] text-[#4A607A]"
-                >
-                  Quitter
-                </button>
+                <div>
+                  <span class="text-on-primary-container block">Coût Formation</span>
+                  <span class="font-headline font-bold text-base tabular-nums">{{ formatFcfa(totalDue) }} FCFA</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Mobile Money USSD Quick Instructions -->
+            <div class="bg-surface-container-lowest rounded-2xl p-5 border border-outline-variant/25 shadow-sm space-y-3">
+              <h3 class="font-headline font-bold text-sm text-on-surface flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">smartphone</span>
+                <span>Payer ma tranche par Mobile Money ou au Guichet</span>
+              </h3>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                <div class="p-3 rounded-xl bg-[#FFCC00]/15 border border-[#FFCC00]/40">
+                  <p class="font-bold text-on-surface">MTN Mobile Money</p>
+                  <p class="font-mono font-bold text-primary mt-0.5">*126# • Code Marchand 40921</p>
+                </div>
+                <div class="p-3 rounded-xl bg-[#FF6600]/15 border border-[#FF6600]/40">
+                  <p class="font-bold text-on-surface">Orange Money Cameroun</p>
+                  <p class="font-mono font-bold text-primary mt-0.5">#150# • Auto-École Marseillaise</p>
+                </div>
+              </div>
+              <button
+                (click)="activeTab = 'expired'"
+                class="w-full min-h-[46px] rounded-xl bg-surface-container-low hover:bg-surface-container-high text-primary font-headline font-bold text-xs flex items-center justify-center gap-2 transition-colors"
+              >
+                <span class="material-symbols-outlined text-base">upload_file</span>
+                <span>Soumettre une capture de paiement Mobile Money</span>
+              </button>
+            </div>
+          </section>
+        </ng-container>
+
+        <!-- ======================================================= -->
+        <!-- STITCH SCREEN 05 : ACCÈS EXPIRÉ - RÉACTIVATION          -->
+        <!-- ======================================================= -->
+        <ng-container *ngIf="activeTab === 'expired'">
+          <section class="space-y-5">
+            <!-- Status Alert Card -->
+            <div class="bg-surface-container-lowest rounded-2xl p-6 border-2 border-secondary-container shadow-md text-center space-y-3">
+              <div class="w-16 h-16 rounded-2xl bg-secondary-fixed text-secondary mx-auto flex items-center justify-center">
+                <span class="material-symbols-outlined text-4xl">lock_clock</span>
+              </div>
+              <span class="inline-block px-3 py-1 rounded-full bg-secondary-fixed text-secondary font-headline font-bold text-xs uppercase tracking-wider">
+                Période d'essai de 14 jours terminée
+              </span>
+              <h1 class="font-headline text-2xl font-extrabold text-on-surface">
+                Réactivez votre accès complet
+              </h1>
+              <p class="text-xs text-on-surface-variant leading-relaxed max-w-sm mx-auto">
+                Rassurez-vous, toute votre progression pédagogique est intacte. Réglez votre 1ère tranche d'inscription pour débloquer immédiatement vos cours et examens blancs.
+              </p>
+            </div>
+
+            <!-- Saved Progress Reassurance Card (Stitch Screen 05) -->
+            <div class="bg-primary-fixed/40 rounded-2xl p-4 border border-primary/20 space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-primary flex items-center gap-1.5">
+                  <span class="material-symbols-outlined text-base">cloud_done</span>
+                  <span>Votre progression sauvegardée</span>
+                </span>
+                <span class="text-[11px] font-bold text-tertiary bg-tertiary-fixed px-2 py-0.5 rounded-full">100% sécurisée</span>
+              </div>
+              <div class="grid grid-cols-3 gap-2 text-center">
+                <div class="bg-surface-container-lowest p-2.5 rounded-xl">
+                  <p class="font-headline font-extrabold text-base text-primary tabular-nums">6 / 12</p>
+                  <p class="text-[10px] text-on-surface-variant">Cours validés</p>
+                </div>
+                <div class="bg-surface-container-lowest p-2.5 rounded-xl">
+                  <p class="font-headline font-extrabold text-base text-primary tabular-nums">16/20</p>
+                  <p class="text-[10px] text-on-surface-variant">Meilleur Quiz</p>
+                </div>
+                <div class="bg-surface-container-lowest p-2.5 rounded-xl">
+                  <p class="font-headline font-extrabold text-base text-primary tabular-nums">#LM-4092</p>
+                  <p class="text-[10px] text-on-surface-variant">Dossier actif</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Payment Method Selector (MTN MoMo / Orange Money / Guichet) -->
+            <div class="bg-surface-container-lowest rounded-2xl p-5 border border-outline-variant/25 shadow-sm space-y-4">
+              <div class="flex items-center justify-between">
+                <h2 class="font-headline font-bold text-base text-on-surface">Choisir un mode de réactivation</h2>
+                <span class="font-headline font-extrabold text-sm text-primary tabular-nums">40 000 FCFA</span>
               </div>
 
-              @if (!quizCompleted()) {
-                <!-- Progress Pills -->
-                <div class="w-full h-2 rounded-full bg-[#E2E8F0] overflow-hidden">
-                  <div
-                    class="h-full bg-[#3D8BCD] transition-all duration-200"
-                    [style.width.%]="((currentQuestionIndex() + 1) / activeQuiz().questions.length) * 100"
-                  ></div>
-                </div>
-
-                @if (currentQuestion(); as q) {
-                  <div class="space-y-3 pt-1">
-                    <p class="text-sm font-extrabold text-[#0F1E36] leading-snug">
-                      {{ q.prompt }}
-                    </p>
-
-                    <div class="space-y-2">
-                      @for (opt of q.options; track opt.id) {
-                        <button
-                          type="button"
-                          (click)="selectAnswer(opt.id)"
-                          [class]="getOptionClass(opt.id, q.correct_option)"
-                        >
-                          <span class="w-6 h-6 rounded-full border flex items-center justify-center text-xs font-extrabold uppercase shrink-0">
-                            {{ opt.id }}
-                          </span>
-                          <span class="text-xs font-semibold text-left flex-1">{{ opt.text }}</span>
-                        </button>
-                      }
-                    </div>
-
-                    @if (answerRevealed() && q.explanation) {
-                      <div class="p-3.5 rounded-2xl bg-[#F0F7FF] border border-[#3D8BCD]/30 text-xs text-[#1E4F82]">
-                        <strong class="block mb-0.5">💡 Explication pédagogique :</strong>
-                        {{ q.explanation }}
-                      </div>
-                    }
-
-                    @if (answerRevealed()) {
-                      <button
-                        type="button"
-                        (click)="nextQuestion()"
-                        class="w-full py-3.5 rounded-xl text-xs font-bold aem-btn-primary"
-                      >
-                        {{ currentQuestionIndex() + 1 < activeQuiz().questions.length ? 'Question suivante →' : 'Voir mon résultat final' }}
-                      </button>
-                    }
-                  </div>
-                }
-              } @else {
-                <!-- Quiz Final Score Summary -->
-                <div class="text-center py-4 space-y-3">
-                  <div
-                    [class]="quizScorePercent() >= activeQuiz().pass_threshold
-                      ? 'w-20 h-20 rounded-full mx-auto flex items-center justify-center text-2xl font-extrabold bg-[#ECFDF5] text-[#16A34A] border-2 border-[#16A34A]'
-                      : 'w-20 h-20 rounded-full mx-auto flex items-center justify-center text-2xl font-extrabold bg-[#FFF7ED] text-[#D94E28] border-2 border-[#D94E28]'"
-                  >
-                    {{ quizScorePercent() }}%
-                  </div>
-
-                  <h4 class="text-base font-extrabold text-[#0F1E36]">
-                    {{ quizScorePercent() >= activeQuiz().pass_threshold ? 'Félicitations ! Série réussie 🎉' : 'Continuez vos efforts 💪' }}
-                  </h4>
-                  <p class="text-xs text-[#4A607A]">
-                    Seuil de validation requis : {{ activeQuiz().pass_threshold }}%
-                  </p>
-
-                  <div class="flex gap-2 pt-2">
-                    <button
-                      type="button"
-                      (click)="startQuiz(activeQuiz())"
-                      class="flex-1 py-3 rounded-xl text-xs font-bold bg-[#E8F2FC] text-[#2B6CA8]"
-                    >
-                      Recommencer
-                    </button>
-                    <button
-                      type="button"
-                      (click)="quitQuiz()"
-                      class="flex-1 py-3 rounded-xl text-xs font-bold aem-btn-primary"
-                    >
-                      Retour aux séries
-                    </button>
-                  </div>
-                </div>
-              }
-            </div>
-          }
-        }
-
-        <!-- ==================== TAB 4: PAIEMENTS, TRANCHES & REÇUS PDF ==================== -->
-        @if (activeTab() === 'payments') {
-          <div>
-            <h2 class="text-base font-extrabold text-[#0F1E36]">Mon Dossier Financier & Reçus</h2>
-            <p class="text-xs text-[#4A607A]">Suivi en temps réel de vos tranches et reçus officiels</p>
-          </div>
-
-          <!-- Installment Plan Schedule -->
-          <div class="aem-card p-4 space-y-3">
-            <h3 class="text-sm font-extrabold text-[#0F1E36]">Échéancier des Tranches</h3>
-            <div class="space-y-2">
-              @for (inst of installments(); track inst.installment_number) {
-                <div class="p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-between">
-                  <div>
-                    <p class="text-xs font-extrabold text-[#0F1E36]">
-                      Tranche {{ inst.installment_number }} : {{ inst.label }}
-                    </p>
-                    <p class="text-[11px] text-[#64748B]">
-                      Échéance : {{ inst.due_date | date:'dd/MM/yyyy' }} • Montant : {{ inst.amount_due | number }} FCFA
-                    </p>
-                  </div>
-                  <span
-                    [class]="inst.status === 'paid'
-                      ? 'px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-[#ECFDF5] text-[#16A34A]'
-                      : inst.status === 'overdue'
-                        ? 'px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-[#FEF2F2] text-[#DC2626]'
-                        : 'px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-[#E8F2FC] text-[#2B6CA8]'"
-                  >
-                    {{ inst.status === 'paid' ? 'Payé ✓' : inst.status === 'overdue' ? 'En retard' : 'À venir' }}
-                  </span>
-                </div>
-              }
-            </div>
-          </div>
-
-          <!-- Official Receipts History -->
-          <div class="aem-card p-4 space-y-3">
-            <h3 class="text-sm font-extrabold text-[#0F1E36]">Mes Reçus Officiels</h3>
-            @if (payments().length === 0) {
-              <p class="text-xs text-[#64748B] py-2">
-                Aucun versement enregistré pour le moment.
-              </p>
-            } @else {
               <div class="space-y-2.5">
-                @for (p of payments(); track p.id) {
-                  <div class="p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-between gap-2">
-                    <div>
-                      <span class="text-[10px] font-mono font-bold text-[#3D8BCD] block">
-                        Reçu N° {{ p.receipt_number }}
-                      </span>
-                      <p class="text-xs font-extrabold text-[#0F1E36] font-tabular">
-                        {{ p.amount | number }} FCFA • {{ formatMethod(p.method) }}
-                      </p>
-                      <p class="text-[10px] text-[#64748B]">
-                        {{ p.paid_at | date:'dd/MM/yyyy HH:mm' }}
-                      </p>
+                <!-- MTN MoMo -->
+                <button
+                  type="button"
+                  (click)="reactivationMethod = 'MTN_MOMO'"
+                  class="w-full p-3.5 rounded-xl border text-left flex items-center justify-between transition-all"
+                  [ngClass]="reactivationMethod === 'MTN_MOMO' ? 'border-primary bg-primary-fixed/25 ring-2 ring-primary/15' : 'border-outline-variant/30'"
+                >
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-[#FFCC00] text-black font-headline font-extrabold text-xs flex items-center justify-center">
+                      MoMo
                     </div>
-
-                    @if (p.cancelled_at) {
-                      <span class="px-2 py-1 rounded text-[10px] font-bold bg-[#FEF2F2] text-[#DC2626]">
-                        Annulé
-                      </span>
-                    } @else {
-                      <button
-                        type="button"
-                        (click)="downloadReceiptPdf(p)"
-                        class="px-3 py-2 rounded-xl text-xs font-bold bg-[#E8F2FC] text-[#2B6CA8] border border-[#3D8BCD]/25"
-                      >
-                        📄 Reçu PDF
-                      </button>
-                    }
+                    <div>
+                      <p class="font-headline font-bold text-sm text-on-surface">MTN Mobile Money (*126#)</p>
+                      <p class="text-[11px] text-on-surface-variant">Validation rapide par code marchand ou photo reçu</p>
+                    </div>
                   </div>
-                }
+                  <span class="material-symbols-outlined text-primary">
+                    {{ reactivationMethod === 'MTN_MOMO' ? 'radio_button_checked' : 'radio_button_unchecked' }}
+                  </span>
+                </button>
+
+                <!-- Orange Money -->
+                <button
+                  type="button"
+                  (click)="reactivationMethod = 'ORANGE_MONEY'"
+                  class="w-full p-3.5 rounded-xl border text-left flex items-center justify-between transition-all"
+                  [ngClass]="reactivationMethod === 'ORANGE_MONEY' ? 'border-primary bg-primary-fixed/25 ring-2 ring-primary/15' : 'border-outline-variant/30'"
+                >
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-[#FF6600] text-white font-headline font-extrabold text-xs flex items-center justify-center">
+                      OM
+                    </div>
+                    <div>
+                      <p class="font-headline font-bold text-sm text-on-surface">Orange Money Cameroun (#150#)</p>
+                      <p class="text-[11px] text-on-surface-variant">Paiement instantané sécurisé</p>
+                    </div>
+                  </div>
+                  <span class="material-symbols-outlined text-primary">
+                    {{ reactivationMethod === 'ORANGE_MONEY' ? 'radio_button_checked' : 'radio_button_unchecked' }}
+                  </span>
+                </button>
+
+                <!-- Paiement au Guichet -->
+                <button
+                  type="button"
+                  (click)="reactivationMethod = 'CASH'"
+                  class="w-full p-3.5 rounded-xl border text-left flex items-center justify-between transition-all"
+                  [ngClass]="reactivationMethod === 'CASH' ? 'border-primary bg-primary-fixed/25 ring-2 ring-primary/15' : 'border-outline-variant/30'"
+                >
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-primary text-white flex items-center justify-center">
+                      <span class="material-symbols-outlined">storefront</span>
+                    </div>
+                    <div>
+                      <p class="font-headline font-bold text-sm text-on-surface">Paiement physique au Guichet</p>
+                      <p class="text-[11px] text-on-surface-variant">Agence Yaoundé Centre (Bastos / Poste Centrale)</p>
+                    </div>
+                  </div>
+                  <span class="material-symbols-outlined text-primary">
+                    {{ reactivationMethod === 'CASH' ? 'radio_button_checked' : 'radio_button_unchecked' }}
+                  </span>
+                </button>
               </div>
-            }
+
+              <!-- Upload Receipt Photo Trigger -->
+              <div class="pt-2 space-y-2.5">
+                <button
+                  type="button"
+                  (click)="showUploadModal = true"
+                  class="w-full min-h-[52px] bg-primary text-white font-headline font-bold text-sm rounded-xl flex items-center justify-center gap-2 shadow-md active:scale-[0.99] transition-transform"
+                >
+                  <span class="material-symbols-outlined">add_a_photo</span>
+                  <span>Soumettre la photo du reçu / SMS de paiement</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Mama Célestine Secrétariat Contact Card -->
+            <div class="bg-surface-container-lowest rounded-2xl p-4 border border-outline-variant/25 shadow-sm flex items-center justify-between gap-3">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-full bg-secondary-fixed text-secondary font-headline font-extrabold flex items-center justify-center text-base">
+                  MC
+                </div>
+                <div>
+                  <p class="font-headline font-bold text-sm text-on-surface">Mama Célestine • Secrétariat</p>
+                  <p class="text-xs text-on-surface-variant">Caisse Principale Yaoundé • Lun-Sam 07h30-18h30</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <a
+                  href="tel:+237677000000"
+                  class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center"
+                  title="Appeler le secrétariat"
+                >
+                  <span class="material-symbols-outlined text-lg">call</span>
+                </a>
+                <a
+                  href="https://wa.me/237677000000"
+                  target="_blank"
+                  class="w-10 h-10 rounded-xl bg-[#25D366] text-white flex items-center justify-center"
+                  title="WhatsApp Direct"
+                >
+                  <span class="material-symbols-outlined text-lg">chat</span>
+                </a>
+              </div>
+            </div>
+          </section>
+
+          <!-- Modal Upload Reçu Photo (Stitch Screen 05) -->
+          <div
+            *ngIf="showUploadModal"
+            class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
+          >
+            <div class="bg-surface-container-lowest w-full max-w-md rounded-2xl p-6 space-y-4 shadow-2xl">
+              <div class="flex items-center justify-between">
+                <h3 class="font-headline font-bold text-lg text-on-surface">Envoyer le justificatif</h3>
+                <button (click)="showUploadModal = false" class="w-8 h-8 rounded-full bg-surface-container-low flex items-center justify-center">
+                  <span class="material-symbols-outlined text-base">close</span>
+                </button>
+              </div>
+              <p class="text-xs text-on-surface-variant">
+                Saisissez la référence SMS Mobile Money ou joignez la photo de votre reçu. Mama Célestine débloquera votre compte en moins de 15 minutes.
+              </p>
+              <div class="space-y-3">
+                <div>
+                  <label class="text-xs font-bold text-on-surface block mb-1">Référence Transaction (ID SMS)</label>
+                  <input
+                    type="text"
+                    [(ngModel)]="txReferenceInput"
+                    placeholder="Ex: MP260511.1420.A09412"
+                    class="w-full h-12 px-3.5 rounded-xl bg-surface-container-low border border-outline-variant/40 text-sm font-mono"
+                  />
+                </div>
+                <div class="border-2 border-dashed border-primary/30 rounded-xl p-5 text-center bg-primary-fixed/15">
+                  <span class="material-symbols-outlined text-3xl text-primary">cloud_upload</span>
+                  <p class="text-xs font-bold text-primary mt-1">Appuyez pour prendre en photo le reçu</p>
+                  <p class="text-[10px] text-on-surface-variant">JPG, PNG ou capture d'écran SMS (Max 5 Mo)</p>
+                </div>
+              </div>
+              <div class="flex gap-2.5 pt-2">
+                <button
+                  (click)="submitReactivationProof()"
+                  class="flex-1 min-h-[48px] bg-tertiary text-white font-headline font-bold text-sm rounded-xl flex items-center justify-center gap-1.5"
+                >
+                  <span class="material-symbols-outlined text-base">send</span>
+                  <span>Envoyer à la caisse</span>
+                </button>
+              </div>
+              <p *ngIf="reactivationSent" class="text-xs font-bold text-tertiary text-center">
+                ✓ Justificatif transmis au guichet Yaoundé Centre !
+              </p>
+            </div>
           </div>
-        }
+        </ng-container>
+
       </main>
 
-      <!-- ==================== ANDROID / IOS PWA INSTALL GUIDE SHEET ==================== -->
-      @if (showInstallSheet()) {
-        <div class="fixed inset-0 z-50 bg-[#0F1E36]/40 backdrop-blur-xs flex items-end justify-center p-4">
-          <div class="w-full max-w-md bg-white rounded-3xl p-5 space-y-4 shadow-xl">
-            <div class="flex items-center justify-between">
-              <h3 class="text-base font-extrabold text-[#0F1E36]">Installer l'Application AEM</h3>
-              <button
-                type="button"
-                (click)="showInstallSheet.set(false)"
-                class="w-8 h-8 rounded-full bg-[#F1F5F9] text-[#0F1E36] font-bold"
-              >
-                ×
-              </button>
-            </div>
-            <p class="text-xs text-[#4A607A]">
-              Installez Auto-École La Marseillaise sur l'écran d'accueil de votre téléphone pour réviser vos cours et quiz même sans connexion Internet :
-            </p>
-            <div class="space-y-2.5 text-xs">
-              <div class="p-3 rounded-2xl bg-[#F8FAFC] border border-[#E2E8F0]">
-                <strong class="text-[#3D8BCD] block mb-1">🤖 Sur Android (Chrome) :</strong>
-                Appuyez sur le menu <strong>⋮</strong> en haut à droite, puis sélectionnez <strong>« Installer l'application »</strong> ou <strong>« Ajouter à l'écran d'accueil »</strong>.
-              </div>
-              <div class="p-3 rounded-2xl bg-[#F8FAFC] border border-[#E2E8F0]">
-                <strong class="text-[#D94E28] block mb-1">🍎 Sur iPhone / iOS (Safari) :</strong>
-                Appuyez sur le bouton <strong>Partager (⬆️)</strong> en bas de l'écran, puis choisissez <strong>« Sur l'écran d'accueil »</strong>.
-              </div>
-            </div>
-            <button
-              type="button"
-              (click)="showInstallSheet.set(false)"
-              class="w-full py-3 rounded-xl text-xs font-bold aem-btn-primary"
-            >
-              J'ai compris
-            </button>
-          </div>
-        </div>
-      }
-
-      <!-- ==================== FROSTED BOTTOM TAB BAR (4 TABS) ==================== -->
-      <nav class="fixed bottom-0 left-0 right-0 z-30 aem-frosted-bottom-nav pb-safe">
-        <div class="max-w-md mx-auto grid grid-cols-4 px-2 py-1.5">
+      <!-- Bottom Navigation Bar (Stitch Mobile-First 4 Tabs + Expired Preview) -->
+      <nav class="fixed bottom-0 inset-x-0 z-40 bg-surface-container-lowest/95 backdrop-blur-xl border-t border-outline-variant/25 px-2 py-1.5">
+        <div class="max-w-lg mx-auto grid grid-cols-4 gap-1">
           <button
-            type="button"
-            (click)="activeTab.set('home')"
-            [class]="activeTab() === 'home' ? 'flex flex-col items-center py-1 text-[#3D8BCD]' : 'flex flex-col items-center py-1 text-[#64748B]'"
+            (click)="activeTab = 'home'"
+            class="flex flex-col items-center justify-center py-2 rounded-xl transition-colors"
+            [ngClass]="activeTab === 'home' ? 'text-primary bg-primary-fixed/40 font-bold' : 'text-on-surface-variant'"
           >
-            <span class="text-base">🏠</span>
-            <span class="text-[10px] font-bold mt-0.5">Accueil</span>
+            <span class="material-symbols-outlined text-xl">home</span>
+            <span class="text-[11px] mt-0.5">Accueil</span>
           </button>
 
           <button
-            type="button"
-            (click)="activeTab.set('courses')"
-            [class]="activeTab() === 'courses' ? 'flex flex-col items-center py-1 text-[#3D8BCD]' : 'flex flex-col items-center py-1 text-[#64748B]'"
+            (click)="activeTab = 'courses'"
+            class="flex flex-col items-center justify-center py-2 rounded-xl transition-colors"
+            [ngClass]="activeTab === 'courses' ? 'text-primary bg-primary-fixed/40 font-bold' : 'text-on-surface-variant'"
           >
-            <span class="text-base">📘</span>
-            <span class="text-[10px] font-bold mt-0.5">Cours</span>
+            <span class="material-symbols-outlined text-xl">menu_book</span>
+            <span class="text-[11px] mt-0.5">Mes Cours</span>
           </button>
 
           <button
-            type="button"
-            (click)="activeTab.set('quizzes')"
-            [class]="activeTab() === 'quizzes' ? 'flex flex-col items-center py-1 text-[#3D8BCD]' : 'flex flex-col items-center py-1 text-[#64748B]'"
+            (click)="activeTab = 'quiz'"
+            class="flex flex-col items-center justify-center py-2 rounded-xl transition-colors"
+            [ngClass]="activeTab === 'quiz' ? 'text-primary bg-primary-fixed/40 font-bold' : 'text-on-surface-variant'"
           >
-            <span class="text-base">🎯</span>
-            <span class="text-[10px] font-bold mt-0.5">Quiz</span>
+            <span class="material-symbols-outlined text-xl">quiz</span>
+            <span class="text-[11px] mt-0.5">Quiz Code</span>
           </button>
 
           <button
-            type="button"
-            (click)="activeTab.set('payments')"
-            [class]="activeTab() === 'payments' ? 'flex flex-col items-center py-1 text-[#3D8BCD]' : 'flex flex-col items-center py-1 text-[#64748B]'"
+            (click)="activeTab = 'payments'"
+            class="flex flex-col items-center justify-center py-2 rounded-xl transition-colors"
+            [ngClass]="activeTab === 'payments' || activeTab === 'expired' ? 'text-primary bg-primary-fixed/40 font-bold' : 'text-on-surface-variant'"
           >
-            <span class="text-base">🧾</span>
-            <span class="text-[10px] font-bold mt-0.5">Paiements</span>
+            <span class="material-symbols-outlined text-xl">receipt_long</span>
+            <span class="text-[11px] mt-0.5">Paiements</span>
           </button>
         </div>
       </nav>
     </div>
-  `,
+  `
 })
 export class StudentPortalComponent implements OnInit {
-  api = inject(ApiService);
-  private localDb = inject(LocalDbService);
-  private receiptExport = inject(ReceiptExportService);
-
+  @Input() user: any;
   @Output() logout = new EventEmitter<void>();
 
-  activeTab = signal<'home' | 'courses' | 'quizzes' | 'payments'>('home');
-  showInstallSheet = signal<boolean>(false);
-  clockTampered = signal<boolean>(false);
+  activeTab: 'home' | 'courses' | 'quiz' | 'payments' | 'expired' = 'home';
 
-  profile = signal<any>(null);
-  enrollment = signal<any>(null);
-  installments = signal<any[]>([]);
-  payments = signal<any[]>([]);
-  attempts = signal<any[]>([]);
-  resources = signal<any[]>([]);
-  quizzes = signal<any[]>([]);
-  cachedResourceIds = signal<Set<string>>(new Set());
+  courses: any[] = [];
+  selectedCourse: any = null;
+  selectedCategory = 'ALL';
+  courseCategories = [
+    { id: 'ALL', label: 'Tous les modules (12)' },
+    { id: 'CODE', label: 'Code CEMAC' },
+    { id: 'PRATIQUE', label: 'Conduite Pratique' },
+    { id: 'SECOURISME', label: 'Secourisme & Mécanique' }
+  ];
 
-  selectedResource = signal<any>(null);
+  questions: any[] = [];
+  currentQuestionIndex = 0;
+  selectedAnswers: Record<string, number> = {};
+  quizSubmitted = false;
+  quizResult: any = { score: 0, total: 0, percentage: 0, passed: false };
+  lastScore = 17;
 
-  // Interactive Quiz State
-  activeQuiz = signal<any>(null);
-  currentQuestionIndex = signal<number>(0);
-  selectedAnswers = signal<Record<string, string>>({});
-  answerRevealed = signal<boolean>(false);
-  quizCompleted = signal<boolean>(false);
-  quizScorePercent = signal<number>(0);
+  totalDue = 95000;
+  totalPaid = 40000;
+  progressPercent = 45;
 
-  async ngOnInit() {
-    const clockOk = await this.localDb.checkAndAdvanceClock();
-    if (!clockOk) {
-      this.clockTampered.set(true);
-    }
-    await this.loadData();
+  reactivationMethod: 'MTN_MOMO' | 'ORANGE_MONEY' | 'CASH' = 'MTN_MOMO';
+  showUploadModal = false;
+  txReferenceInput = '';
+  reactivationSent = false;
+
+  constructor(private api: ApiService) {}
+
+  ngOnInit(): void {
+    this.loadStudentData();
   }
 
-  async loadData() {
-    try {
-      const me = await this.api.getStudentMe();
-      if (me) {
-        this.profile.set(me.profile);
-        this.enrollment.set(me.enrollment);
-        this.installments.set(me.installments || []);
-        this.payments.set(me.payments || []);
-        this.attempts.set(me.recentAttempts || []);
-      }
-      const resList = await this.api.getStudentResources();
-      this.resources.set(resList || []);
-
-      const cached = await this.localDb.resources.toArray();
-      this.cachedResourceIds.set(new Set(cached.filter((c: any) => c.blobData).map((c: any) => c.id)));
-
-      const quizList = await this.api.getStudentQuizzes();
-      this.quizzes.set(quizList || []);
-    } catch {
-      // Handled gracefully by offline caches
-    }
+  get firstName(): string {
+    const full = this.user?.full_name || 'Jean-Paul Mbarga';
+    return full.split(' ')[0];
   }
 
-  paymentPercent(): number {
-    const e = this.enrollment();
-    if (!e || !e.total_fee) return 0;
-    return Math.min(100, Math.round((Number(e.total_paid || 0) / Number(e.total_fee)) * 100));
+  get remainingBalance(): number {
+    return Math.max(0, this.totalDue - this.totalPaid);
   }
 
-  isCached(id: string): boolean {
-    return this.cachedResourceIds().has(id);
+  get filteredCourses(): any[] {
+    if (this.selectedCategory === 'ALL') return this.courses;
+    return this.courses.filter((c) => (c.category || 'CODE').toUpperCase().includes(this.selectedCategory));
   }
 
-  openCourse(res: any) {
-    this.selectedResource.set(res);
-  }
-
-  async downloadCourseOffline(res: any) {
-    await this.localDb.resources.put({
-      id: res.id,
-      category_id: res.category_id,
-      title: res.title,
-      description: res.description || '',
-      kind: res.kind,
-      storage_path: res.storage_path,
-      is_free_preview: !!res.is_free_preview,
-      blobData: new Blob([JSON.stringify(res)], { type: 'application/json' }),
-      cachedAt: Date.now(),
-    });
-    const next = new Set(this.cachedResourceIds());
-    next.add(res.id);
-    this.cachedResourceIds.set(next);
-  }
-
-  // Quiz Methods
-  currentQuestion() {
-    const q = this.activeQuiz();
-    if (!q || !q.questions) return null;
-    return q.questions[this.currentQuestionIndex()];
-  }
-
-  startQuiz(quiz: any) {
-    if (!quiz.questions || quiz.questions.length === 0) return;
-    this.activeQuiz.set(quiz);
-    this.currentQuestionIndex.set(0);
-    this.selectedAnswers.set({});
-    this.answerRevealed.set(false);
-    this.quizCompleted.set(false);
-  }
-
-  selectAnswer(optionId: string) {
-    if (this.answerRevealed()) return;
-    const q = this.currentQuestion();
-    if (!q) return;
-    this.selectedAnswers.set({ ...this.selectedAnswers(), [q.id]: optionId });
-    this.answerRevealed.set(true);
-  }
-
-  getOptionClass(optionId: string, correctOption: string): string {
-    const q = this.currentQuestion();
-    const chosen = q ? this.selectedAnswers()[q.id] : undefined;
-    const base = 'w-full p-3.5 rounded-xl border flex items-center gap-3 transition-all ';
-
-    if (!this.answerRevealed()) {
-      return base + 'bg-white border-[#CBD5E1] text-[#0F1E36] hover:border-[#3D8BCD]';
-    }
-    if (optionId === correctOption) {
-      return base + 'bg-[#ECFDF5] border-[#16A34A] text-[#15803D]';
-    }
-    if (chosen === optionId && optionId !== correctOption) {
-      return base + 'bg-[#FEF2F2] border-[#DC2626] text-[#DC2626]';
-    }
-    return base + 'bg-[#F8FAFC] border-[#E2E8F0] text-[#94A3B8]';
-  }
-
-  async nextQuestion() {
-    const quiz = this.activeQuiz();
-    if (!quiz) return;
-    if (this.currentQuestionIndex() + 1 < quiz.questions.length) {
-      this.currentQuestionIndex.set(this.currentQuestionIndex() + 1);
-      this.answerRevealed.set(false);
-    } else {
-      // Compute score & save
-      let correct = 0;
-      const ans = this.selectedAnswers();
-      for (const q of quiz.questions) {
-        if (ans[q.id] === q.correct_option) correct++;
-      }
-      const pct = Math.round((correct / quiz.questions.length) * 100);
-      this.quizScorePercent.set(pct);
-      this.quizCompleted.set(true);
-
-      await this.api.submitQuizAttempt(quiz.id, ans, pct, pct >= (quiz.pass_threshold || 80));
-      await this.loadData();
-    }
-  }
-
-  quitQuiz() {
-    this.activeQuiz.set(null);
-  }
-
-  formatMethod(method: string): string {
-    const map: Record<string, string> = {
-      cash: 'Espèces',
-      orange_money: 'Orange Money',
-      mtn_momo: 'MTN MoMo',
-      bank_transfer: 'Virement',
-      other: 'Autre',
+  get currentQuestion(): any {
+    return this.questions[this.currentQuestionIndex] || {
+      id: 'q1',
+      question_fr: 'À une intersection sans signalisation à Yaoundé, quelle règle appliquez-vous ?',
+      options: [
+        'Priorité au véhicule venant de droite',
+        'Priorité au véhicule le plus rapide',
+        'Priorité aux taxis uniquement',
+        'Arrêt obligatoire même sans panneau'
+      ],
+      correct_index: 0,
+      explanation_fr: 'En l\'absence de signalisation routière, la règle générale du Code CEMAC impose la priorité à droite.'
     };
-    return map[method] || method;
   }
 
-  downloadReceiptPdf(p: any) {
-    const e = this.enrollment();
-    const prof = this.profile();
-    this.receiptExport.generateReceiptPdf({
-      receiptNumber: p.receipt_number,
-      studentName: prof?.full_name || 'Élève AEM',
-      studentPhone: prof?.phone || '',
-      categoryName: e?.category_name || 'Permis B',
-      groupName: e?.group_name || 'Session AEM',
-      amountPaid: Number(p.amount),
-      totalFee: Number(e?.total_fee || 85000),
-      totalPaidAfter: Number(e?.total_paid || p.amount),
-      balanceRemaining: Number(e?.balance_due || 0),
-      method: p.method,
-      reference: p.reference,
-      paidAt: p.paid_at,
-      recordedBy: 'Direction Auto-École La Marseillaise',
+  loadStudentData(): void {
+    this.api.getCourses().subscribe((list) => {
+      if (list && list.length > 0) {
+        this.courses = list;
+        this.selectedCourse = list[0];
+      } else {
+        this.courses = [
+          {
+            id: 'c1',
+            order_index: 1,
+            category: 'CODE',
+            duration_minutes: 25,
+            title_fr: 'Signalisation verticale & Panneaux de priorité CEMAC',
+            summary_fr: 'Maîtrisez les panneaux de danger, d\'interdiction et les règles de priorité aux ronds-points de Yaoundé.',
+            content_markdown: 'Les panneaux triangulaires à bordure rouge annoncent un danger à 150m en rase campagne et 50m en agglomération. Au rond-point de la Poste Centrale, cédez le passage aux usagers déjà engagés sur l\'anneau.'
+          },
+          {
+            id: 'c2',
+            order_index: 2,
+            category: 'CODE',
+            duration_minutes: 30,
+            title_fr: 'Règles de croisement, dépassement et distances de sécurité',
+            summary_fr: 'Calculer la distance d\'arrêt par temps de pluie et visibilité réduite sur l\'axe Yaoundé-Douala.',
+            content_markdown: 'Sur chaussée mouillée, la distance de freinage est multipliée par 2. Gardez toujours un intervalle d\'au moins 2 secondes derrière le véhicule qui vous précède.'
+          },
+          {
+            id: 'c3',
+            order_index: 3,
+            category: 'PRATIQUE',
+            duration_minutes: 45,
+            title_fr: 'Maîtrise du point de patinage, démarrage en côte et créneau',
+            summary_fr: 'Techniques pratiques sur véhicule double commande Toyota Yaris pour réussir l\'épreuve pratique MINTRANS.',
+            content_markdown: 'Maintenez le frein à main enclenché, cherchez le point de patinage jusqu\'à sentir une légère vibration du capot, puis relâchez progressivement le frein à main tout en stabilisant l\'accélérateur.'
+          }
+        ];
+        this.selectedCourse = this.courses[0];
+      }
     });
+
+    this.api.getQuizQuestions().subscribe((qs) => {
+      if (qs && qs.length > 0) {
+        this.questions = qs;
+      } else {
+        this.questions = [
+          {
+            id: 'q1',
+            question_fr: 'En agglomération à Yaoundé, quelle est la vitesse maximale autorisée par défaut ?',
+            options: ['50 km/h', '60 km/h', '70 km/h', '80 km/h'],
+            correct_index: 0,
+            explanation_fr: 'Sauf indication contraire, la vitesse maximale en agglomération dans la zone CEMAC est limitée à 50 km/h.'
+          },
+          {
+            id: 'q2',
+            question_fr: 'Quel document est obligatoire lors d\'un contrôle routier pour un élève en cours d\'apprentissage ?',
+            options: [
+              'Le livret d\'apprentissage validé par l\'auto-école agréée MINTRANS',
+              'Uniquement la photocopie de la CNI',
+              'Le reçu de caisse seul',
+              'Aucun document si le moniteur est présent'
+            ],
+            correct_index: 0,
+            explanation_fr: 'Tout apprenti conducteur doit pouvoir présenter son livret d\'apprentissage et l\'agrément de l\'auto-école.'
+          },
+          {
+            id: 'q3',
+            question_fr: 'Face à un feu jaune fixe, que devez-vous faire ?',
+            options: [
+              'Vous arrêter, sauf si l\'arrêt ne peut plus se faire dans des conditions de sécurité suffisantes',
+              'Accélérer systématiquement pour passer avant le rouge',
+              'Klaxonner et passer',
+              'Allumer les feux de détresse'
+            ],
+            correct_index: 0,
+            explanation_fr: 'Le feu jaune annonce l\'allumage imminent du feu rouge : l\'arrêt est obligatoire sauf danger immédiat de collision arrière.'
+          }
+        ];
+      }
+    });
+  }
+
+  selectOption(idx: number): void {
+    this.selectedAnswers[this.currentQuestion.id] = idx;
+  }
+
+  getOptionClass(idx: number): string {
+    const picked = this.selectedAnswers[this.currentQuestion.id];
+    if (picked === idx) {
+      return 'border-primary bg-primary-fixed/30 ring-2 ring-primary/20 font-semibold';
+    }
+    return 'border-outline-variant/30 bg-surface-container-lowest hover:bg-surface-container-low';
+  }
+
+  prevQuestion(): void {
+    if (this.currentQuestionIndex > 0) {
+      this.currentQuestionIndex--;
+    }
+  }
+
+  nextQuestion(): void {
+    if (this.currentQuestionIndex < this.questions.length - 1) {
+      this.currentQuestionIndex++;
+    }
+  }
+
+  submitQuiz(): void {
+    this.api.submitQuiz(this.selectedAnswers).subscribe((res) => {
+      this.quizResult = res;
+      this.lastScore = Math.round((res.percentage / 100) * 20);
+      this.quizSubmitted = true;
+    });
+  }
+
+  resetQuiz(): void {
+    this.selectedAnswers = {};
+    this.currentQuestionIndex = 0;
+    this.quizSubmitted = false;
+  }
+
+  submitReactivationProof(): void {
+    this.reactivationSent = true;
+    setTimeout(() => {
+      this.showUploadModal = false;
+      this.reactivationSent = false;
+      this.activeTab = 'home';
+    }, 1200);
+  }
+
+  formatFcfa(amount: number): string {
+    return Math.round(amount || 0)
+      .toString()
+      .replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
   }
 }

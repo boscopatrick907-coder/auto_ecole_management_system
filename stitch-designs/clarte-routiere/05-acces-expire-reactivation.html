@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+
+<html lang="fr"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_stack" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "surface-container-lowest": "#ffffff", "on-tertiary-container": "#82d37d", "surface-dim": "#d7dadf", "tertiary-container": "#005c15", "tertiary-fixed": "#a3f69c", "surface-variant": "#e0e3e8", "on-primary": "#ffffff", "surface-tint": "#335f9d", "on-background": "#181c20", "on-surface": "#181c20", "surface-container-highest": "#e0e3e8", "on-primary-container": "#9ec1ff", "primary-fixed-dim": "#a9c7ff", "on-secondary-fixed-variant": "#633f00", "on-tertiary-fixed-variant": "#005312", "on-error": "#ffffff", "secondary": "#835500", "outline": "#737781", "error": "#ba1a1a", "inverse-primary": "#a9c7ff", "surface-container": "#ebeef3", "on-primary-fixed": "#001b3d", "on-tertiary-fixed": "#002204", "on-secondary-container": "#6b4500", "error-container": "#ffdad6", "inverse-surface": "#2d3135", "surface-container-low": "#f1f4f9", "on-secondary-fixed": "#291800", "surface": "#f7f9ff", "on-tertiary": "#ffffff", "tertiary": "#00420c", "surface-container-high": "#e5e8ee", "outline-variant": "#c3c6d2", "surface-bright": "#f7f9ff", "primary-fixed": "#d6e3ff", "background": "#f7f9ff", "on-error-container": "#93000a", "secondary-container": "#feae2c", "on-secondary": "#ffffff", "on-primary-fixed-variant": "#144684", "secondary-fixed-dim": "#ffb955", "inverse-on-surface": "#eef1f6", "secondary-fixed": "#ffddb4", "primary-container": "#1f4e8c", "on-surface-variant": "#434750", "tertiary-fixed-dim": "#88d982", "primary": "#00376f" }, "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, "spacing": { "gutter": "1rem", "space-lg": "1.5rem", "margin": "1rem", "space-xs": "0.25rem", "space-md": "1rem", "space-sm": "0.5rem", "space-xl": "2rem" }, "fontFamily": { "body-lg": ["Inter"], "body-md-bold": ["Inter"], "headline-lg": ["Inter"], "headline-sm": ["Inter"], "body-md": ["Inter"], "body-lg-bold": ["Inter"], "label-md": ["Inter"], "label-sm": ["Inter"], "display-lg": ["Inter"], "headline-md": ["Inter"] }, "fontSize": { "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }], "body-md-bold": ["14px", { "lineHeight": "20px", "fontWeight": "600" }], "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700" }], "headline-sm": ["18px", { "lineHeight": "24px", "fontWeight": "600" }], "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }], "body-lg-bold": ["16px", { "lineHeight": "24px", "fontWeight": "600" }], "label-md": ["13px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }], "label-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "700" }], "display-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }], "headline-md": ["20px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600" }] } } } };</script><style>@layer base{html,body{width:100%;margin:0;padding:0;}body{overscroll-behavior:none;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface font-body-md text-on-surface min-h-screen flex flex-col antialiased"><header class="fixed top-0 inset-x-0 z-50 bg-surface-container-lowest/90 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] pt-safe"><div class="h-16 px-margin flex items-center justify-between gap-space-sm"><div class="flex items-center gap-space-sm min-w-0 flex-1"><button aria-label="Retour" class="w-11 h-11 -ml-1.5 flex items-center justify-center rounded-xl text-on-surface hover:bg-surface-container-low transition-colors" onclick="history.back()"><span class="material-symbols-outlined text-[24px]">arrow_back</span></button><div class="flex flex-col min-w-0"><span class="font-label-sm text-label-sm text-primary uppercase tracking-wider truncate">Administration</span><h1 class="font-headline-sm text-headline-sm text-on-surface truncate">Fiche Élève</h1></div></div><div class="flex items-center gap-space-xs flex-shrink-0"><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="flex flex-col relative w-full pt-16 bg-surface min-h-screen"><div class="flex flex-col w-full pb-safe">
+<!-- Offline / Network Info Banner (Subtle assurance) -->
+<div class="bg-secondary-fixed text-on-secondary-fixed px-margin py-2.5 flex items-center justify-between shadow-sm">
+<div class="flex items-center gap-space-sm min-w-0">
+<span class="material-symbols-outlined text-[20px] text-secondary flex-shrink-0">verified</span>
+<p class="font-label-sm text-label-sm truncate">Dossier candidat n° LM-4105 préservé &amp; sécurisé</p>
+</div>
+<span class="font-label-sm text-label-sm bg-surface-container-lowest px-2 py-0.5 rounded-full text-secondary font-bold">Permis B</span>
+</div>
+<div class="px-margin flex flex-col gap-space-lg pt-space-md">
+<!-- Warm Status & Welcoming Hero Section -->
+<div class="relative bg-surface-container-lowest rounded-xl p-space-lg shadow-sm overflow-hidden flex flex-col gap-space-md">
+<!-- Ambient decorative gradient wash -->
+<div class="absolute -right-8 -top-8 w-40 h-40 bg-secondary-container/15 rounded-full blur-2xl pointer-events-none"></div>
+<div class="flex items-start justify-between gap-space-md relative z-10">
+<div class="flex items-center gap-space-xs bg-secondary-fixed text-on-secondary-fixed px-3 py-1 rounded-full">
+<span class="material-symbols-outlined text-[16px] text-secondary">hourglass_top</span>
+<span class="font-label-sm text-label-sm uppercase tracking-wide">Période d'essai achevée</span>
+</div>
+<div class="w-12 h-12 rounded-xl bg-primary-fixed flex items-center justify-center text-primary shadow-sm flex-shrink-0">
+<span class="material-symbols-outlined text-[26px]">lock_clock</span>
+</div>
+</div>
+<div class="flex flex-col gap-space-xs relative z-10">
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Vos cours et quiz sont en pause</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">
+          Bravo pour votre belle assiduité, <strong class="text-on-surface">Amina Bello</strong> ! Tous vos points acquis et scores d'entraînement restent intacts. Finalisez votre première tranche pour reprendre le volant sans interruption.
+        </p>
+</div>
+<!-- Quick Social Proof / Assurance badge -->
+<div class="flex items-center gap-space-sm bg-surface-container-low p-space-sm rounded-lg relative z-10">
+<span class="material-symbols-outlined text-tertiary text-[20px] flex-shrink-0">workspace_premium</span>
+<span class="font-label-md text-label-md text-on-surface-variant">Auto-école agréée MINTRANS Yaoundé • Taux de réussite 94%</span>
+</div>
+</div>
+<!-- Psychology Anchor: Student Progress Saved Module -->
+<div class="bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex flex-col gap-space-md">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-primary text-[20px]">save</span>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Votre progression sauvegardée</h3>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant bg-surface-container px-2.5 py-1 rounded-full">10 jours actifs</span>
+</div>
+<!-- Stats Grid -->
+<div class="grid grid-cols-2 gap-space-sm">
+<div class="bg-surface-container-low rounded-lg p-space-sm flex flex-col gap-1">
+<div class="flex items-center gap-1.5 text-primary">
+<span class="material-symbols-outlined text-[18px]">quiz</span>
+<span class="font-label-sm text-label-sm uppercase">Quiz code</span>
+</div>
+<span class="font-headline-sm text-headline-sm text-on-surface">14 réussis</span>
+<span class="font-label-sm text-label-sm text-tertiary">Moyenne 72% (Très bon)</span>
+</div>
+<div class="bg-surface-container-low rounded-lg p-space-sm flex flex-col gap-1">
+<div class="flex items-center gap-1.5 text-primary">
+<span class="material-symbols-outlined text-[18px]">menu_book</span>
+<span class="font-label-sm text-label-sm uppercase">Modules</span>
+</div>
+<span class="font-headline-sm text-headline-sm text-on-surface">2/6 validés</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant truncate">Signalisation &amp; Règles</span>
+</div>
+</div>
+<!-- Progress bar visual -->
+<div class="flex flex-col gap-1.5">
+<div class="flex justify-between items-center text-on-surface-variant font-label-sm text-label-sm">
+<span>Préparation examen théorique officiel</span>
+<span class="font-body-md-bold text-body-md-bold text-primary">35% complété</span>
+</div>
+<div class="w-full bg-surface-container-high h-2.5 rounded-full overflow-hidden">
+<div class="bg-primary h-full rounded-full transition-all duration-500" style="width: 35%;"></div>
+</div>
+</div>
+</div>
+<!-- Payment / Reactivation Details -->
+<div class="bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex flex-col gap-space-md">
+<div class="flex flex-col gap-1">
+<span class="font-label-sm text-label-sm uppercase text-primary">Règlement des frais de formation</span>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Débloquer l'accès complet immédiat</h3>
+</div>
+<!-- Pricing Ticket Box -->
+<div class="bg-surface-container-low rounded-xl p-space-md flex items-center justify-between">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant">1ère Tranche (Acompte d'entrée)</span>
+<div class="flex items-baseline gap-1.5">
+<span class="font-display-lg text-display-lg text-primary">50 000</span>
+<span class="font-headline-sm text-headline-sm text-primary">FCFA</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant mt-0.5">Sur forfait global Permis B : 150 000 FCFA</span>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[24px]">receipt_long</span>
+</div>
+</div>
+<p class="font-label-sm text-label-sm text-on-surface-variant">
+        Sélectionnez votre moyen de paiement sécurisé pour réactivation automatique sous 5 minutes :
+      </p>
+<!-- Payment Method Selection Grid -->
+<div class="flex flex-col gap-space-sm" id="payment-methods">
+<!-- MTN MoMo -->
+<button class="w-full flex items-center justify-between p-space-md rounded-xl bg-surface-container-low text-left transition-all hover:bg-surface-container focus:outline-none min-h-[56px]" id="method-mtn" onclick="selectPaymentMethod('mtn')" type="button">
+<div class="flex items-center gap-space-md min-w-0">
+<div class="w-11 h-11 rounded-lg bg-secondary-container text-on-secondary-container flex items-center justify-center font-bold text-sm flex-shrink-0 shadow-sm">
+              MoMo
+            </div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<span class="font-body-md-bold text-body-md-bold text-on-surface">MTN Mobile Money</span>
+<span class="font-label-sm text-label-sm bg-surface-container-highest px-1.5 py-0.2 rounded text-on-surface-variant">*126#</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant truncate">Validation instantanée via push USSD</span>
+</div>
+</div>
+<div class="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-on-primary radio-check-mtn">
+<span class="material-symbols-outlined text-[16px]">check</span>
+</div>
+</button>
+<!-- Orange Money -->
+<button class="w-full flex items-center justify-between p-space-md rounded-xl bg-surface-container-lowest text-left transition-all hover:bg-surface-container focus:outline-none min-h-[56px]" id="method-orange" onclick="selectPaymentMethod('orange')" type="button">
+<div class="flex items-center gap-space-md min-w-0">
+<div class="w-11 h-11 rounded-lg bg-on-error-container text-on-error flex items-center justify-center font-bold text-sm flex-shrink-0 shadow-sm">
+              OM
+            </div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<span class="font-body-md-bold text-body-md-bold text-on-surface">Orange Money Cameroun</span>
+<span class="font-label-sm text-label-sm bg-surface-container px-1.5 py-0.2 rounded text-on-surface-variant">*150#</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant truncate">Code marchand #150*50#</span>
+</div>
+</div>
+<div class="w-6 h-6 rounded-full bg-surface-container flex items-center justify-center text-transparent radio-check-orange">
+<span class="material-symbols-outlined text-[16px]">check</span>
+</div>
+</button>
+<!-- Cash at Secretariat -->
+<button class="w-full flex items-center justify-between p-space-md rounded-xl bg-surface-container-lowest text-left transition-all hover:bg-surface-container focus:outline-none min-h-[56px]" id="method-cash" onclick="selectPaymentMethod('cash')" type="button">
+<div class="flex items-center gap-space-md min-w-0">
+<div class="w-11 h-11 rounded-lg bg-surface-container-high text-primary flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-[24px]">storefront</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-body-md-bold text-body-md-bold text-on-surface">Paiement physique au guichet</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant truncate">Yaoundé Bastos ou Marché Central</span>
+</div>
+</div>
+<div class="w-6 h-6 rounded-full bg-surface-container flex items-center justify-center text-transparent radio-check-cash">
+<span class="material-symbols-outlined text-[16px]">check</span>
+</div>
+</button>
+</div>
+<!-- Physical Agency Hours Details (Conditional toggle preview) -->
+<div class="hidden bg-surface-container-low rounded-lg p-space-sm flex flex-col gap-1.5 transition-all" id="agency-details">
+<div class="flex items-center gap-1.5 text-primary">
+<span class="material-symbols-outlined text-[18px]">location_on</span>
+<span class="font-body-md-bold text-body-md-bold">Agences ouvertes aujourd'hui (07h30 - 18h30)</span>
+</div>
+<p class="font-label-sm text-label-sm text-on-surface-variant">
+          • Siège Bastos : Face Ambassade de Chine, Yaoundé<br/>
+          • Agence Centre : Rue Ceper, face Marché Central
+        </p>
+</div>
+</div>
+<!-- Mama Célestine / Secretary Human Support Section -->
+<div class="bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex flex-col gap-space-md">
+<div class="flex items-center gap-space-md">
+<div class="relative w-14 h-14 rounded-full overflow-hidden flex-shrink-0 bg-primary-fixed">
+<img class="w-full h-full object-cover" data-alt="Portrait photo of Mama Célestine, a warm and welcoming Cameroonian secretary in her 40s wearing professional colorful African fabric attire with glasses, smiling friendly in a bright driving school office in Yaoundé" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBrRRDSTfQ7HF8qMYQsOLhn7xnfs0RYB63ZlY3i3vhY3bJszfWSx0iGfeWxaY8Ze1keYinOrgpUIMwpK8yR_ZsBYxBoR5Fmwmb0gRdMsT7m-GIomJfJMJg3PEOsyndp4BI7UF6G2Q3dtInU7UYcKZzv7ju6iRGd26lnPmRVzvnoZGVeR-dxyyrlGEbR7mPTUXUxfysa8J8c-VeCkKzV22sV6vv-6pmQ3AkRoES836nb"/>
+<span class="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-tertiary ring-2 ring-surface-container-lowest" title="En ligne"></span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-1.5">
+<h4 class="font-body-lg-bold text-body-lg-bold text-on-surface">Mama Célestine</h4>
+<span class="font-label-sm text-label-sm bg-surface-container text-on-surface-variant px-1.5 py-0.5 rounded">Secrétariat</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Besoin d'un échelonnement ou d'une aide ?</span>
+<span class="font-label-sm text-label-sm text-tertiary flex items-center gap-1 mt-0.5">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span> Disponible immédiatement
+          </span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-space-sm">
+<!-- WhatsApp Direct -->
+<a class="flex items-center justify-center gap-2 bg-tertiary-container text-on-tertiary px-space-md py-3 rounded-xl font-label-md text-label-md min-h-[48px] hover:opacity-95 transition-opacity" href="https://wa.me/237671208814?text=Bonjour%20Mama%20C%C3%A9lestine,%20je%20suis%20Amina%20Bello%20(Dossier%20LM-4105).%20Je%20souhaite%20r%C3%A9activer%20mon%20acc%C3%A8s%20aux%20cours..." rel="noopener noreferrer" target="_blank">
+<span class="material-symbols-outlined text-[20px]">chat</span>
+<span>WhatsApp</span>
+</a>
+<!-- Phone Call Direct -->
+<a class="flex items-center justify-center gap-2 bg-surface-container-low text-on-surface px-space-md py-3 rounded-xl font-label-md text-label-md min-h-[48px] hover:bg-surface-container transition-colors" href="tel:+237671208814">
+<span class="material-symbols-outlined text-[20px] text-primary">call</span>
+<span>Appeler le bureau</span>
+</a>
+</div>
+</div>
+<!-- Primary Action Trigger & Secondary Receipts Option -->
+<div class="flex flex-col gap-space-md pt-space-xs pb-space-lg">
+<button class="w-full h-[52px] bg-primary-container text-on-primary font-body-lg-bold text-body-lg-bold rounded-xl flex items-center justify-center gap-space-sm shadow-md active:opacity-90 transition-all cursor-pointer" onclick="handlePaymentLaunch()" type="button">
+<span class="material-symbols-outlined text-[22px]">payments</span>
+<span id="cta-button-text">Payer 50 000 FCFA par MTN MoMo</span>
+</button>
+<button class="w-full min-h-[48px] py-2 flex items-center justify-center gap-1.5 text-primary font-body-md-bold text-body-md-bold hover:underline transition-all" onclick="handleReceiptUpload()" type="button">
+<span class="material-symbols-outlined text-[20px]">receipt</span>
+<span>J'ai déjà payé au guichet (Soumettre le reçu photo)</span>
+</button>
+<!-- Reassuring bottom micro-copy -->
+<div class="flex items-center justify-center gap-2 text-center text-on-surface-variant font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[16px] text-tertiary">lock</span>
+<span>Paiement certifié • Reçu officiel téléchargeable immédiatement</span>
+</div>
+</div>
+</div>
+<!-- Interactive Modal / Notification Toast (Client side) -->
+<div class="fixed inset-0 z-50 bg-inverse-surface/60 backdrop-blur-sm hidden items-end sm:items-center justify-center p-margin" id="receipt-modal">
+<div class="bg-surface-container-lowest rounded-xl w-full max-w-sm p-space-lg shadow-xl flex flex-col gap-space-md animate-in fade-in zoom-in-95 duration-200">
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[24px]">cloud_upload</span>
+<h4 class="font-headline-sm text-headline-sm text-on-surface">Transmettre mon reçu</h4>
+</div>
+<button class="w-9 h-9 rounded-lg bg-surface-container-low flex items-center justify-center text-on-surface-variant" onclick="closeReceiptModal()" type="button">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant">
+        Prenez en photo votre quittance de caisse ou capture de transfert Mobile Money. Mama Célestine débloquera votre compte sous 15 minutes.
+      </p>
+<label class="flex flex-col items-center justify-center p-space-lg bg-surface-container-low rounded-xl cursor-pointer hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-primary text-[36px] mb-1">add_a_photo</span>
+<span class="font-body-md-bold text-body-md-bold text-on-surface">Prendre une photo du reçu</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant mt-0.5">JPG ou PNG (max 5 Mo)</span>
+<input accept="image/*" class="hidden" onchange="simulateUploadSuccess()" type="file"/>
+</label>
+<button class="h-[48px] bg-surface-container text-on-surface rounded-xl font-label-md text-label-md" onclick="closeReceiptModal()" type="button">
+        Annuler
+      </button>
+</div>
+</div>
+</div>
+<script>
+  let selectedMethod = 'mtn';
+
+  function selectPaymentMethod(method) {
+    selectedMethod = method;
+    const btnMtn = document.getElementById('method-mtn');
+    const btnOrange = document.getElementById('method-orange');
+    const btnCash = document.getElementById('method-cash');
+    const ctaText = document.getElementById('cta-button-text');
+    const agencyDetails = document.getElementById('agency-details');
+
+    const checkMtn = document.querySelector('.radio-check-mtn');
+    const checkOrange = document.querySelector('.radio-check-orange');
+    const checkCash = document.querySelector('.radio-check-cash');
+
+    // Reset base styles
+    [btnMtn, btnOrange, btnCash].forEach(btn => {
+      btn.className = "w-full flex items-center justify-between p-space-md rounded-xl bg-surface-container-lowest text-left transition-all hover:bg-surface-container focus:outline-none min-h-[56px]";
+    });
+
+    [checkMtn, checkOrange, checkCash].forEach(check => {
+      check.className = "w-6 h-6 rounded-full bg-surface-container flex items-center justify-center text-transparent";
+    });
+
+    agencyDetails.classList.add('hidden');
+
+    if (method === 'mtn') {
+      btnMtn.className = "w-full flex items-center justify-between p-space-md rounded-xl bg-surface-container-low text-left transition-all hover:bg-surface-container focus:outline-none min-h-[56px]";
+      checkMtn.className = "w-6 h-6 rounded-full bg-primary flex items-center justify-center text-on-primary radio-check-mtn";
+      ctaText.innerText = "Payer 50 000 FCFA par MTN MoMo";
+    } else if (method === 'orange') {
+      btnOrange.className = "w-full flex items-center justify-between p-space-md rounded-xl bg-surface-container-low text-left transition-all hover:bg-surface-container focus:outline-none min-h-[56px]";
+      checkOrange.className = "w-6 h-6 rounded-full bg-primary flex items-center justify-center text-on-primary radio-check-orange";
+      ctaText.innerText = "Payer 50 000 FCFA par Orange Money";
+    } else if (method === 'cash') {
+      btnCash.className = "w-full flex items-center justify-between p-space-md rounded-xl bg-surface-container-low text-left transition-all hover:bg-surface-container focus:outline-none min-h-[56px]";
+      checkCash.className = "w-6 h-6 rounded-full bg-primary flex items-center justify-center text-on-primary radio-check-cash";
+      ctaText.innerText = "Voir les adresses des guichets";
+      agencyDetails.classList.remove('hidden');
+    }
+  }
+
+  function handlePaymentLaunch() {
+    if (selectedMethod === 'cash') {
+      const details = document.getElementById('agency-details');
+      details.classList.remove('hidden');
+      details.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
+    const provider = selectedMethod === 'mtn' ? 'MTN Mobile Money (*126#)' : 'Orange Money (*150#)';
+    const promptNumber = prompt("Confirmez votre numéro de téléphone (Cameroun) pour initier l'appel de fond de 50 000 FCFA :", "+237 6");
+    if (promptNumber && promptNumber.length >= 9) {
+      alert("Demande de paiement transmise avec succès ! Veuillez valider sur votre téléphone en composant votre code secret " + provider + ".");
+    }
+  }
+
+  function handleReceiptUpload() {
+    const modal = document.getElementById('receipt-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+
+  function closeReceiptModal() {
+    const modal = document.getElementById('receipt-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+
+  function simulateUploadSuccess() {
+    closeReceiptModal();
+    alert("Reçu transmis avec succès à Mama Célestine ! Votre dossier LM-4105 sera réactivé dans les 15 prochaines minutes.");
+  }
+</script></main></body></html>

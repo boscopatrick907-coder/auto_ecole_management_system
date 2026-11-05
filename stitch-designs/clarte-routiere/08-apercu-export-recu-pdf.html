@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+
+<html lang="fr"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_stack" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "surface-dim": "#d7dadf", "secondary": "#835500", "inverse-on-surface": "#eef1f6", "on-secondary-container": "#6b4500", "tertiary-fixed-dim": "#88d982", "on-secondary-fixed": "#291800", "on-tertiary-container": "#82d37d", "error": "#ba1a1a", "background": "#f7f9ff", "on-primary-fixed-variant": "#144684", "outline-variant": "#c3c6d2", "inverse-surface": "#2d3135", "on-background": "#181c20", "surface-container-lowest": "#ffffff", "surface-container": "#ebeef3", "on-surface-variant": "#434750", "surface-container-low": "#f1f4f9", "surface-bright": "#f7f9ff", "primary-container": "#1f4e8c", "on-tertiary": "#ffffff", "on-error": "#ffffff", "on-tertiary-fixed": "#002204", "on-primary-container": "#9ec1ff", "on-tertiary-fixed-variant": "#005312", "inverse-primary": "#a9c7ff", "on-secondary-fixed-variant": "#633f00", "primary-fixed": "#d6e3ff", "on-primary-fixed": "#001b3d", "surface-variant": "#e0e3e8", "on-primary": "#ffffff", "primary": "#00376f", "surface": "#f7f9ff", "error-container": "#ffdad6", "secondary-fixed-dim": "#ffb955", "secondary-fixed": "#ffddb4", "primary-fixed-dim": "#a9c7ff", "on-secondary": "#ffffff", "on-error-container": "#93000a", "tertiary-container": "#005c15", "outline": "#737781", "tertiary-fixed": "a3f69c", "surface-container-highest": "#e0e3e8", "tertiary": "#00420c", "on-surface": "#181c20", "secondary-container": "#feae2c", "surface-container-high": "#e5e8ee", "surface-tint": "#335f9d" }, "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, "spacing": { "space-sm": "0.5rem", "gutter": "1rem", "margin": "1rem", "space-xs": "0.25rem", "space-md": "1rem", "space-lg": "1.5rem", "space-xl": "2rem" }, "fontFamily": { "body-lg": ["Inter"], "label-sm": ["Inter"], "body-md-bold": ["Inter"], "headline-sm": ["Inter"], "display-lg": ["Inter"], "label-md": ["Inter"], "headline-md": ["Inter"], "body-lg-bold": ["Inter"], "body-md": ["Inter"], "headline-lg": ["Inter"] }, "fontSize": { "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }], "label-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "700" }], "body-md-bold": ["14px", { "lineHeight": "20px", "fontWeight": "600" }], "headline-sm": ["18px", { "lineHeight": "24px", "fontWeight": "600" }], "display-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }], "label-md": ["13px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }], "headline-md": ["20px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600" }], "body-lg-bold": ["16px", { "lineHeight": "24px", "fontWeight": "600" }], "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }], "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700" }] } } } };</script><style>@layer base{html,body{width:100vw;margin:0;padding:0;}body{overscroll-behavior:none;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-background font-body-md text-on-background min-h-screen flex flex-col antialiased"><header class="fixed top-0 w-full z-50 pt-safe bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-16 px-margin flex items-center justify-between gap-space-xs"><button aria-label="Retour à la fiche élève" class="min-w-[48px] min-h-[48px] -ml-space-xs px-space-xs flex items-center gap-space-xs text-primary font-body-md-bold rounded-lg hover:bg-surface-container active:bg-surface-container-high transition-colors" onclick="history.back()" type="button"><span class="material-symbols-outlined text-[22px]">arrow_back</span><span class="font-label-md text-label-md hidden sm:inline">Fiche Élève</span></button><div class="flex-1 min-w-0 text-center px-space-xs"><h1 class="font-headline-sm text-headline-sm text-on-surface truncate">Aperçu &amp; Export Reçu Officiel Pdf</h1></div><div class="flex items-center gap-space-xs"><button aria-label="Imprimer ou exporter le reçu" class="min-w-[48px] min-h-[48px] flex items-center justify-center text-primary rounded-lg hover:bg-surface-container active:bg-surface-container-high transition-colors" type="button"><span class="material-symbols-outlined text-[24px]">print</span></button><button aria-label="Partager le document" class="min-w-[48px] min-h-[48px] flex items-center justify-center text-primary rounded-lg hover:bg-surface-container active:bg-surface-container-high transition-colors" type="button"><span class="material-symbols-outlined text-[24px]">share</span></button><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center ml-space-xs shrink-0"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="flex-1 w-full bg-background pt-16 pb-safe flex flex-col"><div class="flex flex-col w-full">
+<!-- Zone de Notification & Statut -->
+<div class="px-margin pt-space-md">
+<div class="bg-tertiary-container text-on-tertiary rounded-xl p-space-md shadow-sm flex items-center justify-between gap-space-sm">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="w-9 h-9 rounded-full bg-on-tertiary/20 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-on-tertiary text-[20px]" style="font-variation-settings: 'FILL' 1;">verified</span>
+</div>
+<div class="min-w-0">
+<p class="font-body-md-bold text-body-md-bold text-on-tertiary truncate">Paiement certifié &amp; enregistré au guichet</p>
+<p class="font-label-sm text-label-sm text-on-tertiary/80 tracking-wide">REÇU OFFICIEL N° RC-2024-0741</p>
+</div>
+</div>
+<span class="font-label-sm text-label-sm uppercase bg-on-tertiary text-tertiary-container px-2.5 py-1 rounded-full font-bold shrink-0">Guichet #01</span>
+</div>
+</div>
+<!-- Barre d'actions rapides prioritaires -->
+<div class="px-margin pt-space-md flex flex-col sm:flex-row gap-space-sm">
+<a class="flex-1 bg-[#25D366] text-white h-[52px] rounded-xl px-space-md flex items-center justify-center gap-space-sm shadow-md hover:bg-[#1fb855] active:scale-[0.98] transition-transform" href="https://wa.me/237699451230?text=Bonjour%20Jean-Paul%2C%20voici%20votre%20re%C3%A7u%20de%20paiement%20officiel%20N%C2%B0%20RC-2024-0741%20de%20l%27Auto-%C3%A9cole%20La%20Marseillaise%20(50%20000%20FCFA)." rel="noopener noreferrer" target="_blank">
+<svg class="w-6 h-6 fill-current shrink-0" viewbox="0 0 24 24">
+<path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766 0-3.18-2.587-5.771-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.007c.106.005.249-.04.39.299.144.347.491 1.2.534 1.287.043.087.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.086-.177.18-.076.353.101.173.449.742.964 1.201.662.591 1.221.774 1.394.86.173.086.275.072.376-.043.101-.116.433-.506.549-.679.116-.173.231-.145.39-.087s1.011.477 1.184.564.289.13.332.202c.043.073.043.419-.101.824zM12 2C6.477 2 2 6.477 2 12c0 1.891.524 3.662 1.435 5.176L2 22l4.981-1.385C8.423 21.498 10.153 22 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"></path>
+</svg>
+<div class="flex flex-col text-left">
+<span class="font-body-md-bold text-body-md-bold leading-tight">Partager sur WhatsApp</span>
+<span class="font-label-sm text-label-sm opacity-90 text-[11px] leading-none">+237 699 45 12 30 (Élève)</span>
+</div>
+</a>
+<div class="flex gap-space-xs">
+<button class="flex-1 bg-primary text-on-primary h-[52px] rounded-xl px-space-md flex items-center justify-center gap-space-xs shadow-md active:bg-primary-container transition-colors" onclick="window.print()" type="button">
+<span class="material-symbols-outlined text-[20px]">download</span>
+<span class="font-body-md-bold text-body-md-bold">PDF (A4)</span>
+</button>
+<button aria-label="Imprimer reçu thermique ticket" class="bg-surface-container-high text-on-surface h-[52px] px-space-md rounded-xl flex items-center justify-center gap-space-xs hover:bg-surface-container-highest active:bg-surface-dim transition-colors" type="button">
+<span class="material-symbols-outlined text-[20px]">receipt_long</span>
+<span class="font-body-md-bold text-body-md-bold hidden xs:inline">Ticket</span>
+</button>
+</div>
+</div>
+<!-- Conteneur Document Officiel Stylisé (Feuille A4 / Facture sécurisée) -->
+<div class="px-margin pt-space-lg">
+<div class="bg-surface-container-lowest rounded-2xl shadow-xl p-space-md sm:p-space-lg flex flex-col gap-space-md relative overflow-hidden">
+<!-- Filigrane d'authenticité discret en fond -->
+<div class="absolute inset-0 pointer-events-none flex items-center justify-center opacity-[0.03]">
+<span class="font-display-lg text-display-lg text-primary select-none text-center transform -rotate-45 leading-none">
+          LA MARSEILLAISE<br/>OFFICIEL VALIDÉ
+        </span>
+</div>
+<!-- En-tête Bilingue Officiel République du Cameroun -->
+<div class="flex flex-col gap-space-xs">
+<div class="grid grid-cols-2 gap-2 text-center">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm uppercase text-on-surface font-bold tracking-tight">RÉPUBLIQUE DU CAMEROUN</span>
+<span class="font-label-sm text-label-sm italic text-on-surface-variant text-[10px]">Paix – Travail – Patrie</span>
+<span class="font-label-sm text-label-sm text-primary font-bold mt-0.5 text-[10px]">MINISTÈRE DES TRANSPORTS (MINTRANS)</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant text-[9px]">Direction des Transports Terrestres (DTT)</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm uppercase text-on-surface font-bold tracking-tight">REPUBLIC OF CAMEROON</span>
+<span class="font-label-sm text-label-sm italic text-on-surface-variant text-[10px]">Peace – Work – Fatherland</span>
+<span class="font-label-sm text-label-sm text-primary font-bold mt-0.5 text-[10px]">MINISTRY OF TRANSPORT</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant text-[9px]">Department of Land Transport</span>
+</div>
+</div>
+<div class="w-24 h-0.5 bg-primary/20 mx-auto my-1 rounded-full"></div>
+<!-- Coordonnées Établissement Agréé -->
+<div class="text-center flex flex-col items-center">
+<div class="flex items-center justify-center gap-space-xs">
+<span class="material-symbols-outlined text-primary text-[22px]">directions_car</span>
+<h2 class="font-headline-sm text-headline-sm text-primary uppercase font-bold tracking-tight">Auto-École La Marseillaise</h2>
+</div>
+<span class="font-label-sm text-label-sm text-secondary font-bold bg-secondary-fixed/40 px-2 py-0.5 rounded-full mt-0.5">
+            Agrément Ministériel N° 00412 / MINT / DTT
+          </span>
+<p class="font-label-sm text-label-sm text-on-surface-variant mt-1 text-[11px] leading-snug">
+            Siège : Agence Bastos – Yaoundé (Face Collège Vogt) • BP 12480 Yaoundé<br/>
+            Tél : (+237) 222 20 14 55 / 699 00 00 00 • Email : contact@autoecole-lamarseillaise.cm
+          </p>
+</div>
+</div>
+<!-- Ruban Titre du Document -->
+<div class="bg-surface-container-high rounded-xl p-space-sm text-center flex flex-col gap-1">
+<h3 class="font-headline-sm text-headline-sm text-primary uppercase font-bold tracking-wider">
+          REÇU DE PAIEMENT &amp; ATTESTATION DE VERSEMENT
+        </h3>
+<div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-on-surface-variant font-label-md text-label-md">
+<span><strong class="text-on-surface">N° Reçu :</strong> <span class="text-primary font-bold">RC-2024-0741</span></span>
+<span class="text-outline-variant">•</span>
+<span><strong class="text-on-surface">Date :</strong> 02/12/2024 à 10:42</span>
+<span class="text-outline-variant">•</span>
+<span><strong class="text-on-surface">Caisse :</strong> Mama Célestine (Guichet #01)</span>
+</div>
+</div>
+<!-- Section 1 : Informations Candidat(e) -->
+<div class="bg-surface-container-low rounded-xl p-space-md flex flex-col gap-space-xs">
+<div class="flex items-center justify-between pb-1">
+<div class="flex items-center gap-1.5 text-primary">
+<span class="material-symbols-outlined text-[18px]">badge</span>
+<span class="font-label-sm text-label-sm uppercase font-bold text-primary">Identité du Candidat &amp; Dossier</span>
+</div>
+<span class="font-label-sm text-label-sm bg-primary text-on-primary px-2.5 py-0.5 rounded-full font-bold">
+            DOSSIER #LM-4092
+          </span>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-space-sm pt-1 text-on-surface">
+<div>
+<span class="font-label-sm text-label-sm text-on-surface-variant block">Nom &amp; Prénoms de l'élève</span>
+<span class="font-headline-sm text-headline-sm text-primary font-bold">Jean-Paul MVONDO</span>
+</div>
+<div>
+<span class="font-label-sm text-label-sm text-on-surface-variant block">Pièce d'identité (CNI)</span>
+<span class="font-body-md-bold text-body-md-bold">N° 108492049 (Délivrée à Yaoundé)</span>
+</div>
+<div>
+<span class="font-label-sm text-label-sm text-on-surface-variant block">Numéro Contact / WhatsApp</span>
+<span class="font-body-md-bold text-body-md-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px] text-tertiary">call</span> +237 699 45 12 30
+            </span>
+</div>
+<div>
+<span class="font-label-sm text-label-sm text-on-surface-variant block">Formation &amp; Catégorie de Permis</span>
+<span class="font-body-md-bold text-body-md-bold text-on-secondary-container">
+              Permis B (Véhicule Léger • Boîte Manuelle)
+            </span>
+</div>
+<div class="sm:col-span-2">
+<span class="font-label-sm text-label-sm text-on-surface-variant block">Groupe &amp; Promotion attribuée</span>
+<span class="font-body-md text-body-md">Promotion Janvier 2025 • <strong class="text-on-surface">Groupe Matinée B (08h00 - 10h00)</strong></span>
+</div>
+</div>
+</div>
+<!-- Section 2 : Détail de l'encaissement du jour -->
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center gap-1.5 text-primary">
+<span class="material-symbols-outlined text-[18px]">payments</span>
+<span class="font-label-sm text-label-sm uppercase font-bold text-primary">Détail des prestations réglées</span>
+</div>
+<div class="bg-surface-container-low rounded-xl overflow-hidden">
+<div class="bg-surface-container-high px-space-md py-2 flex justify-between font-label-sm text-label-sm text-on-surface-variant font-bold uppercase">
+<span>Désignation de la tranche</span>
+<span>Montant (FCFA)</span>
+</div>
+<div class="p-space-md flex flex-col gap-space-sm">
+<div class="flex justify-between items-start gap-space-sm">
+<div class="flex flex-col">
+<span class="font-body-md-bold text-body-md-bold text-on-surface">Tranche 1 : Inscription, Constitution Dossier MINTRANS</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Inclus : Livret de code CEMAC, kit élève et droits de chancellerie DTT</span>
+</div>
+<span class="font-body-lg-bold text-body-lg-bold text-primary shrink-0">50 000 FCFA</span>
+</div>
+<div class="h-px bg-surface-variant"></div>
+<div class="flex flex-wrap items-center justify-between gap-2 text-on-surface-variant text-label-md font-label-md">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px] text-tertiary">check_circle</span>
+<span>Mode : <strong class="text-on-surface">Espèces en caisse</strong> (Billetage certifié)</span>
+</div>
+<span class="italic text-[12px]">Guichet 01 • Ref: ENC-9821</span>
+</div>
+</div>
+<div class="bg-primary text-on-primary px-space-md py-space-sm flex items-center justify-between">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm uppercase tracking-wide opacity-80">Total versé ce jour</span>
+<span class="font-label-sm text-label-sm italic opacity-90">Cinquante mille Francs CFA</span>
+</div>
+<span class="font-headline-lg text-headline-lg font-bold tracking-tight">50 000 FCFA</span>
+</div>
+</div>
+</div>
+<!-- Section 3 : Situation Financière Globale & Échéancier -->
+<div class="bg-surface-container-low rounded-xl p-space-md flex flex-col gap-space-sm">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1.5 text-primary">
+<span class="material-symbols-outlined text-[18px]">account_balance_wallet</span>
+<span class="font-label-sm text-label-sm uppercase font-bold text-primary">Situation du compte élève</span>
+</div>
+<span class="font-label-sm text-label-sm bg-secondary-fixed text-on-secondary-fixed px-2.5 py-0.5 rounded-full font-bold">
+            33% Réglé
+          </span>
+</div>
+<!-- Jauge d'avancement -->
+<div class="w-full bg-surface-container-highest rounded-full h-3 overflow-hidden flex">
+<div class="bg-tertiary-container h-full rounded-full w-[33.33%]"></div>
+<div class="bg-surface-container-highest h-full w-[66.67%]"></div>
+</div>
+<div class="grid grid-cols-3 gap-2 text-center py-1">
+<div class="bg-surface-container-lowest p-2 rounded-lg">
+<span class="font-label-sm text-label-sm text-on-surface-variant block">Coût Total</span>
+<span class="font-body-md-bold text-body-md-bold text-on-surface">150 000</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant block text-[10px]">FCFA</span>
+</div>
+<div class="bg-tertiary-fixed/30 p-2 rounded-lg">
+<span class="font-label-sm text-label-sm text-tertiary block font-bold">Encaissé</span>
+<span class="font-body-md-bold text-body-md-bold text-tertiary">50 000</span>
+<span class="font-label-sm text-label-sm text-tertiary block text-[10px]">FCFA</span>
+</div>
+<div class="bg-error-container/40 p-2 rounded-lg">
+<span class="font-label-sm text-label-sm text-error block font-bold">Reste Dû</span>
+<span class="font-body-md-bold text-body-md-bold text-error">100 000</span>
+<span class="font-label-sm text-label-sm text-error block text-[10px]">FCFA</span>
+</div>
+</div>
+<!-- Prochaines tranches planifiées -->
+<div class="flex flex-col gap-1.5 pt-1">
+<span class="font-label-sm text-label-sm font-bold text-on-surface">Échéancier des tranches restantes :</span>
+<div class="flex items-center justify-between bg-surface-container-lowest p-2.5 rounded-lg">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+<div class="flex flex-col">
+<span class="font-body-md-bold text-body-md-bold text-on-surface">Tranche 2 (Mi-parcours pratique)</span>
+<span class="font-label-sm text-label-sm text-secondary font-bold">Échéance : 20 Décembre 2024</span>
+</div>
+</div>
+<span class="font-body-md-bold text-body-md-bold text-on-surface">50 000 FCFA</span>
+</div>
+<div class="flex items-center justify-between bg-surface-container-lowest p-2.5 rounded-lg">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-outline"></span>
+<div class="flex flex-col">
+<span class="font-body-md-bold text-body-md-bold text-on-surface">Tranche 3 (Examen DTT Yaoundé)</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Avant le 25 Janvier 2025</span>
+</div>
+</div>
+<span class="font-body-md-bold text-body-md-bold text-on-surface">50 000 FCFA</span>
+</div>
+</div>
+</div>
+<!-- Section 4 : Sécurité, QR Code, Cachet & Mentions Légales -->
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-space-md pt-2 items-center">
+<!-- Bloc QR Code et Validation Numérique -->
+<div class="flex items-center gap-space-sm bg-surface-container-low p-space-sm rounded-xl">
+<!-- QR Code SVG Vectoriel généré proprement -->
+<div class="w-20 h-20 bg-surface-container-lowest p-1 rounded-lg shrink-0 flex items-center justify-center shadow-sm">
+<svg class="w-full h-full text-on-surface" fill="currentColor" viewbox="0 0 100 100">
+<!-- Coins QR (Finder Patterns) -->
+<rect fill="none" height="28" rx="2" stroke="currentColor" stroke-width="6" width="28" x="5" y="5"></rect>
+<rect height="14" rx="1" width="14" x="12" y="12"></rect>
+<rect fill="none" height="28" rx="2" stroke="currentColor" stroke-width="6" width="28" x="67" y="5"></rect>
+<rect height="14" rx="1" width="14" x="74" y="12"></rect>
+<rect fill="none" height="28" rx="2" stroke="currentColor" stroke-width="6" width="28" x="5" y="67"></rect>
+<rect height="14" rx="1" width="14" x="12" y="74"></rect>
+<!-- Data modules factices représentatifs -->
+<rect height="8" width="8" x="38" y="8"></rect>
+<rect height="8" width="8" x="51" y="8"></rect>
+<rect height="8" width="8" x="38" y="24"></rect>
+<rect height="8" width="8" x="51" y="24"></rect>
+<rect height="8" width="8" x="8" y="38"></rect>
+<rect height="8" width="8" x="24" y="38"></rect>
+<rect height="12" width="12" x="38" y="38"></rect>
+<rect height="8" width="8" x="54" y="38"></rect>
+<rect height="8" width="8" x="67" y="38"></rect>
+<rect height="8" width="8" x="82" y="38"></rect>
+<rect height="8" width="8" x="38" y="54"></rect>
+<rect height="8" width="14" x="54" y="54"></rect>
+<rect height="8" width="8" x="74" y="54"></rect>
+<rect height="14" width="8" x="38" y="67"></rect>
+<rect height="8" width="8" x="54" y="67"></rect>
+<rect height="8" width="8" x="67" y="67"></rect>
+<rect height="16" width="10" x="82" y="74"></rect>
+<rect height="8" width="14" x="38" y="86"></rect>
+<rect height="8" width="8" x="58" y="82"></rect>
+</svg>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm font-bold text-primary uppercase">Contrôle d'Authenticité</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant text-[11px] leading-tight mt-0.5">
+              Scannez pour vérifier la validité de ce versement sur la plateforme MINTRANS DTT Cameroun.
+            </span>
+<span class="font-label-sm text-label-sm text-tertiary font-bold mt-1 text-[10px]">
+              SHA256: 8F4B-91E2-LM4092
+            </span>
+</div>
+</div>
+<!-- Cachet circulaire officiel et signature -->
+<div class="flex items-center justify-around relative">
+<!-- Cachet institutionnel simulé (Tampon Encreur) -->
+<div class="relative w-28 h-28 rounded-full border-2 border-dashed border-error/70 flex flex-col items-center justify-center p-2 text-center transform -rotate-6 select-none bg-error/5">
+<span class="font-label-sm text-label-sm text-error font-bold uppercase text-[8px] leading-none">AUTO-ÉCOLE LA MARSEILLAISE</span>
+<div class="w-16 h-px bg-error/40 my-0.5"></div>
+<span class="font-label-sm text-label-sm text-error font-bold text-[9px] uppercase tracking-wider">DIRECTION CAISSE</span>
+<span class="font-label-sm text-label-sm text-error font-bold text-[9px]">02 DÉC. 2024</span>
+<span class="font-label-sm text-label-sm text-error uppercase text-[7px] leading-none mt-0.5">ENCAISSÉ • YAOUNDÉ</span>
+</div>
+<!-- Signature Caissière -->
+<div class="flex flex-col items-center">
+<span class="font-label-sm text-label-sm text-on-surface-variant italic">La Caissière Principale,</span>
+<!-- Tracé SVG de signature manuelle réaliste -->
+<svg class="w-24 h-10 text-primary-container" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2" viewbox="0 0 120 50">
+<path d="M10,35 Q30,5 50,30 T80,20 Q100,10 110,40 M45,25 Q70,45 95,15"></path>
+</svg>
+<span class="font-label-sm text-label-sm font-bold text-on-surface text-[11px]">Mama Célestine</span>
+</div>
+</div>
+</div>
+<!-- Mention Légale Obligatoire -->
+<div class="bg-surface-container-high/60 rounded-lg p-space-sm text-center">
+<p class="font-label-sm text-label-sm text-on-surface-variant text-[11px] leading-snug">
+<strong>Mention légale :</strong> Ce reçu certifié tient lieu d'attestation de versement et donne plein droit d'accès aux séances de cours théoriques de code de la route, d'entraînement multimédia et de suivi pédagogique auprès de l'Auto-école La Marseillaise. En cas de litige, seul l'original numérique référencé au MINTRANS fait foi.
+        </p>
+</div>
+</div>
+</div>
+<!-- Options d'Export & Paramètres d'Impression -->
+<div class="px-margin pt-space-md">
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col gap-space-sm">
+<div class="flex items-center justify-between">
+<span class="font-body-md-bold text-body-md-bold text-on-surface">Format d'exportation actif</span>
+<span class="material-symbols-outlined text-outline-variant text-[20px]">tune</span>
+</div>
+<!-- Boutons Radio de Choix de Format -->
+<div class="grid grid-cols-2 gap-space-xs" id="formatSelector">
+<label class="flex items-center gap-space-xs p-space-sm bg-primary-fixed/30 rounded-lg cursor-pointer transition-colors">
+<input checked="" class="w-4 h-4 text-primary accent-primary" name="exportFormat" type="radio" value="a4"/>
+<div class="flex flex-col min-w-0">
+<span class="font-body-md-bold text-body-md-bold text-primary truncate">Facture A4 PDF</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant text-[11px]">Pour archivage officiel</span>
+</div>
+</label>
+<label class="flex items-center gap-space-xs p-space-sm bg-surface-container rounded-lg cursor-pointer transition-colors">
+<input class="w-4 h-4 text-primary accent-primary" name="exportFormat" type="radio" value="thermal"/>
+<div class="flex flex-col min-w-0">
+<span class="font-body-md-bold text-body-md-bold text-on-surface truncate">Ticket Caisse 80mm</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant text-[11px]">Imprimante thermique</span>
+</div>
+</label>
+</div>
+<!-- Canaux secondaires : SMS & Email -->
+<div class="flex items-center gap-space-xs pt-1">
+<button class="flex-1 bg-surface-container-low text-on-surface-variant hover:text-on-surface h-11 px-space-sm rounded-lg flex items-center justify-center gap-1.5 font-label-md text-label-md active:bg-surface-container transition-colors" onclick="alert('Lien de téléchargement sécurisé envoyé par SMS à Jean-Paul Mvondo (+237 699 45 12 30).');" type="button">
+<span class="material-symbols-outlined text-[18px]">sms</span>
+<span>Lien SMS sécurisé</span>
+</button>
+<button class="bg-surface-container-low text-on-surface-variant hover:text-on-surface h-11 px-space-sm rounded-lg flex items-center justify-center gap-1.5 font-label-md text-label-md active:bg-surface-container transition-colors" onclick="navigator.clipboard?.writeText(window.location.href); alert('Lien officiel du reçu copié dans le presse-papier !');" type="button">
+<span class="material-symbols-outlined text-[18px]">content_copy</span>
+<span>Copier le lien</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Bouton d'ancrage final de sortie -->
+<div class="px-margin py-space-lg flex flex-col items-center">
+<button class="w-full bg-surface-container-highest text-on-surface h-[52px] rounded-xl flex items-center justify-center gap-space-xs font-body-lg-bold text-body-lg-bold hover:bg-surface-dim active:bg-surface-container transition-colors" onclick="history.back()" type="button">
+<span class="material-symbols-outlined text-[20px]">arrow_back</span>
+<span>Retourner à la fiche élève (LM-4092)</span>
+</button>
+<p class="font-label-sm text-label-sm text-outline mt-2 text-center text-[11px]">
+      Auto-école La Marseillaise Cameroun • Système de Facturation Sécurisé • v4.2
+    </p>
+</div>
+</div>
+<script>
+  // Gestion interactive simple de sélection de format
+  document.querySelectorAll('input[name="exportFormat"]').forEach((radio) => {
+    radio.addEventListener('change', (e) => {
+      document.querySelectorAll('#formatSelector label').forEach((lbl) => {
+        lbl.classList.remove('bg-primary-fixed/30', 'text-primary');
+        lbl.classList.add('bg-surface-container');
+      });
+      const parentLabel = e.target.closest('label');
+      if (parentLabel) {
+        parentLabel.classList.remove('bg-surface-container');
+        parentLabel.classList.add('bg-primary-fixed/30');
+      }
+    });
+  });
+</script></main></body></html>

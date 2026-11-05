@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+
+<html lang="fr"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_tab" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "surface-container-lowest": "#ffffff", "on-tertiary-container": "#82d37d", "surface-dim": "#d7dadf", "tertiary-container": "#005c15", "tertiary-fixed": "#a3f69c", "surface-variant": "#e0e3e8", "on-primary": "#ffffff", "surface-tint": "#335f9d", "on-background": "#181c20", "on-surface": "#181c20", "surface-container-highest": "#e0e3e8", "on-primary-container": "#9ec1ff", "primary-fixed-dim": "#a9c7ff", "on-secondary-fixed-variant": "#633f00", "on-tertiary-fixed-variant": "#005312", "on-error": "#ffffff", "secondary": "#835500", "outline": "#737781", "error": "#ba1a1a", "inverse-primary": "#a9c7ff", "surface-container": "#ebeef3", "on-primary-fixed": "#001b3d", "on-tertiary-fixed": "#002204", "on-secondary-container": "#6b4500", "error-container": "#ffdad6", "inverse-surface": "#2d3135", "surface-container-low": "#f1f4f9", "on-secondary-fixed": "#291800", "surface": "#f7f9ff", "on-tertiary": "#ffffff", "tertiary": "#00420c", "surface-container-high": "#e5e8ee", "outline-variant": "#c3c6d2", "surface-bright": "#f7f9ff", "primary-fixed": "#d6e3ff", "background": "#f7f9ff", "on-error-container": "#93000a", "secondary-container": "#feae2c", "on-secondary": "#ffffff", "on-primary-fixed-variant": "#144684", "secondary-fixed-dim": "#ffb955", "inverse-on-surface": "#eef1f6", "secondary-fixed": "#ffddb4", "primary-container": "#1f4e8c", "on-surface-variant": "#434750", "tertiary-fixed-dim": "#88d982", "primary": "#00376f" }, "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, "spacing": { "gutter": "1rem", "space-lg": "1.5rem", "margin": "1rem", "space-xs": "0.25rem", "space-md": "1rem", "space-sm": "0.5rem", "space-xl": "2rem" }, "fontFamily": { "body-lg": ["Inter"], "body-md-bold": ["Inter"], "headline-lg": ["Inter"], "headline-sm": ["Inter"], "body-md": ["Inter"], "body-lg-bold": ["Inter"], "label-md": ["Inter"], "label-sm": ["Inter"], "display-lg": ["Inter"], "headline-md": ["Inter"] }, "fontSize": { "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }], "body-md-bold": ["14px", { "lineHeight": "20px", "fontWeight": "600" }], "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700" }], "headline-sm": ["18px", { "lineHeight": "24px", "fontWeight": "600" }], "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }], "body-lg-bold": ["16px", { "lineHeight": "24px", "fontWeight": "600" }], "label-md": ["13px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }], "label-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "700" }], "display-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }], "headline-md": ["20px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600" }] } } } };</script><style>@layer base{html,body{width:100%;margin:0;padding:0;}body{overscroll-behavior:none;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface font-body-md text-on-surface min-h-screen flex flex-col antialiased"><header class="fixed top-0 inset-x-0 z-50 bg-surface-container-lowest/90 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] pt-safe"><div class="h-16 px-margin flex items-center justify-between gap-space-sm"><div class="flex flex-col min-w-0 flex-1"><div class="flex items-center gap-space-xs"><span class="material-symbols-outlined text-primary text-[18px]">verified</span><h1 class="font-label-sm text-label-sm uppercase tracking-wider text-primary truncate">Auto-école La Marseillaise</h1></div><div class="flex items-center gap-space-xs mt-0.5"><span class="font-headline-sm text-headline-sm text-on-surface truncate">Tableau De Bord</span><span class="inline-flex items-center px-2 py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed font-label-sm text-label-sm whitespace-nowrap">Admin</span></div></div><div class="flex items-center gap-space-xs flex-shrink-0"><button aria-label="Notifications" class="w-11 h-11 flex items-center justify-center rounded-xl bg-surface-container-low text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"><span class="material-symbols-outlined text-[20px]">notifications</span></button><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="flex flex-col relative w-full pt-16 pb-24 bg-surface min-h-screen"><div class="flex flex-col w-full px-margin space-y-space-md">
+<!-- Bannière d'état réseau simple & rassurante -->
+<div class="w-full bg-surface-container-low rounded-xl px-space-md py- space-sm flex items-center justify-between shadow-sm">
+<div class="flex items-center gap-space-sm">
+<div class="w-2.5 h-2.5 rounded-full bg-tertiary animate-pulse"></div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Données synchronisées • Yaoundé Central</span>
+</div>
+<span class="font-label-sm text-label-sm text-primary font-bold">Session active</span>
+</div>
+<!-- En-tête Page Administrateur (Mama Célestine) -->
+<div class="flex flex-col space-y-space-xs">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-primary text-[22px]" style="font-variation-settings: 'FILL' 1;">groups</span>
+<h2 class="font-headline-md text-headline-md text-on-surface">Groupes &amp; Sessions</h2>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant">
+      Planifiez vos vagues d'apprentissage et suivez les versements en toute sérénité.
+    </p>
+</div>
+<!-- Bouton d'action principal bien large et rassurant -->
+<button class="w-full h-[52px] bg-primary-container text-on-primary rounded-xl font-body-lg-bold text-body-lg-bold shadow-md active:bg-primary flex items-center justify-center gap-space-sm transition-all" id="toggle-form-btn" onclick="toggleForm()">
+<span class="material-symbols-outlined text-[24px]">add_circle</span>
+<span>Créer un nouveau groupe</span>
+</button>
+<!-- Volet / Module de Création de Groupe (Déplié par défaut) -->
+<section class="bg-surface-container-lowest rounded-2xl p-space-md shadow-md flex flex-col space-y-space-md" id="form-container">
+<!-- Entête du formulaire -->
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-sm">
+<div class="w-10 h-10 rounded-xl bg-primary-fixed flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[24px]">edit_calendar</span>
+</div>
+<div>
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-secondary">Nouvelle promotion</span>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Session Janvier 2025</h3>
+</div>
+</div>
+<button aria-label="Fermer le volet" class="w-11 h-11 flex items-center justify-center rounded-xl bg-surface-container text-on-surface-variant hover:text-on-surface" onclick="toggleForm()">
+<span class="material-symbols-outlined text-[20px]">expand_less</span>
+</button>
+</div>
+<!-- 1. Catégorie de Permis (Grosses dalles tactiles) -->
+<div class="flex flex-col space-y-space-xs">
+<label class="font-body-md-bold text-body-md-bold text-on-surface">1. Choisir le type de permis</label>
+<div class="grid grid-cols-2 gap-space-sm">
+<!-- Permis B (Sélectionné) -->
+<button class="h-16 px-space-md rounded-xl bg-primary-container text-on-primary flex items-center gap-space-sm shadow-sm transition-transform active:scale-95 text-left" type="button">
+<span class="material-symbols-outlined text-[28px]">directions_car</span>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-sm text-headline-sm leading-tight">Permis B</span>
+<span class="font-label-sm text-label-sm text-on-primary-container truncate">Voiture légère</span>
+</div>
+</button>
+<!-- Permis A -->
+<button class="h-16 px-space-md rounded-xl bg-surface-container-low text-on-surface hover:bg-surface-container flex items-center gap-space-sm text-left" type="button">
+<span class="material-symbols-outlined text-[28px] text-on-surface-variant">two_wheeler</span>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-sm text-headline-sm leading-tight">Permis A</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant truncate">Moto &amp; Tricycle</span>
+</div>
+</button>
+<!-- Permis C -->
+<button class="h-16 px-space-md rounded-xl bg-surface-container-low text-on-surface hover:bg-surface-container flex items-center gap-space-sm text-left" type="button">
+<span class="material-symbols-outlined text-[28px] text-on-surface-variant">local_shipping</span>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-sm text-headline-sm leading-tight">Permis C</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant truncate">Poids Lourd</span>
+</div>
+</button>
+<!-- Permis D -->
+<button class="h-16 px-space-md rounded-xl bg-surface-container-low text-on-surface hover:bg-surface-container flex items-center gap-space-sm text-left" type="button">
+<span class="material-symbols-outlined text-[28px] text-on-surface-variant">directions_bus</span>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-sm text-headline-sm leading-tight">Permis D</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant truncate">Transport en commun</span>
+</div>
+</button>
+</div>
+</div>
+<!-- 2. Nom & Horaires du Groupe -->
+<div class="flex flex-col space-y-space-sm">
+<div class="flex flex-col space-y-space-xs">
+<label class="font-body-md-bold text-body-md-bold text-on-surface" for="group-name">2. Nom du groupe</label>
+<div class="w-full h-[52px] bg-surface-container-lowest rounded-xl px-space-md flex items-center shadow-sm">
+<input class="w-full bg-transparent font-body-lg-bold text-body-lg-bold text-on-surface outline-none" id="group-name" type="text" value="Session Janvier 2025 - Matinée A"/>
+</div>
+</div>
+<div class="flex flex-col space-y-space-xs">
+<label class="font-body-md-bold text-body-md-bold text-on-surface" for="group-schedule">3. Horaires &amp; Jours de cours</label>
+<div class="w-full h-[52px] bg-surface-container-lowest rounded-xl px-space-md flex items-center gap-space-sm shadow-sm">
+<span class="material-symbols-outlined text-primary text-[20px]">schedule</span>
+<input class="w-full bg-transparent font-body-md-bold text-body-md-bold text-on-surface outline-none" id="group-schedule" type="text" value="Lundi, Mercredi, Vendredi (08h00 - 11h00)"/>
+</div>
+</div>
+</div>
+<!-- 3. Date de démarrage & Capacité -->
+<div class="grid grid-cols-1 gap-space-sm">
+<div class="flex flex-col space-y-space-xs">
+<label class="font-body-md-bold text-body-md-bold text-on-surface">4. Premier jour de cours</label>
+<div class="w-full h-[52px] bg-surface-container-low rounded-xl px-space-md flex items-center justify-between">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-primary text-[20px]">calendar_today</span>
+<span class="font-body-md-bold text-body-md-bold text-on-surface">Lundi 06 Janvier 2025</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant text-[20px]">arrow_drop_down</span>
+</div>
+</div>
+<div class="flex flex-col space-y-space-xs">
+<label class="font-body-md-bold text-body-md-bold text-on-surface">5. Nombre de places dans la voiture</label>
+<div class="w-full h-[52px] bg-surface-container-low rounded-xl px-space-sm flex items-center justify-between">
+<button aria-label="Diminuer" class="w-11 h-11 rounded-lg bg-surface-container-lowest text-primary flex items-center justify-center font-headline-md text-headline-md shadow-sm active:scale-95" onclick="decrementSlots()" type="button">
+<span class="material-symbols-outlined text-[20px]">remove</span>
+</button>
+<div class="flex items-baseline gap-space-xs">
+<span class="font-headline-lg text-headline-lg text-on-surface" id="slots-count">15</span>
+<span class="font-body-md text-body-md text-on-surface-variant">places au total</span>
+</div>
+<button aria-label="Augmenter" class="w-11 h-11 rounded-lg bg-surface-container-lowest text-primary flex items-center justify-center font-headline-md text-headline-md shadow-sm active:scale-95" onclick="incrementSlots()" type="button">
+<span class="material-symbols-outlined text-[20px]">add</span>
+</button>
+</div>
+</div>
+</div>
+<!-- 4. Frais & Échéancier de Paiement Spécial Yaoundé -->
+<div class="flex flex-col space-y-space-sm bg-surface-container-low rounded-xl p-space-md">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-secondary text-[22px]">payments</span>
+<span class="font-body-md-bold text-body-md-bold text-on-surface">Tarif &amp; Modalités de règlement</span>
+</div>
+<span class="font-headline-sm text-headline-sm text-primary">150 000 FCFA</span>
+</div>
+<div class="flex flex-col space-y-space-xs">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase">Formule de tranches retenue</span>
+<div class="w-full h-[48px] bg-surface-container-lowest rounded-lg px-space-md flex items-center justify-between shadow-sm">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-tertiary text-[18px]">check_circle</span>
+<span class="font-body-md-bold text-body-md-bold text-on-surface">3 Tranches de 50 000 FCFA</span>
+</div>
+<span class="font-label-sm text-label-sm bg-secondary-fixed text-on-secondary-fixed px-2 py-0.5 rounded-full font-bold">Standard</span>
+</div>
+</div>
+<!-- Détail des 3 Tranches -->
+<div class="flex flex-col space-y-space-xs pt-space-xs">
+<!-- Tranche 1 -->
+<div class="bg-surface-container-lowest rounded-lg p-space-sm flex items-center justify-between shadow-sm">
+<div class="flex items-center gap-space-sm">
+<div class="w-7 h-7 rounded-full bg-primary-fixed flex items-center justify-center font-label-sm text-label-sm text-primary font-bold">1</div>
+<div class="flex flex-col">
+<span class="font-body-md-bold text-body-md-bold text-on-surface">Acompte à l'inscription</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Obligatoire pour réserver la place</span>
+</div>
+</div>
+<span class="font-body-lg-bold text-body-lg-bold text-on-surface">50 000 FCFA</span>
+</div>
+<!-- Tranche 2 -->
+<div class="bg-surface-container-lowest rounded-lg p-space-sm flex items-center justify-between shadow-sm">
+<div class="flex items-center gap-space-sm">
+<div class="w-7 h-7 rounded-full bg-surface-container flex items-center justify-center font-label-sm text-label-sm text-on-surface font-bold">2</div>
+<div class="flex flex-col">
+<span class="font-body-md-bold text-body-md-bold text-on-surface">Deuxième versement</span>
+<span class="font-label-sm text-label-sm text-secondary font-bold">Échéance : 25 Janvier 2025</span>
+</div>
+</div>
+<span class="font-body-lg-bold text-body-lg-bold text-on-surface">50 000 FCFA</span>
+</div>
+<!-- Tranche 3 -->
+<div class="bg-surface-container-lowest rounded-lg p-space-sm flex items-center justify-between shadow-sm">
+<div class="flex items-center gap-space-sm">
+<div class="w-7 h-7 rounded-full bg-surface-container flex items-center justify-center font-label-sm text-label-sm text-on-surface font-bold">3</div>
+<div class="flex flex-col">
+<span class="font-body-md-bold text-body-md-bold text-on-surface">Solde final</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Avant présentation à l'examen (15 Fév)</span>
+</div>
+</div>
+<span class="font-body-lg-bold text-body-lg-bold text-on-surface">50 000 FCFA</span>
+</div>
+</div>
+</div>
+<!-- Grand bouton de validation massif vert/bleu -->
+<button class="w-full h-[52px] bg-tertiary-container text-tertiary-fixed rounded-xl font-body-lg-bold text-body-lg-bold shadow-md active:bg-tertiary flex items-center justify-center gap-space-sm transition-transform active:scale-95" type="button">
+<span class="material-symbols-outlined text-[24px]">how_to_reg</span>
+<span>Enregistrer &amp; ouvrir les inscriptions</span>
+</button>
+</section>
+<!-- Séparateur & Titre Liste des Groupes -->
+<div class="flex items-center justify-between pt-space-sm">
+<div class="flex items-center gap-space-xs">
+<span class="font-headline-sm text-headline-sm text-on-surface">Groupes Actifs &amp; À Venir</span>
+<span class="w-6 h-6 rounded-full bg-surface-container-high text-on-surface-variant font-label-sm text-label-sm flex items-center justify-center font-bold">3</span>
+</div>
+<span class="font-label-sm text-label-sm text-primary font-bold">Tout afficher</span>
+</div>
+<!-- Groupe 1 : En Cours (Matinée B) -->
+<article class="bg-surface-container-lowest rounded-2xl p-space-md shadow-md flex flex-col space-y-space-md">
+<!-- Entête de carte -->
+<div class="flex items-start justify-between">
+<div class="flex flex-col min-w-0 pr-space-xs">
+<span class="font-label-sm text-label-sm text-primary font-bold uppercase tracking-wide">Permis B • Voiture Légère</span>
+<h4 class="font-headline-sm text-headline-sm text-on-surface truncate">Groupe Matinée B</h4>
+<span class="font-body-md text-body-md text-on-surface-variant mt-0.5">Démarré le 02 Décembre 2024</span>
+</div>
+<!-- Badge En cours -->
+<span class="inline-flex items-center px-3 py-1 rounded-full bg-tertiary-container text-tertiary-fixed font-label-sm text-label-sm whitespace-nowrap shadow-sm">
+        En cours • 14/15
+      </span>
+</div>
+<!-- Jauge de présence / remplissage -->
+<div class="flex flex-col space-y-1">
+<div class="flex justify-between items-center text-label-sm font-label-sm">
+<span class="text-on-surface-variant">Remplissage du groupe</span>
+<span class="text-primary font-bold">14 inscrits (1 place libre)</span>
+</div>
+<div class="w-full h-3 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 93%;"></div>
+</div>
+</div>
+<!-- Santé financière / Recouvrement -->
+<div class="bg-surface-container-low rounded-xl p-space-sm flex flex-col space-y-space-xs">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm uppercase text-on-surface-variant">Taux d'encaissement</span>
+<span class="font-body-md-bold text-body-md-bold text-tertiary">85% encaissé</span>
+</div>
+<div class="flex items-baseline justify-between">
+<span class="font-headline-sm text-headline-sm text-on-surface">1 785 000 FCFA</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">sur 2 100 000 FCFA attendus</span>
+</div>
+<div class="w-full h-2 bg-surface-variant rounded-full overflow-hidden">
+<div class="h-full bg-tertiary-container rounded-full" style="width: 85%;"></div>
+</div>
+</div>
+<!-- Boutons d'action rapides (Touch 48px+) -->
+<div class="grid grid-cols-2 gap-space-sm pt-space-xs">
+<button class="h-[48px] bg-surface-container-low text-primary rounded-xl font-body-md-bold text-body-md-bold flex items-center justify-center gap-space-xs hover:bg-surface-container active:scale-95 transition-all" type="button">
+<span class="material-symbols-outlined text-[20px]">people</span>
+<span>Voir élèves (14)</span>
+</button>
+<!-- Bouton WhatsApp rapide pour Mama Célestine -->
+<a class="h-[48px] bg-tertiary text-on-tertiary rounded-xl font-body-md-bold text-body-md-bold flex items-center justify-center gap-space-xs shadow-sm active:scale-95 transition-all" href="https://wa.me/">
+<span class="material-symbols-outlined text-[20px]">chat</span>
+<span>Rappel WhatsApp</span>
+</a>
+</div>
+</article>
+<!-- Groupe 2 : Inscriptions Ouvertes (Soir & Samedi) -->
+<article class="bg-surface-container-lowest rounded-2xl p-space-md shadow-md flex flex-col space-y-space-md">
+<div class="flex items-start justify-between">
+<div class="flex flex-col min-w-0 pr-space-xs">
+<span class="font-label-sm text-label-sm text-secondary font-bold uppercase tracking-wide">Permis B • Travailleurs &amp; Étudiants</span>
+<h4 class="font-headline-sm text-headline-sm text-on-surface truncate">Groupe Soir &amp; Samedi</h4>
+<span class="font-body-md text-body-md text-on-surface-variant mt-0.5">Débute le 15 Décembre 2024</span>
+</div>
+<!-- Badge Inscriptions -->
+<span class="inline-flex items-center px-3 py-1 rounded-full bg-secondary-fixed text-on-secondary-fixed font-label-sm text-label-sm whitespace-nowrap shadow-sm">
+        Inscriptions • 8/12
+      </span>
+</div>
+<!-- Remplissage -->
+<div class="flex flex-col space-y-1">
+<div class="flex justify-between items-center text-label-sm font-label-sm">
+<span class="text-on-surface-variant">Places disponibles</span>
+<span class="text-secondary font-bold">4 places restantes</span>
+</div>
+<div class="w-full h-3 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-secondary-container rounded-full" style="width: 66%;"></div>
+</div>
+</div>
+<!-- Modalité tarifaire -->
+<div class="flex items-center justify-between bg-surface-container-low rounded-xl px-space-md py-space-sm">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Modalité retenue</span>
+<span class="font-body-md-bold text-body-md-bold text-on-surface">3 Tranches de 50 000 FCFA</span>
+</div>
+<span class="font-headline-sm text-headline-sm text-primary">150 000 FCFA</span>
+</div>
+<!-- Action Gérer -->
+<button class="w-full h-[50px] bg-primary text-on-primary rounded-xl font-body-lg-bold text-body-lg-bold shadow-sm active:scale-95 transition-all flex items-center justify-center gap-space-sm" type="button">
+<span class="material-symbols-outlined text-[20px]">how_to_reg</span>
+<span>Gérer les 8 inscrits</span>
+</button>
+</article>
+<!-- Groupe 3 : Poids Lourd (Complet) -->
+<article class="bg-surface-container-lowest rounded-2xl p-space-md shadow-md flex flex-col space-y-space-md">
+<div class="flex items-start justify-between">
+<div class="flex flex-col min-w-0 pr-space-xs">
+<span class="font-label-sm text-label-sm text-primary font-bold uppercase tracking-wide">Permis C • Professionnel</span>
+<h4 class="font-headline-sm text-headline-sm text-on-surface truncate">Groupe Poids Lourd C</h4>
+<span class="font-body-md text-body-md text-on-surface-variant mt-0.5">Session Décembre 2024</span>
+</div>
+<!-- Badge Complet -->
+<span class="inline-flex items-center px-3 py-1 rounded-full bg-surface-container-highest text-on-surface-variant font-label-sm text-label-sm whitespace-nowrap">
+        Complet • 6/6 élèves
+      </span>
+</div>
+<div class="grid grid-cols-2 gap-space-sm bg-surface-container-low rounded-xl p-space-sm">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Tarif formation</span>
+<span class="font-body-lg-bold text-body-lg-bold text-on-surface">220 000 FCFA</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Tranches</span>
+<span class="font-body-md-bold text-body-md-bold text-on-surface">2 × 110 000 FCFA</span>
+</div>
+</div>
+<button class="w-full h-[48px] bg-surface-container text-on-surface rounded-xl font-body-md-bold text-body-md-bold hover:bg-surface-container-high transition-all flex items-center justify-center gap-space-xs" type="button">
+<span class="material-symbols-outlined text-[20px]">assignment</span>
+<span>Voir le registre &amp; présences</span>
+</button>
+</article>
+<!-- Carte d'aide / Contact support bienveillant pour Mama Célestine -->
+<div class="bg-primary-fixed/40 rounded-2xl p-space-md flex items-center gap-space-md mb-space-lg shadow-sm">
+<div class="w-12 h-12 rounded-xl bg-primary flex-shrink-0 flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined text-[26px]">support_agent</span>
+</div>
+<div class="flex flex-col min-w-0">
+<h5 class="font-body-md-bold text-body-md-bold text-on-surface">Besoin d'aide, Mama Célestine ?</h5>
+<p class="font-body-md text-body-md text-on-surface-variant">Appelez l'assistance locale en cas de doute sur un reçu d'élève.</p>
+</div>
+</div>
+</div>
+<script>
+  let slots = 15;
+  function incrementSlots() {
+    slots++;
+    document.getElementById('slots-count').textContent = slots;
+  }
+  function decrementSlots() {
+    if (slots > 1) {
+      slots--;
+      document.getElementById('slots-count').textContent = slots;
+    }
+  }
+
+  function toggleForm() {
+    const form = document.getElementById('form-container');
+    const btn = document.getElementById('toggle-form-btn');
+    if (form.classList.contains('hidden')) {
+      form.classList.remove('hidden');
+      btn.classList.add('hidden');
+    } else {
+      form.classList.add('hidden');
+      btn.classList.remove('hidden');
+    }
+  }
+</script></main><nav class="fixed bottom-0 inset-x-0 z-50 pb-safe bg-surface-container-lowest/95 backdrop-blur-xl shadow-[0_-4px_16px_rgba(31,78,140,0.06)]" data-active-classes="text-primary font-body-md-bold"><div class="flex justify-around items-center h-16 px-margin"><a class="flex flex-col items-center justify-center gap-0.5 min-w-[72px] h-12 rounded-xl text-on-surface-variant hover:text-primary transition-colors" data-path="tableau-de-bord" href="#"><span class="material-symbols-outlined text-[24px]">dashboard</span><span class="font-label-sm text-label-sm">Bord</span></a><a class="flex flex-col items-center justify-center gap-0.5 min-w-[72px] h-12 rounded-xl text-on-surface-variant hover:text-primary transition-colors" data-path="eleves" href="#"><span class="material-symbols-outlined text-[24px]">group</span><span class="font-label-sm text-label-sm">Élèves</span></a><a class="flex flex-col items-center justify-center gap-0.5 min-w-[72px] h-12 rounded-xl text-on-surface-variant hover:text-primary transition-colors" data-path="groupes" href="#"><span class="material-symbols-outlined text-[24px]">calendar_month</span><span class="font-label-sm text-label-sm">Groupes</span></a></div></nav></body></html>
