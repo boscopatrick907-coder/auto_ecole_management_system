@@ -1,3 +1,6 @@
+import { onlinePaymentRoutes } from './routes/online-payments.js';
+import { operationsRoutes } from './routes/operations.js';
+import { bodyLimit } from 'hono/body-limit';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { secureHeaders } from 'hono/secure-headers';
@@ -12,12 +15,14 @@ export const app = new Hono();
 
 // 1. Security Headers (OWASP Best Practices)
 app.use('*', secureHeaders());
+app.use('/api/*', bodyLimit({ maxSize: 1024 * 1024, onError: c => c.json({ error: 'BODY_TOO_LARGE', message: 'Requête trop volumineuse.' }, 413) }));
+const trustedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:4200,http://127.0.0.1:4200').split(',').map(s => s.trim());
 
 // 2. CORS Configuration
 app.use(
   '/api/*',
   cors({
-    origin: (origin) => origin || 'http://localhost:4200',
+    origin: (origin) => trustedOrigins.includes(origin) ? origin : undefined,
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization', 'X-Client-Device-Id'],
     credentials: true,
@@ -43,6 +48,8 @@ app.get('/api/health', (c) =>
 app.route('/api/auth', authRoutes);
 app.route('/api/student', studentRoutes);
 app.route('/api/admin', adminRoutes);
+app.route('/api/operations', operationsRoutes);
+app.route('/api/payments', onlinePaymentRoutes);
 
 // 7. Centralized Error Handler (E08 — Never leaks SQL, stack traces, or credentials)
 app.onError((err, c) => {
@@ -57,6 +64,11 @@ app.onError((err, c) => {
   }
 
   const pgCode = (err as any)?.code;
+  if (pgCode === '23P01') return c.json({ error: 'SCHEDULE_CONFLICT', message: 'Moniteur ou véhicule déjà affecté.' },409);
+  if (pgCode === '23505') return c.json({ error: 'DUPLICATE_RECORD', message: 'Enregistrement déjà existant.' },409);
+  if (pgCode === '23503' || pgCode === '23514') return c.json({ error: 'VALIDATION_ERROR', message: 'Référence ou valeur invalide.' },400);
+  if (pgCode === '42501') return c.json({ error: 'FORBIDDEN', message: 'Accès non autorisé.' },403);
+  if (['INVALID_INSTRUCTOR','INACTIVE_VEHICLE','STUDENT_NOT_IN_SESSION','CORRECTION_REASON_REQUIRED','CAPACITY_BELOW_OCCUPANCY'].includes(err.message)) return c.json({error:err.message,message:'Règle métier non respectée.'},400);
   // PostgreSQL 22P02 = invalid_text_representation (e.g. invalid UUID syntax)
   // PostgreSQL 22007 / 22008 = invalid_datetime_format / datetime_field_overflow
   if (pgCode === '22P02' || pgCode === '22007' || pgCode === '22008') {

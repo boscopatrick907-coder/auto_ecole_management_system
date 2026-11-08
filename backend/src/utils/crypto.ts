@@ -68,12 +68,14 @@ let cachedKeyPair: {
 } | null = null;
 
 async function getLeaseKeyMaterial() {
+  if (process.env.NODE_ENV === 'production' && !process.env.JWT_OFFLINE_LEASE_PRIVATE_KEY_PEM && (process.env.JWT_OFFLINE_LEASE_SECRET?.length || 0) < 32) throw new Error('Configure a private lease key or a strong signing secret.');
   const rawMaterial =
     process.env.JWT_OFFLINE_LEASE_PRIVATE_KEY_PEM ||
     process.env.JWT_OFFLINE_LEASE_SECRET ||
     process.env.BETTER_AUTH_SECRET ||
     'dev-fallback-secret-do-not-use-in-prod-64-chars-long-minimum-key';
 
+  if (process.env.NODE_ENV === 'production' && /^(replace-|dev-fallback)/i.test(rawMaterial)) throw new Error('Replace development signing material before production.');
   const secretFingerprint = sha256Hex(rawMaterial);
   if (cachedKeyPair && cachedKeyPair.secretFingerprint === secretFingerprint) {
     return cachedKeyPair;
@@ -94,6 +96,7 @@ async function getLeaseKeyMaterial() {
     });
   }
 
+  if (privateKey.asymmetricKeyType !== 'ed25519') throw new Error('The offline signing key must be Ed25519.');
   const publicKey = crypto.createPublicKey(privateKey);
   const exported = await exportJWK(publicKey);
   // Ensure no private parameter ('d') is ever present in public JWK
@@ -137,7 +140,7 @@ export async function getLeasePublicKeyInfo(): Promise<{
 export interface OfflineLeasePayload {
   sub: string;
   studentId: string | null;
-  role: 'admin' | 'student';
+  role: 'admin' | 'student' | 'cashier' | 'instructor';
   hasAccess: boolean;
   hasPaid: boolean;
   trialEndsAt: string | null;
@@ -153,7 +156,7 @@ export async function signOfflineLeaseToken(payload: OfflineLeasePayload): Promi
     .setAudience(LEASE_JWT_AUDIENCE)
     .setSubject(payload.sub)
     .setIssuedAt()
-    .setExpirationTime('14d')
+    .setExpirationTime(Math.floor(payload.maxOfflineUntilMs / 1000))
     .sign(privateKey);
 }
 
@@ -214,12 +217,12 @@ export async function evaluateOfflineLease(
   let payload: OfflineLeasePayload;
   try {
     payload = await verifyOfflineLeaseToken(token, options.publicKeyJwk);
-  } catch {
+  } catch (err: any) {
     return {
       valid: false,
       allowProtectedContent: false,
       allowProfileAndPayments: true,
-      reason: 'INVALID_SIGNATURE',
+      reason: err?.code === 'ERR_JWT_EXPIRED' ? 'OFFLINE_LEASE_EXPIRED' : 'INVALID_SIGNATURE',
     };
   }
 

@@ -1,3 +1,4 @@
+import { demoPdf } from '../utils/pdf.js';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { withUserContext } from '../db.js';
@@ -225,10 +226,15 @@ studentRoutes.get('/resources', async (c) => {
 // 3. Offline-Capable Built-In Course File Streamer (Generates valid PDF binary for local/demo resources)
 studentRoutes.get('/resources/file/:key', async (c) => {
   const user = c.get('user')!;
+  if(process.env.NODE_ENV==='production') throw new ApiError(503,'DEMO_RESOURCE_DISABLED','Utilisez les fichiers pédagogiques publiés.');
   const key = decodeURIComponent(c.req.param('key'));
 
   return withUserContext(user.id, async (client) => {
-    if (user.role !== 'admin') {
+    if (user.role === 'instructor') {
+      const allowed=await client.query(`SELECT id FROM public.resources WHERE storage_path=$1 AND is_published`,[key]);
+      if(!allowed.rowCount) throw new ApiError(403,'FORBIDDEN_RESOURCE','Ressource non affectée.');
+    }
+    if (user.role !== 'admin' && user.role !== 'instructor') {
       const stuRes = await client.query(
         `SELECT id, licence_category_id, public.student_has_access(id) AS has_access
          FROM public.students WHERE user_id = $1`,
@@ -247,37 +253,7 @@ studentRoutes.get('/resources/file/:key', async (c) => {
       }
     }
 
-    // Generate a clean, valid minimal PDF document for offline caching & reading
-    const safeTitle = key.replace(/[^a-zA-Z0-9 \-_/]/g, '');
-    const pdfContent = `%PDF-1.4
-1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
-2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
-3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj
-4 0 obj << /Length 220 >> stream
-BT
-/F1 18 Tf
-50 770 Td
-(Auto-ecole La Marseillaise - Support de Cours Officiel) Tj
-/F1 12 Tf
-0 -35 Td
-(Document : ${safeTitle}) Tj
-0 -25 Td
-(Disponible en mode hors ligne - Revise votre code de la route CEMAC.) Tj
-ET
-endstream endobj
-5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj
-xref
-0 6
-0000000000 65535 f 
-0000000009 00000 n 
-0000000058 00000 n 
-0000000115 00000 n 
-0000000241 00000 n 
-0000000513 00000 n 
-trailer << /Size 6 /Root 1 0 R >>
-startxref
-581
-%%EOF`;
+    const pdfContent = demoPdf(key);
 
     return new Response(pdfContent, {
       status: 200,
@@ -358,8 +334,9 @@ studentRoutes.get('/quizzes', async (c) => {
 // Note: Allowed even if the student's trial ended while offline, matching the schema rule!
 const attemptItemSchema = z.object({
   quizId: z.string().uuid(),
-  score: z.number().int().min(0),
-  total: z.number().int().min(1),
+  answers: z.record(z.string(),z.string()).refine(a=>Object.keys(a).length<=500),
+  score: z.number().int().min(0).default(0),
+  total: z.number().int().min(1).default(1),
   takenAt: z.string().datetime().optional(),
   clientId: z.string().uuid(),
 });
@@ -372,12 +349,6 @@ studentRoutes.post('/quiz-attempts', async (c) => {
   const parsed = z.array(attemptItemSchema).min(1).max(100).safeParse(itemsRaw);
   if (!parsed.success) {
     return c.json({ error: 'VALIDATION_ERROR', message: parsed.error.issues[0].message }, 400);
-  }
-
-  for (const item of parsed.data) {
-    if (item.score > item.total) {
-      return c.json({ error: 'INVALID_SCORE', message: 'Le score ne peut pas dépasser le total.' }, 400);
-    }
   }
 
   return withUserContext(user.id, async (client) => {
@@ -403,6 +374,10 @@ studentRoutes.post('/quiz-attempts', async (c) => {
 
     const synced: any[] = [];
     for (const item of parsed.data) {
+      const questions = await client.query(`SELECT * FROM public.quiz_sync_questions($1)`,[item.quizId]);
+      if (!questions.rowCount) throw new ApiError(403,'FORBIDDEN_QUIZ','Quiz non autorisé pour votre permis.');
+      item.total = questions.rows.length;
+      item.score = questions.rows.filter(q=>{ const answer=item.answers[q.id]; const opt=q.options[q.correct_index]; return answer!==undefined && (answer===String(q.correct_index) || answer===String.fromCharCode(65+q.correct_index) || (typeof opt==='object' && answer===opt.id)); }).length;
       const ins = await client.query(
         `INSERT INTO public.quiz_attempts (student_id, quiz_id, score, total, taken_at, client_id)
          VALUES ($1, $2, $3, $4, COALESCE($5::timestamptz, now()), $6)

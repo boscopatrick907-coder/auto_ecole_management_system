@@ -22,6 +22,9 @@ export function getPool(): pg.Pool {
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 30000,
       keepAlive: true,
+      options: '-c timezone=Africa/Douala',
+      statement_timeout: 15000,
+      idle_in_transaction_session_timeout: 15000,
     });
     poolInstance.on('error', (err) => {
       // Prevent unhandled idle client errors on serverless Postgres cold-starts/resets
@@ -71,10 +74,10 @@ export async function withUserContext<T>(
     await client.query('ROLLBACK').catch(() => {});
     throw err;
   } finally {
-    await client.query('RESET ROLE').catch(() => {});
-    await client
-      .query(`SELECT set_config('app.current_user_id', '', false)`)
-      .catch(() => {});
-    client.release();
+    try {
+      await client.query('RESET ROLE');
+      await client.query(`SELECT set_config('app.current_user_id', '', false)`);
+      client.release();
+    } catch { client.release(true); }
   }
 }

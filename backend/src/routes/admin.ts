@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { withUserContext } from '../db.js';
-import { requireAdmin } from '../middleware/auth.js';
+import { requireCashierOrAdmin } from '../middleware/auth.js';
 import { normalizeCameroonPhone } from '../utils/crypto.js';
 import { computeStudentGlobalStatus } from './student.js';
 import {
@@ -13,6 +13,7 @@ import {
 import {
   buildWaMeLink,
   dispatchNotification,
+  enqueueNotification,
   formatInviteMessage,
   formatPaymentConfirmationMessage,
   formatReminderMessage,
@@ -21,7 +22,7 @@ import {
 
 export const adminRoutes = new Hono();
 
-adminRoutes.use('*', requireAdmin);
+adminRoutes.use('*', requireCashierOrAdmin);
 
 // 1. Executive Dashboard (Big KPI Numbers + "À Traiter" Action List + Charts)
 adminRoutes.get('/dashboard', async (c) => {
@@ -400,23 +401,11 @@ adminRoutes.post('/students', async (c) => {
       const invRes = await client.query(`SELECT public.create_invite($1, 7) AS code`, [student.id]);
       const inviteCode = invRes.rows[0].code as string;
 
-      return { student, enrollment: enrolRes.rows[0], inviteCode };
+      const notification = await enqueueNotification(client, { event: 'student_invite', recipientPhone: phone, messageText: formatInviteMessage({ studentName: fullName, inviteCode, appUrl: process.env.PUBLIC_APP_URL || 'http://localhost:4200' }), dedupKey: `student_invite:${student.id}:${inviteCode}`, metadata: { studentId: student.id } });
+      return { student, enrollment: enrolRes.rows[0], inviteCode, notification };
     });
 
-    const appUrl = process.env.PUBLIC_APP_URL || 'http://localhost:4200';
-    const messageText = formatInviteMessage({
-      studentName: fullName,
-      inviteCode: result.inviteCode,
-      appUrl,
-    });
-    const notification = await dispatchNotification({
-      event: 'student_invite',
-      recipientPhone: phone,
-      messageText,
-      dedupKey: `student_invite:${result.student.id}:${result.inviteCode}`,
-      persistOutbox: true,
-      metadata: { studentId: result.student.id, inviteCode: result.inviteCode },
-    });
+    const notification = result.notification;
 
     return c.json(
       {
@@ -439,7 +428,7 @@ adminRoutes.post('/students', async (c) => {
     if (msg.includes('INVALID_GROUP')) {
       return c.json({ error: 'INVALID_GROUP', message: 'Groupe introuvable ou fermé.' }, 400);
     }
-    return c.json({ error: 'CREATE_STUDENT_FAILED', message: msg }, 400);
+    return c.json({ error: 'CREATE_STUDENT_FAILED', message: 'Création du dossier indisponible.' }, 500);
   }
 });
 
@@ -459,27 +448,16 @@ adminRoutes.post('/students/:id/invite', async (c) => {
     if (stuRes.rowCount === 0) return null;
     const student = stuRes.rows[0];
     const invRes = await client.query(`SELECT public.create_invite($1, 7) AS code`, [studentId]);
-    return { student, inviteCode: invRes.rows[0].code as string };
+    const inviteCode = invRes.rows[0].code as string;
+    const notification = await enqueueNotification(client,{event:'student_invite',recipientPhone:student.phone,messageText:formatInviteMessage({studentName:student.full_name,inviteCode,appUrl:process.env.PUBLIC_APP_URL || 'http://localhost:4200'}),dedupKey:`student_invite:${studentId}:${inviteCode}`,metadata:{studentId}});
+    return { student, inviteCode, notification };
   });
 
   if (!result) {
     return c.json({ error: 'NOT_FOUND', message: 'Élève introuvable.' }, 404);
   }
 
-  const appUrl = process.env.PUBLIC_APP_URL || 'http://localhost:4200';
-  const messageText = formatInviteMessage({
-    studentName: result.student.full_name,
-    inviteCode: result.inviteCode,
-    appUrl,
-  });
-  const notification = await dispatchNotification({
-    event: 'student_invite',
-    recipientPhone: result.student.phone,
-    messageText,
-    dedupKey: `student_invite:${studentId}:${result.inviteCode}`,
-    persistOutbox: true,
-    metadata: { studentId, inviteCode: result.inviteCode },
-  });
+  const notification = result.notification;
 
   return c.json({
     inviteCode: result.inviteCode,
@@ -553,7 +531,14 @@ adminRoutes.post('/payments', async (c) => {
         [enrollmentId]
       );
 
+      const details = detailsRes.rows[0];
+      const notification = await enqueueNotification(client, {
+        event: 'payment_confirmed', recipientPhone: details.phone,
+        messageText: formatPaymentConfirmationMessage({ studentName: details.full_name, amount: Number(payment.amount), receiptNumber: payment.receipt_number, method: payment.method, balance: Number(details.balance), nextDueDate: nextInstRes.rows[0]?.due_date ? new Date(nextInstRes.rows[0].due_date).toLocaleDateString('fr-FR', { timeZone: 'Africa/Douala' }) : null }),
+        dedupKey: `payment_confirmed:${payment.id}`, metadata: { paymentId: payment.id, amount: Number(payment.amount) }
+      });
       return {
+        notification,
         payment: { ...payment, amount: Number(payment.amount) },
         details: {
           ...detailsRes.rows[0],
@@ -565,32 +550,7 @@ adminRoutes.post('/payments', async (c) => {
       };
     });
 
-    const nextDueStr = result.nextInstallment?.due_date
-      ? new Date(result.nextInstallment.due_date).toLocaleDateString('fr-FR')
-      : null;
-
-    const messageText = formatPaymentConfirmationMessage({
-      studentName: result.details.full_name,
-      amount: result.payment.amount,
-      receiptNumber: result.payment.receipt_number,
-      method: result.payment.method,
-      balance: result.details.balance,
-      nextDueDate: nextDueStr,
-    });
-
-    const notification = await dispatchNotification({
-      event: 'payment_confirmed',
-      recipientPhone: result.details.phone,
-      messageText,
-      dedupKey: `payment_confirmed:${result.payment.id}`,
-      persistOutbox: true,
-      metadata: {
-        paymentId: result.payment.id,
-        receiptNumber: result.payment.receipt_number,
-        amount: result.payment.amount,
-        balance: result.details.balance,
-      },
-    });
+    const notification = result.notification;
 
     return c.json(
       {
@@ -631,7 +591,7 @@ adminRoutes.post('/payments', async (c) => {
     if (msg.includes('ENROLLMENT_NOT_FOUND')) {
       return c.json({ error: 'ENROLLMENT_NOT_FOUND', message: 'Inscription introuvable.' }, 404);
     }
-    return c.json({ error: 'PAYMENT_ERROR', message: msg }, 400);
+    return c.json({ error: 'PAYMENT_ERROR', message: 'Enregistrement du paiement indisponible.' }, 500);
   }
 });
 
@@ -655,6 +615,8 @@ adminRoutes.post('/payments/:id/cancel', async (c) => {
   try {
     await withUserContext(user.id, async (client) => {
       await client.query(`SELECT public.cancel_payment($1::uuid, $2::text)`, [paymentId, reason]);
+      const details=await client.query(`SELECT s.phone,p.receipt_number FROM payments p JOIN enrollments e ON e.id=p.enrollment_id JOIN students s ON s.id=e.student_id WHERE p.id=$1`,[paymentId]);
+      await enqueueNotification(client,{event:'payment_cancelled',recipientPhone:details.rows[0].phone,messageText:`Auto-école La Marseillaise : reçu ${details.rows[0].receipt_number} annulé. Motif : ${reason}. Consultez votre dossier pour le solde actualisé.`,dedupKey:`payment_cancelled:${paymentId}`,metadata:{paymentId}});
     });
     return c.json({ ok: true, paymentId, cancelReason: reason });
   } catch (err: any) {
@@ -665,7 +627,7 @@ adminRoutes.post('/payments/:id/cancel', async (c) => {
         400
       );
     }
-    return c.json({ error: 'CANCEL_FAILED', message: msg }, 400);
+    return c.json({ error: 'CANCEL_FAILED', message: 'Annulation indisponible.' }, 500);
   }
 });
 
@@ -862,7 +824,7 @@ adminRoutes.post('/content/resources', async (c) => {
     description: z.string().optional().nullable(),
     type: z.enum(['pdf', 'video', 'image', 'link']),
     storagePath: z.string().optional().nullable(),
-    externalUrl: z.string().optional().nullable(),
+    externalUrl: z.string().url().refine(url=>url.startsWith('https://'),'Utilisez un lien HTTPS.').optional().nullable(),
     fileSizeKb: z.number().int().positive().optional().nullable(),
     sortOrder: z.number().int().default(0),
     isPublished: z.boolean().default(true),
@@ -872,6 +834,7 @@ adminRoutes.post('/content/resources', async (c) => {
     return c.json({ error: 'VALIDATION_ERROR', message: parsed.error.issues[0].message }, 400);
   }
   const d = parsed.data;
+  if(!d.storagePath && !d.externalUrl) return c.json({error:'RESOURCE_URL_REQUIRED'},400);
   return withUserContext(user.id, async (client) => {
     const res = await client.query(
       `INSERT INTO public.resources
@@ -883,9 +846,9 @@ adminRoutes.post('/content/resources', async (c) => {
         d.title,
         d.description ?? null,
         d.type,
-        d.storagePath ?? `resources/${Date.now()}.pdf`,
+        d.storagePath ?? null,
         d.externalUrl ?? null,
-        d.fileSizeKb ?? 500,
+        d.fileSizeKb ?? null,
         d.sortOrder,
         d.isPublished,
       ]
@@ -951,7 +914,7 @@ adminRoutes.get('/settings', async (c) => {
 
 const updateSettingsSchema = z.object({
   schoolName: z.string().trim().min(2).optional(),
-  trialDays: z.number().int().min(0).max(90).optional(),
+  trialDays: z.literal(14).optional(),
   receiptPrefix: z.string().trim().min(1).max(16).optional(),
   schoolPhone: z.string().trim().optional().nullable(),
   schoolAddress: z.string().trim().optional().nullable(),
@@ -1024,7 +987,7 @@ const updateGroupSchema = z.object({
   name: z.string().trim().min(2).optional(),
   startDate: isoCalendarDateSchema.optional().nullable(),
   capacity: z.number().int().positive().max(10000).optional(),
-  status: z.enum(['open', 'closed', 'completed']).optional(),
+  status: z.enum(['open', 'closed', 'finished']).optional(),
 });
 
 adminRoutes.patch('/groups/:id', async (c) => {
@@ -1058,3 +1021,24 @@ adminRoutes.patch('/groups/:id', async (c) => {
 });
 
 
+adminRoutes.post('/notifications/:id/retry',async c=>{
+ const id=c.req.param('id');if(!isValidUuid(id))return c.json({error:'INVALID_UUID'},400);
+ return withUserContext(c.get('user')!.id,async client=>{
+  const result=await client.query(`UPDATE public.notification_outbox SET status='pending',attempts=0,next_retry_at=now(),locked_until=NULL,lock_token=NULL WHERE id=$1 AND status IN('failed_retryable','failed_permanent') AND last_error IS DISTINCT FROM 'PAYMENT_CANCELLED' RETURNING id`,[id]);
+  if(!result.rowCount)return c.json({error:'NOT_RETRYABLE'},409);return c.json({ok:true});
+ });
+});
+const quizCreateSchema=z.object({licenceCategoryId:z.string().uuid(),title:z.string().trim().min(2).max(200),topic:z.string().max(100).optional(),durationMinutes:z.number().int().min(1).max(240).optional(),isMockExam:z.boolean().default(false),questions:z.array(z.object({body:z.string().trim().min(2).max(3000),options:z.array(z.string().min(1).max(1000)).min(2).max(10),correctIndex:z.number().int().nonnegative(),explanation:z.string().max(3000).optional()}).refine(q=>q.correctIndex<q.options.length,'Réponse correcte invalide.')).min(1).max(200)});
+adminRoutes.post('/content/quizzes',async c=>{
+ const d=quizCreateSchema.safeParse(await c.req.json().catch(()=>null));if(!d.success)return c.json({error:'VALIDATION_ERROR',message:d.error.issues[0].message},400);
+ return withUserContext(c.get('user')!.id,async client=>{
+  const quiz=await client.query(`INSERT INTO public.quizzes(licence_category_id,title,topic,duration_minutes,is_mock_exam,is_published) VALUES($1,$2,$3,$4,$5,true) RETURNING *`,[d.data.licenceCategoryId,d.data.title,d.data.topic||null,d.data.durationMinutes||null,d.data.isMockExam]);
+  for(const [index,q] of d.data.questions.entries())await client.query(`INSERT INTO public.questions(quiz_id,position,body,options,correct_index,explanation) VALUES($1,$2,$3,$4::jsonb,$5,$6)`,[quiz.rows[0].id,index+1,q.body,JSON.stringify(q.options),q.correctIndex,q.explanation||null]);
+  return c.json({quiz:quiz.rows[0]},201);
+ });
+});
+adminRoutes.patch('/content/quizzes/:id',async c=>{
+ const id=c.req.param('id');if(!isValidUuid(id))return c.json({error:'INVALID_UUID'},400);
+ const d=z.object({isPublished:z.boolean()}).safeParse(await c.req.json().catch(()=>null));if(!d.success)return c.json({error:'VALIDATION_ERROR'},400);
+ return withUserContext(c.get('user')!.id,async client=>{const result=await client.query('UPDATE public.quizzes SET is_published=$2 WHERE id=$1 RETURNING id,is_published',[id,d.data.isPublished]);return result.rowCount?c.json({quiz:result.rows[0]}):c.json({error:'NOT_FOUND'},404);});
+});

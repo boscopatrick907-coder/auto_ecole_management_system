@@ -244,7 +244,7 @@ describe('Phase 3 TDD — Group Capacity Seat Lock & Quiz Idempotency Conflict H
         token: stu1Token,
         body: {
           quizId: quiz1Id,
-          score: 16,
+          answers: {}, score: 16,
           total: 20,
           clientId: sharedClientId,
         },
@@ -254,7 +254,7 @@ describe('Phase 3 TDD — Group Capacity Seat Lock & Quiz Idempotency Conflict H
         token: stu2Token,
         body: {
           quizId: quiz1Id,
-          score: 18,
+          answers: {}, score: 18,
           total: 20,
           clientId: sharedClientId,
         },
@@ -275,7 +275,7 @@ describe('Phase 3 TDD — Group Capacity Seat Lock & Quiz Idempotency Conflict H
       token: qWinnerToken,
       body: {
         quizId: quiz1Id,
-        score: 16,
+        answers: {}, score: 16,
         total: 20,
         clientId: sharedClientId,
       },
@@ -290,8 +290,8 @@ describe('Phase 3 TDD — Group Capacity Seat Lock & Quiz Idempotency Conflict H
       token: qLoserToken,
       body: {
         attempts: [
-          { quizId: quiz1Id, score: 15, total: 20, clientId: batchItem1ClientId },
-          { quizId: quiz1Id, score: 19, total: 20, clientId: sharedClientId },
+          { quizId: quiz1Id, answers: {}, score: 15, total: 20, clientId: batchItem1ClientId },
+          { quizId: quiz1Id, answers: {}, score: 19, total: 20, clientId: sharedClientId },
         ],
       },
     });

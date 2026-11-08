@@ -342,6 +342,7 @@ export class ApiService {
     const score = Math.round((scorePercent / 100) * total);
     const payload = {
       quizId,
+      answers,
       score,
       total,
       takenAt: new Date().toISOString(),

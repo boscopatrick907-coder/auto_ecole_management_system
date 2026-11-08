@@ -1,0 +1,48 @@
+name: Backend acceptance
+on:
+  push:
+    branches: [main]
+    paths: ['backend/**', 'la-marseillaise-neon-schema.sql', 'la-marseillaise-seed.sql', '.github/workflows/backend.yml']
+  pull_request:
+    paths: ['backend/**', 'la-marseillaise-neon-schema.sql', 'la-marseillaise-seed.sql', '.github/workflows/backend.yml']
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aem_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/aem_ci
+      NODE_ENV: test
+      N8N_ENABLED: 'false'
+      NOTIFICATION_DELIVERY_ENABLED: 'false'
+      WHATSAPP_ACCESS_TOKEN: ''
+      WHATSAPP_PHONE_NUMBER_ID: ''
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npm audit --omit=dev
+      - run: npm test
+      - run: LOAD_CONCURRENCY=1000 npm run test:load

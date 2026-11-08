@@ -5,51 +5,64 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "aem-notifications",
-        "responseMode": "onReceived",
+        "responseMode": "lastNode",
         "options": {}
       },
       "id": "webhook-trigger",
       "name": "Webhook Backend AEM",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [240, 300]
+      "position": [
+        240,
+        300
+      ]
     },
     {
       "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "cronExpression",
-              "expression": "0 8 * * *"
-            }
-          ]
-        }
+        "jsCode": "const crypto = require('crypto');\nconst input = $input.first().json;\nconst secret = $env.N8N_WEBHOOK_SECRET;\nconst timestamp = input.headers['x-webhook-timestamp'];\nconst signature = input.headers['x-webhook-signature'];\nif (!secret || !/^[0-9a-f]{64}$/.test(signature || '')) throw new Error('Invalid signature');\nconst time = Date.parse(timestamp);\nif (!Number.isFinite(time) || Math.abs(Date.now()-time)>300000) throw new Error('Expired timestamp');\nconst expected = crypto.createHmac('sha256', secret).update(timestamp + '.' + JSON.stringify(input.body)).digest('hex');\nif (!crypto.timingSafeEqual(Buffer.from(expected,'hex'), Buffer.from(signature,'hex'))) throw new Error('Invalid signature');\nif (!input.body.recipientPhone || !input.body.messageText || !input.body.dedupKey) throw new Error('Invalid notification');\nreturn [{json:input.body}];"
       },
-      "id": "daily-cron",
-      "name": "Vérification Quotidienne 08h00 (Essais J+7, J+12, J+14 & Tranches)",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.2,
-      "position": [240, 520]
+      "id": "verify-signature",
+      "name": "Vérifier signature",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        300
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://graph.facebook.com/v20.0/{{$env.WHATSAPP_PHONE_NUMBER_ID}}/messages",
+        "url": "=https://graph.facebook.com/{{$env.WHATSAPP_API_VERSION || \"v21.0\"}}/{{$env.WHATSAPP_PHONE_NUMBER_ID}}/messages",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"recipient_type\": \"individual\",\n  \"to\": \"{{$json.body.phone}}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": \"{{$json.body.message}}\"\n  }\n}"
+        "jsonBody": "={{ JSON.stringify({messaging_product:\"whatsapp\",to:$json.recipientPhone.replace(/[^0-9]/g,\"\"),type:\"text\",text:{body:$json.messageText}}) }}"
       },
       "id": "whatsapp-cloud-send",
       "name": "Envoi WhatsApp Cloud API (Meta)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [620, 300]
+      "position": [
+        840,
+        300
+      ]
     }
   ],
   "connections": {
     "Webhook Backend AEM": {
+      "main": [
+        [
+          {
+            "node": "Vérifier signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vérifier signature": {
       "main": [
         [
           {
@@ -63,5 +76,6 @@
   },
   "settings": {
     "executionOrder": "v1"
-  }
+  },
+  "active": false
 }

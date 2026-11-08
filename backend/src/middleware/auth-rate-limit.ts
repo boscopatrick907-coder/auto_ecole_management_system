@@ -1,3 +1,4 @@
+import { normalizeCameroonPhone } from '../utils/crypto.js';
 import { Context, Next } from 'hono';
 
 /**
@@ -74,8 +75,11 @@ export async function authPayloadAndRateLimitMiddleware(c: Context, next: Next) 
           ? parsedBody.identifier.trim()
           : 'anon';
 
-      const key = `${ip}:${c.req.path}:${identifierRaw}`;
+      const normalized = identifierRaw.includes('@') ? identifierRaw.toLowerCase() : normalizeCameroonPhone(identifierRaw);
+      const key = `${c.req.path}:${normalized}`; // attacker-controlled forwarding headers cannot reset an account bucket
       const now = Date.now();
+      if (ipBuckets.size > 10000) { for (const [k,v] of ipBuckets) if (v.resetAtMs <= now) ipBuckets.delete(k); }
+      if (ipBuckets.size > 10000) { c.header('Retry-After','600'); return c.json({error:'TOO_MANY_REQUESTS'},429); }
       const bucket = ipBuckets.get(key);
 
       if (!bucket || now >= bucket.resetAtMs) {
@@ -83,6 +87,7 @@ export async function authPayloadAndRateLimitMiddleware(c: Context, next: Next) 
       } else {
         bucket.count += 1;
         if (bucket.count > MAX_AUTH_ATTEMPTS_PER_WINDOW) {
+          c.header('Retry-After',String(Math.ceil((bucket.resetAtMs-now)/1000)));
           return c.json(
             {
               error: 'TOO_MANY_REQUESTS',

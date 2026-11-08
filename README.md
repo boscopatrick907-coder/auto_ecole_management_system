@@ -1,3 +1,5 @@
+> **Backend checkpoint, 8 November 2026:** See [current backend status](docs/BACKEND_COMPLETION_20261108.md) and [API v1.3 contract](docs/API_CONTRACT.md). Live integrations and automated merchant collection remain explicit release blockers. Run `npm run build` before `npm start`; the backend now runs compiled JavaScript.
+
 # Auto-École La Marseillaise (AEM) — Plateforme PWA & Gestion Administrative
 
 Application Progressive Web App (PWA) **Offline-First & Mobile-First** conçue pour l'**Auto-École La Marseillaise (AEM)** au Cameroun.

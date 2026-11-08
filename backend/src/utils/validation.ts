@@ -1,11 +1,11 @@
 import { z } from 'zod';
 
 export class ApiError extends Error {
-  public readonly status: 400 | 401 | 403 | 404 | 409 | 429 | 500;
+  public readonly status: 400 | 401 | 403 | 404 | 409 | 429 | 500 | 503;
   public readonly code: string;
 
   constructor(
-    status: 400 | 401 | 403 | 404 | 409 | 429 | 500,
+    status: 400 | 401 | 403 | 404 | 409 | 429 | 500 | 503,
     code: string,
     message: string
   ) {

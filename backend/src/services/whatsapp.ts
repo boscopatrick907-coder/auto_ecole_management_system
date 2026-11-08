@@ -1,3 +1,4 @@
+import type pg from 'pg';
 import crypto from 'node:crypto';
 import { getPool } from '../db.js';
 
@@ -198,15 +199,23 @@ function isExternalDeliveryAllowed(recipientPhone: string, dryRunExternal?: bool
   return true;
 }
 
-export async function dispatchNotification(params: {
-  event: string;
-  recipientPhone: string;
-  messageText: string;
-  metadata?: Record<string, unknown>;
-  dedupKey?: string;
-  persistOutbox?: boolean;
-  dryRunExternal?: boolean;
-}): Promise<WhatsAppNotificationResult> {
+export interface NotificationInput {
+  event: string; recipientPhone: string; messageText: string;
+  metadata?: Record<string, unknown>; dedupKey?: string;
+  persistOutbox?: boolean; dryRunExternal?: boolean; deliveryOnly?: boolean;
+}
+
+/** Use the business transaction's client so payment and notification commit together. */
+export async function enqueueNotification(client: Pick<pg.PoolClient, 'query'>, params: NotificationInput): Promise<WhatsAppNotificationResult> {
+  const key = params.dedupKey || `${params.event}:${params.recipientPhone}:${crypto.randomUUID()}`;
+  const link = buildWaMeLink(params.recipientPhone, params.messageText);
+  const inserted = await client.query(`INSERT INTO public.notification_outbox(dedup_key,event_type,recipient_phone,message_text,wa_me_link,metadata) VALUES($1,$2,$3,$4,$5,$6::jsonb) ON CONFLICT(dedup_key) DO NOTHING RETURNING id`, [key,params.event,params.recipientPhone,params.messageText,link,JSON.stringify(params.metadata || {})]);
+  const existing = inserted.rowCount ? inserted : await client.query(`SELECT id FROM public.notification_outbox WHERE dedup_key=$1`,[key]);
+  return { outboxId: existing.rows[0].id, dedupKey: key, deduplicated: !inserted.rowCount, sentViaApi: false, sentViaN8n: false, smsFallbackStatus: 'unavailable_pending_provider', waMeLink: link, messageText: params.messageText };
+}
+
+export async function dispatchNotification(params: NotificationInput): Promise<WhatsAppNotificationResult> {
+  if (!params.deliveryOnly && (params.dedupKey || params.persistOutbox)) return enqueueNotification(getPool(), params);
   const waMeLink = buildWaMeLink(params.recipientPhone, params.messageText);
   let sentViaApi = false;
   let sentViaN8n = false;
@@ -214,54 +223,9 @@ export async function dispatchNotification(params: {
   let deduplicated = false;
 
   const pool = getPool();
-  const shouldPersist = Boolean(params.dedupKey || params.persistOutbox);
+  const shouldPersist = false;
   const dedupKey =
     params.dedupKey || `${params.event}:${params.recipientPhone}:${crypto.randomUUID()}`;
-
-  if (shouldPersist) {
-    try {
-      const ins = await pool.query(
-        `INSERT INTO public.notification_outbox
-           (dedup_key, event_type, recipient_phone, message_text, wa_me_link, metadata, status)
-         VALUES ($1, $2, $3, $4, $5, $6::jsonb, 'pending')
-         ON CONFLICT (dedup_key) DO NOTHING
-         RETURNING id, status`,
-        [
-          dedupKey,
-          params.event,
-          params.recipientPhone,
-          params.messageText,
-          waMeLink,
-          JSON.stringify(params.metadata ?? {}),
-        ]
-      );
-
-      if (ins.rowCount && ins.rowCount > 0) {
-        outboxId = ins.rows[0].id;
-      } else {
-        const existing = await pool.query(
-          `SELECT id, status FROM public.notification_outbox WHERE dedup_key = $1`,
-          [dedupKey]
-        );
-        outboxId = existing.rows[0]?.id;
-        deduplicated = true;
-        if (existing.rows[0]?.status === 'sent') {
-          return {
-            outboxId,
-            dedupKey,
-            deduplicated: true,
-            sentViaApi: false,
-            sentViaN8n: false,
-            smsFallbackStatus: 'unavailable_pending_provider',
-            waMeLink,
-            messageText: params.messageText,
-          };
-        }
-      }
-    } catch {
-      // Never fail a business operation if outbox table is not yet migrated
-    }
-  }
 
   const allowExternal = isExternalDeliveryAllowed(params.recipientPhone, params.dryRunExternal);
   let lastError: string | null = null;
@@ -302,7 +266,7 @@ export async function dispatchNotification(params: {
     const n8nUrl = process.env.N8N_WEBHOOK_URL;
     const n8nEnabled = process.env.N8N_ENABLED === 'true';
     const n8nSecret = process.env.N8N_WEBHOOK_SECRET || '';
-    if (n8nEnabled && n8nUrl && !n8nUrl.includes('replace-')) {
+    if (!sentViaApi && n8nEnabled && n8nUrl && n8nSecret && !n8nUrl.includes('replace-')) {
       try {
         const timestamp = new Date().toISOString();
         const bodyStr = JSON.stringify({
@@ -335,30 +299,6 @@ export async function dispatchNotification(params: {
         sentViaN8n = false;
         lastError = err?.message || 'N8N_NETWORK_ERROR';
       }
-    }
-  }
-
-  if (shouldPersist && outboxId) {
-    try {
-      const delivered = sentViaApi || sentViaN8n;
-      const newStatus = delivered
-        ? 'sent'
-        : lastError
-        ? 'failed_retryable'
-        : 'pending';
-      await pool.query(
-        `UPDATE public.notification_outbox
-         SET status = $1,
-             attempts = attempts + 1,
-             last_error = $2,
-             sent_at = CASE WHEN $1 = 'sent' THEN now() ELSE sent_at END,
-             next_retry_at = CASE WHEN $1 = 'failed_retryable' THEN now() + interval '5 minutes' ELSE next_retry_at END,
-             updated_at = now()
-         WHERE id = $3`,
-        [newStatus, lastError, outboxId]
-      );
-    } catch {
-      // Ignore outbox status update error
     }
   }
 
@@ -411,10 +351,11 @@ export async function runScheduledReminders(params: {
   // 1. Trial reminders (Day 7 -> 7 days remaining, Day 12 -> 2 days remaining, Day 14 -> 0 days remaining)
   const trialCandidates = await pool.query(
     `SELECT s.id, s.full_name, s.phone,
-            GREATEST(0, CEIL(EXTRACT(EPOCH FROM (s.trial_ends_at - ($1::date + time '12:00:00') AT TIME ZONE 'Africa/Douala')) / 86400.0))::int AS days_left
+            (14 - ($1::date - (s.activated_at AT TIME ZONE 'Africa/Douala')::date))::int AS days_left
      FROM public.students s
      WHERE s.trial_ends_at IS NOT NULL
-       AND NOT public.student_has_paid(s.id)`,
+       AND NOT public.student_has_paid(s.id)
+       AND ($1::date - (s.activated_at AT TIME ZONE 'Africa/Douala')::date) IN (7,12,14)`,
     [refDate]
   );
 
@@ -448,7 +389,7 @@ export async function runScheduledReminders(params: {
 
   // 2. Upcoming (due in 1..3 days) & Overdue installments for non-cancelled enrollments of paid students
   const instCandidates = await pool.query(
-    `SELECT ist.enrollment_id, ist.student_id, ist.installment_id, ist.label, ist.amount::bigint AS amount,
+    `SELECT ist.enrollment_id, ist.student_id, ist.installment_id, ist.label, LEAST(ist.amount, GREATEST(0, ist.cumulative_due - ist.paid_total))::bigint AS amount,
             ist.due_date::text AS due_date, ist.status,
             s.full_name, s.phone,
             (ist.due_date - $1::date)::int AS days_until_due
@@ -463,7 +404,7 @@ export async function runScheduledReminders(params: {
 
   for (const row of instCandidates.rows) {
     let type: 'installment_upcoming' | 'installment_overdue' | null = null;
-    if (row.days_until_due < 0 || row.status === 'overdue') {
+    if (row.days_until_due < 0) {
       type = 'installment_overdue';
     } else if (row.days_until_due >= 0 && row.days_until_due <= 3) {
       type = 'installment_upcoming';
@@ -515,7 +456,8 @@ export async function runScheduledReminders(params: {
         (SELECT coalesce(sum(balance), 0)::bigint FROM public.enrollment_balances b JOIN public.enrollments e ON e.id = b.enrollment_id WHERE e.status <> 'cancelled') AS still_owed
     `);
     const kpis = kpiRes.rows[0];
-    const dedupKey = `reminder:weekly_direction_summary:${refDate}`;
+    const weekRes = await pool.query(`SELECT to_char($1::date,'IYYY-IW') AS week`,[refDate]);
+    const dedupKey = `reminder:weekly_direction_summary:${weekRes.rows[0].week}`;
     const messageText = formatWeeklyDirectionSummaryMessage({
       schoolName,
       referenceDate: refDate,

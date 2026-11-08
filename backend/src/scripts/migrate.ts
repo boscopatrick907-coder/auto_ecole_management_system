@@ -8,7 +8,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export async function runMigrationsAndSeed(options: { forceSeed?: boolean } = {}) {
   const client = await connectWithRetry();
+  let transaction = false;
   try {
+    await client.query('SELECT pg_advisory_lock(684209140)');
+    await client.query('BEGIN'); transaction = true;
+    if (process.env.NODE_ENV === 'production' && options.forceSeed) throw new Error('Demo seeding is disabled in production.');
     const schemaPath = path.resolve(__dirname, '../../../la-marseillaise-neon-schema.sql');
     const schemaSql = await fs.readFile(schemaPath, 'utf8');
     const schemaHash = sha256Hex(schemaSql);
@@ -48,6 +52,8 @@ export async function runMigrationsAndSeed(options: { forceSeed?: boolean } = {}
       [adminPhone]
     );
 
+    if (existingAdmin.rowCount && existingAdmin.rows[0].role !== 'admin') throw new Error('Bootstrap phone belongs to a non-admin account; select a different INITIAL_ADMIN_PHONE.');
+    if (process.env.NODE_ENV === 'production' && !existingAdmin.rowCount && (!process.env.INITIAL_ADMIN_PHONE || !process.env.INITIAL_ADMIN_PASSWORD || process.env.INITIAL_ADMIN_PASSWORD.length < 12)) throw new Error('Production bootstrap requires INITIAL_ADMIN_PHONE and a strong INITIAL_ADMIN_PASSWORD.');
     const existingQuizzes = await client.query(`SELECT count(*)::int AS cnt FROM public.quizzes`);
 
     if (
@@ -56,10 +62,12 @@ export async function runMigrationsAndSeed(options: { forceSeed?: boolean } = {}
       existingAdmin.rows[0].role !== 'admin' ||
       existingQuizzes.rows[0].cnt === 0
     ) {
+      if (process.env.NODE_ENV !== 'production') {
       console.log('2. Applying la-marseillaise-seed.sql...');
       const seedPath = path.resolve(__dirname, '../../../la-marseillaise-seed.sql');
       const seedSql = await fs.readFile(seedPath, 'utf8');
       await client.query(seedSql);
+      }
 
       console.log('3. Bootstrapping Initial Super-Admin Account...');
       const passwordHash = await hashPassword(adminPassword);
@@ -84,14 +92,18 @@ export async function runMigrationsAndSeed(options: { forceSeed?: boolean } = {}
       );
     }
 
+    await client.query('COMMIT'); transaction = false;
     console.log(`✅ Migration & Seed complete! Super-Admin ready: ${adminPhone} (${adminEmail})`);
+  } catch (err) {
+    if (transaction) await client.query('ROLLBACK');
+    throw err;
   } finally {
-    client.release();
+    try { await client.query('SELECT pg_advisory_unlock(684209140)'); client.release(); } catch { client.release(true); }
   }
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  runMigrationsAndSeed({ forceSeed: true })
+  runMigrationsAndSeed({ forceSeed: process.argv.includes('--seed') })
     .then(() => process.exit(0))
     .catch((err) => {
       console.error('Migration failed:', err);

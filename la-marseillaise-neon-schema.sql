@@ -260,7 +260,8 @@ begin
   end if;
   if new.enrollment_id <> old.enrollment_id or new.amount <> old.amount
      or new.method <> old.method or new.receipt_number <> old.receipt_number
-     or new.paid_at <> old.paid_at or new.recorded_by <> old.recorded_by then
+     or new.paid_at <> old.paid_at or new.recorded_by <> old.recorded_by
+     or new.client_id is distinct from old.client_id or new.reference is distinct from old.reference then
     raise exception 'Payments cannot be edited. Cancel it and record a new one.';
   end if;
   if old.cancelled_at is not null and new.cancelled_at is distinct from old.cancelled_at then
@@ -434,10 +435,10 @@ select g.id as group_id,
        g.total_fee,
        g.status,
        count(distinct e.student_id) filter (
-         where e.status <> 'cancelled' and public.student_has_paid(e.student_id)
+         where e.status <> 'cancelled' and exists(select 1 from public.payments gp where gp.enrollment_id=e.id and gp.cancelled_at is null)
        )::int as confirmed_seats,
        count(distinct e.student_id) filter (
-         where e.status <> 'cancelled' and not public.student_has_paid(e.student_id)
+         where e.status <> 'cancelled' and not exists(select 1 from public.payments gp where gp.enrollment_id=e.id and gp.cancelled_at is null)
        )::int as trial_seats
 from public.groups g
 left join public.enrollments e on e.group_id = g.id
@@ -489,7 +490,7 @@ create or replace function public.create_invite(p_student uuid, p_valid_days int
 language plpgsql security definer set search_path = public as $$
 declare v_code text;
 begin
-  if not public.is_admin() then raise exception 'FORBIDDEN'; end if;
+  if not public.is_finance_staff() then raise exception 'FORBIDDEN'; end if;
   v_code := upper(encode(gen_random_bytes(4), 'hex'));
   insert into invites (student_id, code_hash, expires_at, created_by)
   values (p_student, encode(digest(v_code, 'sha256'), 'hex'),
@@ -522,13 +523,18 @@ end $$;
 
 create or replace function public.cancel_payment(p_payment uuid, p_reason text) returns void
 language plpgsql security definer set search_path = public as $$
+declare v_group uuid; v_enrollment uuid;
 begin
   if not public.is_admin() then raise exception 'FORBIDDEN'; end if;
   if p_reason is null or length(trim(p_reason)) = 0 then raise exception 'REASON_REQUIRED'; end if;
+  select e.group_id,e.id into v_group,v_enrollment from public.payments p join public.enrollments e on e.id=p.enrollment_id where p.id=p_payment;
+  perform 1 from public.groups where id=v_group for update;
+  perform 1 from public.enrollments where id=v_enrollment for update;
   update payments
      set cancelled_at = now(), cancelled_by = public.current_user_id(), cancel_reason = trim(p_reason)
    where id = p_payment and cancelled_at is null;
   if not found then raise exception 'NOT_FOUND_OR_ALREADY_CANCELLED'; end if;
+  update public.notification_outbox set status='failed_permanent',last_error='PAYMENT_CANCELLED',locked_until=null where dedup_key='payment_confirmed:'||p_payment::text and status in('pending','failed_retryable');
 end $$;
 
 create or replace function public.record_payment(
@@ -551,13 +557,15 @@ declare
   v_balance        bigint;
   v_row            public.payments;
 begin
-  if not public.is_admin() then raise exception 'FORBIDDEN'; end if;
+  if not public.is_finance_staff() then raise exception 'FORBIDDEN'; end if;
 
+  if p_amount is null or p_amount <= 0 then raise exception 'INVALID_AMOUNT'; end if;
+  if p_client_id is not null then perform pg_advisory_xact_lock(hashtextextended(p_client_id::text, 0)); end if;
   -- Fast pre-lock check for idempotent replay or cross-enrollment clientId conflict
   if p_client_id is not null then
     select * into v_row from payments where client_id = p_client_id;
     if found then
-      if v_row.enrollment_id <> p_enrollment_id then
+      if v_row.enrollment_id <> p_enrollment_id or v_row.amount <> p_amount or v_row.method <> p_method or v_row.reference is distinct from p_reference then
         raise exception 'IDEMPOTENCY_CONFLICT';
       end if;
       return v_row;
@@ -584,7 +592,7 @@ begin
   if p_client_id is not null then
     select * into v_row from payments where client_id = p_client_id;
     if found then
-      if v_row.enrollment_id <> p_enrollment_id then
+      if v_row.enrollment_id <> p_enrollment_id or v_row.amount <> p_amount or v_row.method <> p_method or v_row.reference is distinct from p_reference then
         raise exception 'IDEMPOTENCY_CONFLICT';
       end if;
       return v_row;
@@ -592,7 +600,7 @@ begin
   end if;
 
   -- E02: If this student does not yet hold a confirmed seat, verify group capacity
-  v_already_seated := public.student_has_paid(v_student_id);
+  v_already_seated := exists(select 1 from public.payments p join public.enrollments e on e.id=p.enrollment_id where e.student_id=v_student_id and e.group_id=v_group_id and e.status<>'cancelled' and p.cancelled_at is null);
   if not v_already_seated and v_capacity is not null then
     select go.confirmed_seats into v_confirmed
       from group_occupancy go
@@ -954,3 +962,220 @@ grant execute on function
   public.record_payment(uuid, bigint, public.payment_method, text, uuid, timestamptz, text),
   public.admin_dashboard()
 to aem_app_runtime;
+
+-- Append-only financial audit: even trusted service code cannot rewrite history.
+create or replace function public.guard_audit_history() returns trigger
+language plpgsql as $$ begin raise exception 'Audit history cannot be edited or deleted'; end $$;
+drop trigger if exists trg_audit_immutable on public.audit_log;
+create trigger trg_audit_immutable before update or delete on public.audit_log for each row execute function public.guard_audit_history();
+
+ALTER TABLE public.notification_outbox ADD COLUMN IF NOT EXISTS locked_until timestamptz;
+ALTER TABLE public.notification_outbox DROP CONSTRAINT IF EXISTS notification_outbox_status_check;
+ALTER TABLE public.notification_outbox ADD CONSTRAINT notification_outbox_status_check CHECK(status IN('pending','processing','sent','failed_retryable','failed_permanent'));
+
+-- Expanded V1: staff roles and academic operations. Legacy enum remains for compatibility.
+ALTER TABLE public.profiles ALTER COLUMN role DROP DEFAULT;
+ALTER TABLE public.profiles ALTER COLUMN role TYPE text USING role::text;
+ALTER TABLE public.profiles ALTER COLUMN role SET DEFAULT 'student';
+ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_role_check;
+ALTER TABLE public.profiles ADD CONSTRAINT profiles_role_check CHECK(role IN ('admin','cashier','instructor','student'));
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS must_change_password boolean NOT NULL DEFAULT false;
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+CREATE TABLE IF NOT EXISTS public.school_vehicles(
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(), label text NOT NULL, registration text UNIQUE NOT NULL, active boolean NOT NULL DEFAULT true
+);
+CREATE TABLE IF NOT EXISTS public.school_sessions(
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(), group_id uuid NOT NULL REFERENCES public.groups(id),
+ instructor_id uuid NOT NULL REFERENCES public.users(id), vehicle_id uuid REFERENCES public.school_vehicles(id),
+ starts_at timestamptz NOT NULL, ends_at timestamptz NOT NULL, location text NOT NULL,
+ status text NOT NULL DEFAULT 'scheduled' CHECK(status IN('scheduled','finished','cancelled')),
+ created_by uuid NOT NULL REFERENCES public.users(id), CHECK(ends_at>starts_at)
+);
+DO $$ BEGIN
+ IF NOT EXISTS(SELECT 1 FROM pg_constraint WHERE conname='school_sessions_instructor_overlap' AND conrelid='public.school_sessions'::regclass) THEN
+ ALTER TABLE public.school_sessions ADD CONSTRAINT school_sessions_instructor_overlap EXCLUDE USING gist(instructor_id WITH =, tstzrange(starts_at,ends_at,'[)') WITH &&) WHERE(status='scheduled');
+ ALTER TABLE public.school_sessions ADD CONSTRAINT school_sessions_vehicle_overlap EXCLUDE USING gist(vehicle_id WITH =, tstzrange(starts_at,ends_at,'[)') WITH &&) WHERE(status='scheduled');
+ END IF;
+END $$;
+CREATE TABLE IF NOT EXISTS public.session_attendance(
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(), session_id uuid NOT NULL REFERENCES public.school_sessions(id),
+ student_id uuid NOT NULL REFERENCES public.students(id), status text NOT NULL CHECK(status IN('present','absent','excused')),
+ recorded_by uuid NOT NULL REFERENCES public.users(id), updated_at timestamptz NOT NULL DEFAULT now(), reason text,
+ version integer NOT NULL DEFAULT 1, UNIQUE(session_id,student_id)
+);
+CREATE INDEX IF NOT EXISTS school_sessions_group_idx ON public.school_sessions(group_id,starts_at);
+CREATE INDEX IF NOT EXISTS school_sessions_instructor_idx ON public.school_sessions(instructor_id,starts_at);
+CREATE OR REPLACE FUNCTION public.is_finance_staff() RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$
+ SELECT EXISTS(SELECT 1 FROM public.profiles WHERE id=public.current_user_id() AND role IN('admin','cashier'));
+$$;
+CREATE OR REPLACE FUNCTION public.teaches_student(p_student uuid) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$
+ SELECT EXISTS(SELECT 1 FROM public.enrollments e JOIN public.school_sessions ss ON ss.group_id=e.group_id WHERE e.student_id=p_student AND e.status<>'cancelled' AND ss.instructor_id=public.current_user_id());
+$$;
+CREATE OR REPLACE FUNCTION public.session_visible(p_session uuid) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$
+ SELECT EXISTS(SELECT 1 FROM public.school_sessions ss WHERE ss.id=p_session AND (ss.instructor_id=public.current_user_id() OR EXISTS(SELECT 1 FROM public.enrollments e JOIN public.students s ON s.id=e.student_id WHERE e.group_id=ss.group_id AND s.user_id=public.current_user_id() AND e.status<>'cancelled')));
+$$;
+CREATE OR REPLACE FUNCTION public.validate_school_session() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+BEGIN
+ IF NEW.status='scheduled' AND NOT EXISTS(SELECT 1 FROM profiles p JOIN users u ON u.id=p.id WHERE p.id=NEW.instructor_id AND p.role='instructor' AND u.disabled_at IS NULL) THEN RAISE EXCEPTION 'INVALID_INSTRUCTOR'; END IF;
+ IF NEW.status='scheduled' AND NEW.vehicle_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM school_vehicles WHERE id=NEW.vehicle_id AND active) THEN RAISE EXCEPTION 'INACTIVE_VEHICLE'; END IF;
+ RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS school_session_validate ON public.school_sessions;
+CREATE TRIGGER school_session_validate BEFORE INSERT OR UPDATE ON public.school_sessions FOR EACH ROW EXECUTE FUNCTION public.validate_school_session();
+CREATE OR REPLACE FUNCTION public.validate_attendance() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+BEGIN
+ IF NOT EXISTS(SELECT 1 FROM enrollments e JOIN school_sessions ss ON ss.group_id=e.group_id WHERE ss.id=NEW.session_id AND e.student_id=NEW.student_id AND e.status<>'cancelled') THEN RAISE EXCEPTION 'STUDENT_NOT_IN_SESSION'; END IF;
+ IF TG_OP='UPDATE' THEN
+  IF NEW.session_id<>OLD.session_id OR NEW.student_id<>OLD.student_id THEN RAISE EXCEPTION 'IMMUTABLE_ATTENDANCE_IDENTITY'; END IF;
+  IF NEW.reason IS NULL OR length(trim(NEW.reason))<4 THEN RAISE EXCEPTION 'CORRECTION_REASON_REQUIRED'; END IF;
+  NEW.version=OLD.version+1; NEW.updated_at=now();
+ END IF;
+ NEW.recorded_by=public.current_user_id(); RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS session_attendance_validate ON public.session_attendance;
+CREATE TRIGGER session_attendance_validate BEFORE INSERT OR UPDATE ON public.session_attendance FOR EACH ROW EXECUTE FUNCTION public.validate_attendance();
+CREATE OR REPLACE FUNCTION public.audit_school_operation() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+BEGIN
+ INSERT INTO audit_log(actor,action,table_name,row_id,details) VALUES(public.current_user_id(),TG_OP,TG_TABLE_NAME,NEW.id,jsonb_build_object('new',to_jsonb(NEW),'old',CASE WHEN TG_OP='UPDATE' THEN to_jsonb(OLD) ELSE NULL END));
+ RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS school_sessions_audit ON public.school_sessions;
+CREATE TRIGGER school_sessions_audit AFTER INSERT OR UPDATE ON public.school_sessions FOR EACH ROW EXECUTE FUNCTION public.audit_school_operation();
+DROP TRIGGER IF EXISTS session_attendance_audit ON public.session_attendance;
+CREATE TRIGGER session_attendance_audit AFTER INSERT OR UPDATE ON public.session_attendance FOR EACH ROW EXECUTE FUNCTION public.audit_school_operation();
+ALTER TABLE public.school_vehicles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.school_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.session_attendance ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS school_vehicles_access ON public.school_vehicles;
+CREATE POLICY school_vehicles_access ON public.school_vehicles FOR SELECT TO aem_app_runtime USING(public.is_admin() OR EXISTS(SELECT 1 FROM school_sessions ss WHERE ss.vehicle_id=school_vehicles.id AND ss.instructor_id=public.current_user_id()));
+DROP POLICY IF EXISTS school_vehicles_manage ON public.school_vehicles;
+CREATE POLICY school_vehicles_manage ON public.school_vehicles FOR ALL TO aem_app_runtime USING(public.is_admin()) WITH CHECK(public.is_admin());
+DROP POLICY IF EXISTS school_sessions_access ON public.school_sessions;
+CREATE POLICY school_sessions_access ON public.school_sessions FOR SELECT TO aem_app_runtime USING(public.is_admin() OR public.session_visible(id));
+DROP POLICY IF EXISTS school_sessions_manage ON public.school_sessions;
+CREATE POLICY school_sessions_manage ON public.school_sessions FOR ALL TO aem_app_runtime USING(public.is_admin()) WITH CHECK(public.is_admin());
+DROP POLICY IF EXISTS attendance_access ON public.session_attendance;
+CREATE POLICY attendance_access ON public.session_attendance FOR SELECT TO aem_app_runtime USING(public.is_admin() OR student_id=public.current_student_id() OR EXISTS(SELECT 1 FROM school_sessions ss WHERE ss.id=session_id AND ss.instructor_id=public.current_user_id()));
+DROP POLICY IF EXISTS attendance_write ON public.session_attendance;
+CREATE POLICY attendance_write ON public.session_attendance FOR ALL TO aem_app_runtime USING(public.is_admin() OR EXISTS(SELECT 1 FROM school_sessions ss WHERE ss.id=session_id AND ss.instructor_id=public.current_user_id())) WITH CHECK(public.is_admin() OR EXISTS(SELECT 1 FROM school_sessions ss WHERE ss.id=session_id AND ss.instructor_id=public.current_user_id()));
+DROP POLICY IF EXISTS students_staff_read ON public.students;
+CREATE POLICY students_staff_read ON public.students FOR SELECT TO aem_app_runtime USING(public.is_finance_staff() OR public.teaches_student(id));
+DROP POLICY IF EXISTS students_cashier_insert ON public.students;
+CREATE POLICY students_cashier_insert ON public.students FOR INSERT TO aem_app_runtime WITH CHECK(public.is_finance_staff() AND created_by_admin AND user_id IS NULL);
+DROP POLICY IF EXISTS enrollments_staff_read ON public.enrollments;
+CREATE POLICY enrollments_staff_read ON public.enrollments FOR SELECT TO aem_app_runtime USING(public.is_finance_staff() OR public.teaches_student(student_id));
+DROP POLICY IF EXISTS enrollments_cashier_insert ON public.enrollments;
+CREATE POLICY enrollments_cashier_insert ON public.enrollments FOR INSERT TO aem_app_runtime WITH CHECK(public.is_finance_staff());
+DROP POLICY IF EXISTS payments_cashier_read ON public.payments;
+CREATE POLICY payments_cashier_read ON public.payments FOR SELECT TO aem_app_runtime USING(public.is_finance_staff());
+DROP POLICY IF EXISTS outbox_cashier_enqueue ON public.notification_outbox;
+CREATE POLICY outbox_cashier_enqueue ON public.notification_outbox FOR INSERT TO aem_app_runtime WITH CHECK(public.is_finance_staff());
+DROP POLICY IF EXISTS outbox_cashier_read ON public.notification_outbox;
+CREATE POLICY outbox_cashier_read ON public.notification_outbox FOR SELECT TO aem_app_runtime USING(public.is_finance_staff());
+GRANT SELECT,INSERT,UPDATE ON public.school_vehicles,public.school_sessions,public.session_attendance TO aem_app_runtime;
+CREATE OR REPLACE FUNCTION public.create_staff_account(p_name text,p_phone text,p_email text,p_hash text,p_role text) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE uid uuid;
+BEGIN
+ IF NOT public.is_admin() THEN RAISE EXCEPTION 'FORBIDDEN'; END IF;
+ IF p_role NOT IN('instructor','cashier') THEN RAISE EXCEPTION 'INVALID_STAFF_ROLE'; END IF;
+ INSERT INTO users(name,phone,email,password_hash,must_change_password) VALUES(p_name,p_phone,p_email,p_hash,true) RETURNING id INTO uid;
+ UPDATE profiles SET role=p_role WHERE id=uid;
+ RETURN uid;
+END $$;
+REVOKE ALL ON FUNCTION public.create_staff_account(text,text,text,text,text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.create_staff_account(text,text,text,text,text), public.is_finance_staff(),public.teaches_student(uuid),public.session_visible(uuid) TO aem_app_runtime;
+CREATE OR REPLACE FUNCTION public.change_own_password(p_hash text,p_session uuid) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+BEGIN
+ IF public.current_user_id() IS NULL THEN RAISE EXCEPTION 'NOT_AUTHENTICATED'; END IF;
+ UPDATE users SET password_hash=p_hash,must_change_password=false WHERE id=public.current_user_id();
+ DELETE FROM sessions WHERE user_id=public.current_user_id() AND id<>p_session;
+END $$;
+REVOKE ALL ON FUNCTION public.change_own_password(text,uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.change_own_password(text,uuid) TO aem_app_runtime;
+CREATE OR REPLACE FUNCTION public.guard_group_capacity() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+BEGIN
+ IF NEW.capacity IS NOT NULL AND NEW.capacity<(SELECT confirmed_seats FROM group_occupancy WHERE group_id=NEW.id) THEN RAISE EXCEPTION 'CAPACITY_BELOW_OCCUPANCY'; END IF;
+ RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS group_capacity_guard ON public.groups;
+CREATE TRIGGER group_capacity_guard BEFORE UPDATE OF capacity ON public.groups FOR EACH ROW EXECUTE FUNCTION public.guard_group_capacity();
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS disabled_at timestamptz;
+CREATE OR REPLACE FUNCTION public.set_staff_active(p_user uuid,p_active boolean) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+BEGIN
+ IF NOT public.is_admin() THEN RAISE EXCEPTION 'FORBIDDEN'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM profiles WHERE id=p_user AND role IN('cashier','instructor')) THEN RAISE EXCEPTION 'INVALID_STAFF_ROLE'; END IF;
+ UPDATE users SET disabled_at=CASE WHEN p_active THEN NULL ELSE now() END WHERE id=p_user;
+ IF NOT p_active THEN DELETE FROM sessions WHERE user_id=p_user; END IF;
+ INSERT INTO audit_log(actor,action,table_name,row_id,details) VALUES(public.current_user_id(),'STAFF_ACTIVE','users',p_user,jsonb_build_object('active',p_active));
+END $$;
+REVOKE ALL ON FUNCTION public.set_staff_active(uuid,boolean) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.set_staff_active(uuid,boolean) TO aem_app_runtime;
+
+create or replace view public.enrollment_balances
+with (security_invoker = true) as
+select e.id            as enrollment_id,
+       e.student_id,
+       e.group_id,
+       g.total_fee,
+       coalesce(sum(p.amount) filter (where p.cancelled_at is null), 0)::bigint                as paid,
+       (g.total_fee - coalesce(sum(p.amount) filter (where p.cancelled_at is null), 0))::bigint as balance
+from public.enrollments e
+join public.groups g on g.id = e.group_id
+left join public.payments p on p.enrollment_id = e.id
+where not exists(select 1 from public.profiles pr where pr.id=public.current_user_id() and pr.role='instructor')
+group by e.id, g.id;
+
+create or replace view public.installment_status
+with (security_invoker = true) as
+with plan as (
+  select e.id as enrollment_id, e.student_id, i.id as installment_id,
+         i.position, i.label, i.amount, i.due_date,
+         sum(i.amount) over (partition by e.id order by i.position)::bigint as cumulative_due
+  from public.enrollments e
+  join public.installments i on i.group_id = e.group_id
+), paid as (
+  select enrollment_id, sum(amount)::bigint as paid_total
+  from public.payments
+  where cancelled_at is null
+  group by enrollment_id
+)
+select pl.*,
+       coalesce(pa.paid_total, 0)::bigint as paid_total,
+       case
+         when coalesce(pa.paid_total, 0) >= pl.cumulative_due           then 'paid'
+         when pl.due_date < current_date                                then 'overdue'
+         when coalesce(pa.paid_total, 0) > pl.cumulative_due - pl.amount then 'partial'
+         else 'upcoming'
+       end as status
+from plan pl
+left join paid pa on pa.enrollment_id = pl.enrollment_id
+where not exists(select 1 from public.profiles pr where pr.id=public.current_user_id() and pr.role='instructor');
+
+
+-- The approved business rule is fixed at fourteen days, not an admin-configurable duration.
+UPDATE public.app_settings SET trial_days=14 WHERE trial_days<>14;
+ALTER TABLE public.app_settings DROP CONSTRAINT IF EXISTS app_settings_trial_days_fixed;
+ALTER TABLE public.app_settings ADD CONSTRAINT app_settings_trial_days_fixed CHECK(trial_days=14);
+CREATE UNIQUE INDEX IF NOT EXISTS users_email_normalized_idx ON public.users(lower(email)) WHERE email IS NOT NULL;
+-- A student's cached quiz can be graded after their trial expired; scope remains their permit.
+CREATE OR REPLACE FUNCTION public.quiz_sync_questions(p_quiz uuid) RETURNS TABLE(id uuid,correct_index int,options jsonb)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$
+ SELECT qn.id,qn.correct_index,qn.options FROM public.questions qn JOIN public.quizzes q ON q.id=qn.quiz_id
+ JOIN public.students s ON s.licence_category_id=q.licence_category_id
+ WHERE s.user_id=public.current_user_id() AND q.id=p_quiz AND q.is_published;
+$$;
+REVOKE ALL ON FUNCTION public.quiz_sync_questions(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.quiz_sync_questions(uuid) TO aem_app_runtime;
+ALTER TABLE public.notification_outbox ADD COLUMN IF NOT EXISTS lock_token uuid;
+CREATE TABLE IF NOT EXISTS public.notification_schedule_runs(reference_date date PRIMARY KEY,completed_at timestamptz NOT NULL DEFAULT now());
+ALTER TABLE public.notification_schedule_runs ENABLE ROW LEVEL SECURITY;
+CREATE OR REPLACE FUNCTION public.teaches_licence(p_licence uuid) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$
+ SELECT EXISTS(SELECT 1 FROM public.school_sessions ss JOIN public.groups g ON g.id=ss.group_id WHERE ss.instructor_id=public.current_user_id() AND g.licence_category_id=p_licence);
+$$;
+GRANT EXECUTE ON FUNCTION public.teaches_licence(uuid) TO aem_app_runtime;
+DROP POLICY IF EXISTS resources_instructor_read ON public.resources;
+CREATE POLICY resources_instructor_read ON public.resources FOR SELECT TO aem_app_runtime USING(is_published AND public.teaches_licence(licence_category_id));
+DROP POLICY IF EXISTS quizzes_instructor_read ON public.quizzes;
+CREATE POLICY quizzes_instructor_read ON public.quizzes FOR SELECT TO aem_app_runtime USING(is_published AND public.teaches_licence(licence_category_id));
+DROP POLICY IF EXISTS questions_instructor_read ON public.questions;
+CREATE POLICY questions_instructor_read ON public.questions FOR SELECT TO aem_app_runtime USING(EXISTS(SELECT 1 FROM public.quizzes q WHERE q.id=quiz_id AND q.is_published AND public.teaches_licence(q.licence_category_id)));

@@ -1,3 +1,4 @@
+import { ApiError } from '../utils/validation.js';
 import { Hono } from 'hono';
 import crypto from 'node:crypto';
 import { z } from 'zod';
@@ -20,7 +21,7 @@ const phoneSchema = z
   .string()
   .min(8)
   .transform(normalizeCameroonPhone)
-  .refine((val) => /^\+[0-9]{8,15}$/.test(val), {
+  .refine((val) => /^\+237[26][0-9]{8}$/.test(val), {
     message: 'Numéro de téléphone invalide (format attendu : +2376XXXXXXXX)',
   });
 
@@ -36,7 +37,7 @@ async function createSessionForUser(userId: string, ip?: string, userAgent?: str
   return rawToken;
 }
 
-async function buildStudentAndLeaseState(userId: string, role: 'admin' | 'student') {
+async function buildStudentAndLeaseState(userId: string, role: 'admin' | 'student' | 'cashier' | 'instructor') {
   return withUserContext(userId, async (client) => {
     const stuRes = await client.query(
       `SELECT s.*,
@@ -173,6 +174,8 @@ authRoutes.post('/request-otp', async (c) => {
     messageText,
   });
 
+  if (process.env.NODE_ENV === 'production' && !notif.sentViaApi && !notif.sentViaN8n) return c.json({ error: 'OTP_DELIVERY_UNAVAILABLE', message: 'Service de vérification indisponible.' }, 503);
+
   const isWalkInUnclaimed =
     existingWalkIn.rowCount! > 0 && existingWalkIn.rows[0].user_id === null;
 
@@ -182,7 +185,7 @@ authRoutes.post('/request-otp', async (c) => {
     isWalkInUnclaimed,
     walkInName: isWalkInUnclaimed ? existingWalkIn.rows[0].full_name : null,
     // Expose devOtp when no external SMS/WhatsApp API token is configured so testing works seamlessly
-    devOtpPreview: !notif.sentViaApi ? otpCode : undefined,
+    devOtpPreview: process.env.NODE_ENV !== 'production' && !notif.sentViaApi && !notif.sentViaN8n ? otpCode : undefined,
   });
 });
 
@@ -295,7 +298,7 @@ authRoutes.post('/register', async (c) => {
         400
       );
     }
-    return c.json({ error: 'REGISTRATION_FAILED', message: msg || "Erreur lors de l'inscription." }, 400);
+    return c.json({ error: 'REGISTRATION_FAILED', message: "Inscription indisponible." }, 500);
   } finally {
     await client.query(`SELECT set_config('app.current_user_id', '', false)`).catch(() => {});
     client.release();
@@ -375,26 +378,21 @@ authRoutes.post('/claim-invite', async (c) => {
   const passwordHash = await hashPassword(password);
 
   try {
-    const newUserRes = await pool.query(
-      `INSERT INTO public.users (name, email, phone, phone_verified, password_hash)
-       VALUES ($1, $2, $3, true, $4)
-       RETURNING id`,
-      [inviteRow.full_name, email, phone, passwordHash]
-    );
-    const userId = newUserRes.rows[0].id;
-
-    const studentId = await withUserContext(userId, async (client) => {
-      const claimRes = await client.query(`SELECT public.claim_invite($1) AS student_id`, [
-        inviteCode.toUpperCase().trim(),
-      ]);
-      if (email) {
-        await client.query(`UPDATE public.students SET email = $1 WHERE id = $2`, [
-          email,
-          claimRes.rows[0].student_id,
-        ]);
-      }
-      return claimRes.rows[0].student_id as string;
-    });
+    const client = await connectWithRetry();
+    let userId: string, studentId: string;
+    try {
+      await client.query('BEGIN');
+      const locked = await client.query(`SELECT id FROM public.invites WHERE code_hash=$1 AND used_at IS NULL AND expires_at>now() FOR UPDATE`, [codeHash]);
+      if (!locked.rowCount) throw new ApiError(400, 'INVALID_OR_EXPIRED_CODE', 'Code invalide ou expiré.');
+      const created = await client.query(`INSERT INTO public.users(name,email,phone,phone_verified,password_hash) VALUES($1,$2,$3,true,$4) RETURNING id`, [inviteRow.full_name,email,phone,passwordHash]);
+      userId = created.rows[0].id;
+      await client.query(`SELECT set_config('app.current_user_id',$1,true)`,[userId]);
+      const claim = await client.query(`SELECT public.claim_invite($1) AS student_id`, [inviteCode.toUpperCase().trim()]);
+      studentId = claim.rows[0].student_id;
+      if(email) await client.query(`UPDATE public.students SET email=$1 WHERE id=$2`,[email,studentId]);
+      await client.query('COMMIT');
+    } catch(err) { await client.query('ROLLBACK'); throw err; }
+    finally { client.release(); }
 
     const token = await createSessionForUser(
       userId,
@@ -416,9 +414,10 @@ authRoutes.post('/claim-invite', async (c) => {
       ...state,
     });
   } catch (err: any) {
+    if (err instanceof ApiError) throw err;
     return c.json(
-      { error: 'CLAIM_FAILED', message: err?.message || "Impossible d'activer le compte." },
-      400
+      { error: 'CLAIM_FAILED', message: "Impossible d'activer le compte." },
+      500
     );
   }
 });
@@ -441,10 +440,10 @@ authRoutes.post('/login', async (c) => {
   const pool = getPool();
 
   const userRes = await pool.query(
-    `SELECT u.id, u.name, u.email, u.phone, u.password_hash, COALESCE(p.role, 'student') AS role
+    `SELECT u.id, u.name, u.email, u.phone, u.password_hash, u.must_change_password, COALESCE(p.role, 'student') AS role
      FROM public.users u
      LEFT JOIN public.profiles p ON p.id = u.id
-     WHERE u.phone = $1 OR LOWER(u.email) = LOWER($2)
+     WHERE (u.phone = $1 OR LOWER(u.email) = LOWER($2)) AND u.disabled_at IS NULL
      LIMIT 1`,
     [normalizedPhone, identifier]
   );
@@ -474,6 +473,7 @@ authRoutes.post('/login', async (c) => {
       email: userRow.email,
       phone: userRow.phone,
       role: userRow.role,
+      mustChangePassword: userRow.must_change_password,
     },
     ...state,
   });
@@ -495,4 +495,16 @@ authRoutes.post('/logout', requireAuth, async (c) => {
   const pool = getPool();
   await pool.query(`DELETE FROM public.sessions WHERE id = $1`, [user.sessionId]);
   return c.json({ ok: true });
+});
+
+authRoutes.post('/change-password', requireAuth, async c => {
+  const parsed = z.object({currentPassword:z.string().min(1),newPassword:z.string().min(12).max(200)}).safeParse(await c.req.json().catch(()=>null));
+  if(!parsed.success) return c.json({error:'VALIDATION_ERROR'},400);
+  const user=c.get('user')!;
+  return withUserContext(user.id,async client=>{
+    const current=await client.query(`SELECT password_hash FROM public.users WHERE id=$1`,[user.id]);
+    if(!await verifyPassword(parsed.data.currentPassword,current.rows[0].password_hash)) return c.json({error:'INVALID_CREDENTIALS'},401);
+    await client.query(`SELECT public.change_own_password($1,$2)`,[await hashPassword(parsed.data.newPassword),user.sessionId]);
+    return c.json({ok:true});
+  });
 });

@@ -255,6 +255,9 @@ describe('Phase 5 TDD — Asymmetric Offline Lease (E11) & Durable Notification 
     expect(outboxRes.rows[0].event_type).toBe('payment_confirmed');
     expect(outboxRes.rows[0].recipient_phone).toBe(studentPhone);
 
+    // Explicit due fixture: a weekly notification may already exist from another suite.
+    // Day 7 reminder gives this test its own deterministic new work on every run.
+    await pool.query(`INSERT INTO public.students(full_name,phone,licence_category_id,activated_at,trial_ends_at) VALUES($1,$2,$3,'2026-11-01T08:00:00+01:00','2026-11-15T08:00:00+01:00')`, ['Reminder fixture', `+23769${crypto.randomInt(1000000,9999999)}`, permisBId]);
     // 2. Run scheduled reminders twice for the same reference date -> must deduplicate and never duplicate outbox rows
     const run1 = await apiRequest('/api/admin/notifications/run-reminders', {
       method: 'POST',

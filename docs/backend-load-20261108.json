@@ -1,0 +1,20 @@
+{
+  "requests": 1000,
+  "concurrency": 1000,
+  "failures": 0,
+  "statuses": {
+    "200": 800,
+    "201": 200
+  },
+  "elapsedMs": 2883,
+  "requestsPerSecond": 347,
+  "latencyMs": {
+    "p50": 1550,
+    "p95": 2675,
+    "p99": 2778,
+    "max": 2796
+  },
+  "paymentInvariant": true,
+  "healthAfter": "ok",
+  "failureExamples": []
+}

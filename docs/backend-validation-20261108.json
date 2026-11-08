@@ -1,0 +1,29 @@
+{
+  "date": "2026-11-08",
+  "baseline": "ed4cb2e8b5979bc3534e29bfda56b5f663cb783a",
+  "node": "24.22.1",
+  "testFilesPassed": 8,
+  "testsPassed": 40,
+  "testsFailed": 0,
+  "freshDatabaseVerified": true,
+  "compiledProductionSmoke": {
+    "compiledProductionStartup": "passed",
+    "health": "ok",
+    "databaseAuthentication": "passed",
+    "demoQuizzes": 0,
+    "demoStudents": 0,
+    "liveProvidersTested": false
+  },
+  "productionDependencyVulnerabilities": {
+    "info": 0,
+    "low": 0,
+    "moderate": 0,
+    "high": 0,
+    "critical": 0,
+    "total": 0
+  },
+  "liveNeonVerified": false,
+  "liveN8nVerified": false,
+  "merchantAccountsReady": false,
+  "githubActionsExecutedLocally": false
+}

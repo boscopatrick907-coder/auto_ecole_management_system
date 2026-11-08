@@ -10,6 +10,12 @@
 
 > **Distribution note:** This branch publishes the handoff document only. The findings were recorded on 6 November 2026 against local baseline `e6fd6d1` plus the earlier uncommitted corrections. Main has since advanced, including Stitch UI integration. Reproduce each finding against current code before changing it. Supporting audit scripts, additional tests and reports referenced below were local artifacts and are not included in this documentation-only branch; obtain that patch or implement the specified regressions before running commands that depend on those files. The findings and acceptance criteria in this document are self-contained.
 
+## Completion update — 8 November 2026
+
+The current code builds on Emmanuel's `92bd0ba` implementation. Core E01–E08 corrections are locally verified, with additional production guards, authoritative quiz grading, transactional notification queuing/worker recovery and instructor/cashier/session APIs. The current contract is v1.3 in `docs/API_CONTRACT.md`; see `docs/BACKEND_COMPLETION_20261108.md` for exact tested outcomes and limitations. Sections below preserve the historical findings and their acceptance requirements, not a claim that those defects still exist.
+
+E09 live Neon verification and E12 live n8n/OTP/SMS delivery remain blocked by unavailable credentials/provider configuration. E11 backend signing is implemented; client-side lease enforcement still needs frontend/device acceptance. E14 automated Mobile Money/provider callbacks/refunds remain open because merchant accounts are not ready. E15 academic/cashier backend is implemented and locally tested; its frontend screens/integration remain separate work. E13 production operations are not certified by local tests.
+
 ## 1. Scope and current state
 
 Correct the backend/database defects below, add regression tests, and verify the real Neon deployment. The owner will replace the current frontend using their Stitch design. Do not redesign the existing frontend as part of these backend corrections. Any necessary offline-client changes should be coordinated with that replacement.

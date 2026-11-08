@@ -1,0 +1,12 @@
+# Production notification relay
+
+The exported n8n workflow is inactive. Import it only into an authorized instance. The configured instance supplied by the owner is https://tich-layette.duckdns.org/; this base URL is not proof of an active production webhook. Set `N8N_WEBHOOK_URL` to the actual activated workflow URL, not the editor or `/webhook-test/` URL.
+
+1. Set the same strong `N8N_WEBHOOK_SECRET` in backend and n8n server environments. The backend needs a real process value to sign HMAC, not a proxy placeholder. Store all values securely.
+2. The Code node verifies `X-Webhook-Timestamp` and `X-Webhook-Signature` against `timestamp + '.' + JSON.stringify(body)`, matching the backend serializer. Upstream gateways must preserve the JSON representation. A production gateway that verifies the exact original raw body is preferable. Require access to the built-in crypto module and environment values in the actual n8n runner; never skip verification if the runner restricts them.
+3. Configure the HTTP node's Header Auth credential for the Meta bearer token and set `WHATSAPP_PHONE_NUMBER_ID` / `WHATSAPP_API_VERSION`. No credential values are exported in this JSON.
+4. The relay consumes `recipientPhone`, `messageText`, `dedupKey` and `metadata`. Use durable deduplication keyed by `dedupKey` in the deployed delivery path; transport retries after a lost acknowledgement are at-least-once and may otherwise duplicate a message.
+5. Start the backend notification worker separately. It owns daily Africa/Douala reminder scheduling and weekly deduplication; the old disconnected n8n cron was removed. Run `npm run worker -- --once` to enqueue a single scheduler tick without enabling external delivery.
+6. Set `N8N_ENABLED=true` only after signature/authorized-recipient verification. Set `NOTIFICATION_DELIVERY_ENABLED=true` only when a delivery channel is ready. A running worker claims one message at a time using database leases/fencing, retries unconfirmed delivery with backoff, and dead-letters exhausted items. Administrators can inspect `/api/admin/notifications/outbox` and explicitly retry eligible failed entries.
+
+The backend uses direct Meta first when configured, and the n8n relay only if direct delivery is unconfirmed. Verify this channel choice in production. Live n8n import, provider credentials, callback/delivery semantics and real-recipient testing remain prerequisites. SMS fallback is unavailable until an actual provider is selected. Tests with generated phone numbers must not send real messages.

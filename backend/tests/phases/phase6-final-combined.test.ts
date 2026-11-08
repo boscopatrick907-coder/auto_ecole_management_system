@@ -274,7 +274,7 @@ describe('Phase 6 & Final Master Combined Acceptance Suite (E01–E12 + All 12 B
     const attempt1 = await apiRequest('/api/student/quiz-attempts', {
       method: 'POST',
       token: stu1Token,
-      body: { quizId, score: 18, total: 20, clientId: sharedAttemptClientId },
+      body: { quizId, answers: {}, score: 18, total: 20, clientId: sharedAttemptClientId },
     });
     expect(attempt1.status).toBe(201);
 
@@ -282,7 +282,7 @@ describe('Phase 6 & Final Master Combined Acceptance Suite (E01–E12 + All 12 B
     const attempt2Collision = await apiRequest('/api/student/quiz-attempts', {
       method: 'POST',
       token: stu2Token,
-      body: { quizId, score: 15, total: 20, clientId: sharedAttemptClientId },
+      body: { quizId, answers: {}, score: 15, total: 20, clientId: sharedAttemptClientId },
     });
     expect(attempt2Collision.status).toBe(409);
     expect(attempt2Collision.data.error).toBe('IDEMPOTENCY_CONFLICT');

@@ -1,3 +1,4 @@
+import { ApiError } from '../utils/validation.js';
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
@@ -31,8 +32,9 @@ export async function createResourceDownloadUrl(storagePath: string): Promise<st
   const ttl = Number(process.env.R2_SIGNED_URL_TTL_SECONDS || 3600);
 
   if (!client) {
+    if(process.env.NODE_ENV==='production') throw new ApiError(503,'RESOURCE_STORAGE_UNAVAILABLE','Stockage des cours non configuré.');
     // Local / Demo fallback serving built-in offline-capable PDF/video stream endpoint
-    const baseUrl = process.env.PUBLIC_API_BASE_URL || 'http://localhost:8788/api';
+    const baseUrl = process.env.PUBLIC_API_BASE_URL || '/api';
     return `${baseUrl}/student/resources/file/${encodeURIComponent(storagePath)}`;
   }
 
