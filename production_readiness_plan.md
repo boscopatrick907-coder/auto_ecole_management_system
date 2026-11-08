@@ -1,3 +1,5 @@
+> **Périmètre V1 révisé — 8 novembre 2026 :** Le propriétaire inclut désormais les paiements automatisés MTN MoMo/Orange Money, les comptes moniteurs, les séances affectées, le pointage et les affectations simples de véhicules. Le document de référence est [docs/V1_SCOPE.md](docs/V1_SCOPE.md). Ces éléments sont approuvés mais restent à implémenter et à vérifier.
+
 # Auto-école La Marseillaise — Feuille de Route de Production & Données Requises
 
 Ce document récapitule les travaux techniques restants après retrait des données mockées ainsi que l'inventaire exhaustif des informations et ressources requises auprès de l'entreprise pour basculer en exploitation réelle.
@@ -12,7 +14,7 @@ flowchart TD
     A -->|IndexedDB Offline-First| C["Synchronisation Bi-directionnelle"]
     D["Backend API (Node / Hono)"] -->|Neon PostgreSQL| C
     D -->|SMS Gateway| E["Passerelle SMS Réelle (Twilio / Orange Cameroun)"]
-    D -->|Mobile Money| F["Webhooks & Vérification USSD MTN MoMo / Orange OM"]
+    D -->|Mobile Money| F["API marchandes & confirmation serveur MTN MoMo / Orange Money"]
     G["Infrastructure Production"] -->|SSL Obligatoire PWA| H["Déploiement Cloud & Domaine Personnalisé"]
 ```
 
@@ -31,9 +33,15 @@ flowchart TD
 
 ### 3. Passerelles réelles de communication et d'encaissement
 - **SMS OTP** : Remplacer le code OTP en dur ou simulé par une vraie passerelle SMS locale (ex. API SMS Orange Cameroun, Twilio ou Camtel) pour authentifier les numéros camerounais (`+237`).
-- **Paiements Mobile Money** : Validation automatisée des transactions MTN Mobile Money (`*126#`) et Orange Money (`#150#`) soit par API Marchand directe, soit par rapprochement de référence unique de quittance.
+- **Paiements Mobile Money (inclus V1)** : Intégrer MTN MoMo et Orange Money via une API marchande officielle ou un prestataire autorisé. Seules les confirmations serveur authentifiées et rapprochées (montant, devise, marchand, référence et élève) créditent le registre financier. Les codes USSD, captures d’écran et redirections du navigateur ne prouvent pas le règlement. Prévoir idempotence, états en attente/échec, exceptions de capacité/solde et remboursements audités. Le rapprochement manuel reste un flux distinct, identifié comme tel.
 
-### 4. Déploiement & Environnement Production
+### 4. Moniteurs, séances et véhicules (inclus V1)
+- Comptes moniteurs limités aux groupes et séances affectés, listes d’élèves nécessaires à l’enseignement, pointage et corrections auditées.
+- Planning simple publié par la direction et affectations de véhicules/moniteurs avec contrôle des conflits.
+- Aucun accès moniteur aux encaissements ou dossiers financiers ; permissions de caisse distinctes et contrôlées.
+- La réservation autonome de leçons par les élèves reste différée.
+
+### 5. Déploiement & Environnement Production
 - Configuration du nom de domaine avec certificat SSL / HTTPS (strictement requis pour l'installation PWA et le Service Worker sur Android/iOS).
 - Variables d'environnement de production sécurisées (`DATABASE_URL`, `JWT_SECRET`, identifiants marchands).
 
@@ -57,7 +65,7 @@ flowchart TD
 | **Permis A (Moto)** | *ex: 75 000 ou 60 000* | *À confirmer* | *À confirmer* | *À confirmer* |
 | **Permis C (Poids Lourd)**| *ex: 220 000* | *À confirmer* | *À confirmer* | *À confirmer* |
 | **Permis D (Transport en commun)**| *ex: 250 000* | *À confirmer* | *À confirmer* | *À confirmer* |
-| **Délai maximum de règlement** | Délais accordés entre chaque tranche avant blocage des heures pratiques | *14 jours d'essai gratuit* |
+| **Échéances et accès** | Dates des tranches à définir avec l’école ; l’essai pédagogique de 14 jours est une règle distincte. Aucun blocage pratique supplémentaire n’est déduit de cet essai. | À confirmer avec l’école |
 
 ### 3. Organisation Pédagogique (Vagues & Contenus)
 - **Sessions & Horaires** : Définition des vagues régulières (ex. Matin 08h-10h, Soir 18h-20h, Samedi intensif).

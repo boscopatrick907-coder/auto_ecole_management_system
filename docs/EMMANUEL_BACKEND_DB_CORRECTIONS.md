@@ -6,6 +6,8 @@
 **Assignee:** Emmanuel
 **Status:** Implementation required; the backend is not yet approved for production.
 
+**Scope update — 8 November 2026:** The owner has approved automated MTN/Orange Mobile Money collection and instructor/session operations for V1. See [the revised V1 scope](V1_SCOPE.md), which supersedes earlier scope exclusions. These additions are requirements, not completed features.
+
 > **Distribution note:** This branch publishes the handoff document only. The findings were recorded on 6 November 2026 against local baseline `e6fd6d1` plus the earlier uncommitted corrections. Main has since advanced, including Stitch UI integration. Reproduce each finding against current code before changing it. Supporting audit scripts, additional tests and reports referenced below were local artifacts and are not included in this documentation-only branch; obtain that patch or implement the specified regressions before running commands that depend on those files. The findings and acceptance criteria in this document are self-contained.
 
 ## 1. Scope and current state
@@ -60,6 +62,8 @@ This handoff includes the substantive findings so it can be shared independently
 | E11 | Release prerequisite | Signed offline lease verification and conflict reconciliation | Previously identified incomplete work |
 | E12 | Required feature | Durable notifications, scheduled reminders and weekly summary | Previously identified incomplete work |
 | E13 | Release prerequisite | Production credentials, deployment, backup/restore and content acceptance | External verification and completion required |
+| E14 | Required V1 addition | Automated MTN MoMo/Orange Money collection, trusted confirmation, reconciliation and refunds | Newly approved; implementation/merchant verification required |
+| E15 | Required V1 addition | Instructor/cashier role boundaries, assigned sessions/rosters, attendance and basic vehicle assignments | Newly approved; implementation/testing required |
 
 Suggested implementation sequence: design E01 first; resolve E02–E08 with regression tests; finish E01 under restricted-role tests; verify E09; publish the E10 contract. Track E11–E13 explicitly rather than claiming the entire specification is complete.
 
@@ -332,6 +336,14 @@ Invalid/expired signatures are rejected; valid authorized test events are delive
 - Coordinate Android/iPhone offline/install acceptance with the Stitch frontend implementation. Chromium-only tests are not evidence of Safari/device compatibility.
 - Track larger-data pagination, content delta sync, download storage/quota management and progress/mastery features still missing from the approved scope.
 
+## Expanded V1 work: E14 and E15 (approved 8 November 2026)
+
+**E14 — Automated Mobile Money:** implement server-side intents, authenticated provider callbacks/status checks, idempotent ledger posting, pending/failed states, received-funds exception reconciliation and audited refund handling for MTN MoMo and Orange Money. Do not treat a screenshot, client redirect or USSD code as settlement proof. Pending transfers never unlock access. Integrate capacity/balance concurrency, unique receipts and the durable notification outbox. Sandbox and authorized live provider evidence are required.
+
+**E15 — Staff and sessions:** add distinct instructor/cashier role boundaries, direction-managed group/session assignments, limited instructor rosters, attendance and audited corrections, basic vehicle records/assignments and published timetables. Instructors cannot access financial operations or unrelated groups. Student self-booking remains outside V1. Coordinate the extra screens with the owner's Stitch frontend.
+
+`docs/V1_SCOPE.md` defines the detailed requirements, permission defaults, prerequisites and acceptance tests for these additions. Update the API contract, migrations, tests, milestones and effort estimates accordingly. Existing audit findings remain open until verified fixes exist.
+
 ## 16. Business rules that must remain intact
 
 1. Learning access is an active 14-day trial **or** at least one valid non-cancelled payment.
@@ -345,7 +357,7 @@ Invalid/expired signatures are rejected; valid authorized test events are delive
 9. Unpaid trial enrollment does not reserve a confirmed group seat.
 10. Quiz sync and offline cashier actions survive connectivity loss and are reconciled under the correct account.
 11. An expired student retains appropriate profile, payment-history and school-contact access.
-12. Do not add online Mobile Money processing, driving-lesson scheduling or an instructor role as unrequested V1 scope; the specification places those outside V1.
+12. Revised V1 includes online MTN/Orange collection and instructor operations under `docs/V1_SCOPE.md`. Only trusted provider confirmation can credit an online payment. Assigned-session attendance and least-privilege staff access are required. Student self-booking and advanced lesson reservations remain deferred.
 
 ## 17. Reproduce and validate
 
@@ -390,12 +402,15 @@ Keep test outcomes separate: pass, fail, blocked and unrun. Record load workload
 - [ ] Normal and conflicting concurrent workloads return documented responses without unexpected 500s.
 - [ ] Live Neon verified with explicit branch/environment evidence; no production data was used for mutating tests.
 - [ ] API contract delivered for the Stitch frontend.
-- [ ] E11–E13 completed or individually marked blocked/incomplete with an owner and precise prerequisite.
+- [ ] E11–E15 completed or individually marked blocked/incomplete with an owner and precise prerequisite.
+- [ ] Both Mobile Money operators have settlement/replay/refund/concurrency acceptance evidence.
+- [ ] Instructor/cashier assignment and financial-access isolation tests pass.
+- [ ] Revised effort, milestones and provider dependencies reflect the expanded V1.
 - [ ] No secrets committed or printed; no real notifications sent by generated-data tests.
 - [ ] Updated handoff lists changed files, commands/results, migrations, rollback/deployment steps and remaining limitations.
 - [ ] Production readiness is claimed only after the release prerequisites and school acceptance checks pass.
 
-**Expected handback:** corrected backend/database changes, migration files, regression tests, API contract, test/load evidence, Neon/n8n verification status and a short list of unresolved external prerequisites. No frontend redesign is included in this assignment.
+**Expected handback:** corrected backend/database changes, Mobile Money and staff/session implementations, migration files, regression tests, API contract, test/load evidence, Neon/n8n/payment-provider verification status and a short list of unresolved external prerequisites. No frontend redesign is included in this assignment.
 
 
 ---

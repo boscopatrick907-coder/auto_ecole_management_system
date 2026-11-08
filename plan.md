@@ -1,7 +1,9 @@
+> **V1 scope revision — 8 November 2026:** The owner approved automated MTN/Orange Mobile Money payments and instructor/session operations. [docs/V1_SCOPE.md](docs/V1_SCOPE.md) is the current scope and overrides conflicting exclusions below. Revise implementation milestones and estimates accordingly; scope approval does not mean these features exist.
+
 # Master Implementation Plan — Auto-École La Marseillaise (PWA)
 
-> **Target Architecture:** 100% Free-Tier, Backend-First, Mobile-First Offline PWA  
-> **AI Engine:** Optimized for **Gemini 4 Argon** (phased execution, strict verification gates, automated tool/API provisioning, and security-first engineering)  
+> **Target Architecture:** 100% Free-Tier, Backend-First, Mobile-First Offline PWA
+> **AI Engine:** Optimized for **Gemini 4 Argon** (phased execution, strict verification gates, automated tool/API provisioning, and security-first engineering)
 > **Design System:** Google **Stitch MCP** (Mobile-First UI generation + User Validation Gate) refined with **Emil Kowalski's `apple-design`, `mobile-native`, and `emil-design-eng`** skills.
 
 ---
