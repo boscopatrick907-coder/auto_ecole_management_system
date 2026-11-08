@@ -5,11 +5,18 @@ import { requireAdmin } from '../middleware/auth.js';
 import { normalizeCameroonPhone } from '../utils/crypto.js';
 import { computeStudentGlobalStatus } from './student.js';
 import {
+  isoCalendarDateSchema,
+  isValidUuid,
+  safeNonNegativeMoneySchema,
+  safePositiveMoneySchema,
+} from '../utils/validation.js';
+import {
   buildWaMeLink,
   dispatchNotification,
   formatInviteMessage,
   formatPaymentConfirmationMessage,
   formatReminderMessage,
+  runScheduledReminders,
 } from '../services/whatsapp.js';
 
 export const adminRoutes = new Hono();
@@ -21,58 +28,56 @@ adminRoutes.get('/dashboard', async (c) => {
   const user = c.get('user')!;
 
   return withUserContext(user.id, async (client) => {
-    const [kpiRes, overdueRes, expiredTrialRes, byLicenceRes, recentPaymentsRes] = await Promise.all([
-      client.query(`SELECT public.admin_dashboard() AS kpis`),
-      client.query(
-        `SELECT ist.enrollment_id, ist.student_id, ist.position, ist.label,
-                ist.amount::bigint AS amount, ist.due_date,
-                ist.cumulative_due::bigint AS cumulative_due,
-                ist.paid_total::bigint AS paid_total,
-                s.full_name, s.phone,
-                g.name AS group_name, lc.code AS licence_code
-         FROM public.installment_status ist
-         JOIN public.students s ON s.id = ist.student_id
-         JOIN public.enrollments e ON e.id = ist.enrollment_id
-         JOIN public.groups g ON g.id = e.group_id
-         JOIN public.licence_categories lc ON lc.id = g.licence_category_id
-         WHERE ist.status = 'overdue' AND e.status <> 'cancelled'
-         ORDER BY ist.due_date ASC`
-      ),
-      client.query(
-        `SELECT s.id AS student_id, s.full_name, s.phone, s.trial_ends_at,
-                lc.code AS licence_code, g.name AS group_name
-         FROM public.students s
-         LEFT JOIN public.licence_categories lc ON lc.id = s.licence_category_id
-         LEFT JOIN public.enrollments e ON e.student_id = s.id
-         LEFT JOIN public.groups g ON g.id = e.group_id
-         WHERE s.trial_ends_at <= now() AND NOT public.student_has_paid(s.id)
-         ORDER BY s.trial_ends_at DESC`
-      ),
-      client.query(
-        `SELECT lc.code, lc.name,
-                COUNT(DISTINCT s.id)::int AS students_count,
-                COALESCE(SUM(eb.paid), 0)::bigint AS paid_amount,
-                COALESCE(SUM(eb.balance), 0)::bigint AS balance_amount
-         FROM public.licence_categories lc
-         LEFT JOIN public.students s ON s.licence_category_id = lc.id
-         LEFT JOIN public.enrollments e ON e.student_id = s.id AND e.status <> 'cancelled'
-         LEFT JOIN public.enrollment_balances eb ON eb.enrollment_id = e.id
-         GROUP BY lc.id, lc.code, lc.name
-         ORDER BY lc.code`
-      ),
-      client.query(
-        `SELECT p.id, p.amount::bigint AS amount, p.method, p.receipt_number, p.paid_at,
-                p.cancelled_at, p.cancel_reason,
-                s.id AS student_id, s.full_name, s.phone,
-                g.name AS group_name
-         FROM public.payments p
-         JOIN public.enrollments e ON e.id = p.enrollment_id
-         JOIN public.students s ON s.id = e.student_id
-         JOIN public.groups g ON g.id = e.group_id
-         ORDER BY p.paid_at DESC
-         LIMIT 10`
-      ),
-    ]);
+    const kpiRes = await client.query(`SELECT public.admin_dashboard() AS kpis`);
+    const overdueRes = await client.query(
+      `SELECT ist.enrollment_id, ist.student_id, ist.position, ist.label,
+              ist.amount::bigint AS amount, ist.due_date,
+              ist.cumulative_due::bigint AS cumulative_due,
+              ist.paid_total::bigint AS paid_total,
+              s.full_name, s.phone,
+              g.name AS group_name, lc.code AS licence_code
+       FROM public.installment_status ist
+       JOIN public.students s ON s.id = ist.student_id
+       JOIN public.enrollments e ON e.id = ist.enrollment_id
+       JOIN public.groups g ON g.id = e.group_id
+       JOIN public.licence_categories lc ON lc.id = g.licence_category_id
+       WHERE ist.status = 'overdue' AND e.status <> 'cancelled'
+       ORDER BY ist.due_date ASC`
+    );
+    const expiredTrialRes = await client.query(
+      `SELECT s.id AS student_id, s.full_name, s.phone, s.trial_ends_at,
+              lc.code AS licence_code, g.name AS group_name
+       FROM public.students s
+       LEFT JOIN public.licence_categories lc ON lc.id = s.licence_category_id
+       LEFT JOIN public.enrollments e ON e.student_id = s.id
+       LEFT JOIN public.groups g ON g.id = e.group_id
+       WHERE s.trial_ends_at <= now() AND NOT public.student_has_paid(s.id)
+       ORDER BY s.trial_ends_at DESC`
+    );
+    const byLicenceRes = await client.query(
+      `SELECT lc.code, lc.name,
+              COUNT(DISTINCT s.id)::int AS students_count,
+              COALESCE(SUM(eb.paid), 0)::bigint AS paid_amount,
+              COALESCE(SUM(eb.balance), 0)::bigint AS balance_amount
+       FROM public.licence_categories lc
+       LEFT JOIN public.students s ON s.licence_category_id = lc.id
+       LEFT JOIN public.enrollments e ON e.student_id = s.id AND e.status <> 'cancelled'
+       LEFT JOIN public.enrollment_balances eb ON eb.enrollment_id = e.id
+       GROUP BY lc.id, lc.code, lc.name
+       ORDER BY lc.code`
+    );
+    const recentPaymentsRes = await client.query(
+      `SELECT p.id, p.amount::bigint AS amount, p.method, p.receipt_number, p.paid_at,
+              p.cancelled_at, p.cancel_reason,
+              s.id AS student_id, s.full_name, s.phone,
+              g.name AS group_name
+       FROM public.payments p
+       JOIN public.enrollments e ON e.id = p.enrollment_id
+       JOIN public.students s ON s.id = e.student_id
+       JOIN public.groups g ON g.id = e.group_id
+       ORDER BY p.paid_at DESC
+       LIMIT 10`
+    );
 
     const overdueActionList = overdueRes.rows.map((r) => {
       const amountOwedOnTranche = Math.max(
@@ -129,9 +134,16 @@ adminRoutes.get('/dashboard', async (c) => {
 adminRoutes.get('/students', async (c) => {
   const user = c.get('user')!;
   const search = (c.req.query('search') || '').trim().toLowerCase();
-  const licenceId = c.req.query('licenceCategoryId') || '';
-  const groupId = c.req.query('groupId') || '';
-  const statusFilter = c.req.query('status') || '';
+  const licenceId = (c.req.query('licenceCategoryId') || '').trim();
+  const groupId = (c.req.query('groupId') || '').trim();
+  const statusFilter = (c.req.query('status') || '').trim();
+
+  if (licenceId && !isValidUuid(licenceId)) {
+    return c.json({ error: 'INVALID_UUID', message: 'Identifiant de catégorie de permis invalide.' }, 400);
+  }
+  if (groupId && !isValidUuid(groupId)) {
+    return c.json({ error: 'INVALID_UUID', message: 'Identifiant de groupe invalide.' }, 400);
+  }
 
   return withUserContext(user.id, async (client) => {
     const stuRes = await client.query(
@@ -221,6 +233,9 @@ adminRoutes.get('/students', async (c) => {
 adminRoutes.get('/students/:id', async (c) => {
   const user = c.get('user')!;
   const studentId = c.req.param('id');
+  if (!isValidUuid(studentId)) {
+    return c.json({ error: 'INVALID_UUID', message: 'Identifiant élève invalide.' }, 400);
+  }
 
   return withUserContext(user.id, async (client) => {
     const stuRes = await client.query(
@@ -266,25 +281,23 @@ adminRoutes.get('/students/:id', async (c) => {
     let payments: any[] = [];
 
     if (enrollment) {
-      const [instRes, payRes] = await Promise.all([
-        client.query(
-          `SELECT installment_id, position, label, amount::bigint AS amount, due_date,
-                  cumulative_due::bigint AS cumulative_due, paid_total::bigint AS paid_total, status
-           FROM public.installment_status
-           WHERE enrollment_id = $1 ORDER BY position ASC`,
-          [enrollment.enrollment_id]
-        ),
-        client.query(
-          `SELECT p.id, p.enrollment_id, p.amount::bigint AS amount, p.method, p.reference,
-                  p.receipt_number, p.paid_at, p.cancelled_at, p.cancel_reason,
-                  u.name AS recorded_by_name
-           FROM public.payments p
-           LEFT JOIN public.users u ON u.id = p.recorded_by
-           WHERE p.enrollment_id = $1
-           ORDER BY p.paid_at DESC`,
-          [enrollment.enrollment_id]
-        ),
-      ]);
+      const instRes = await client.query(
+        `SELECT installment_id, position, label, amount::bigint AS amount, due_date,
+                cumulative_due::bigint AS cumulative_due, paid_total::bigint AS paid_total, status
+         FROM public.installment_status
+         WHERE enrollment_id = $1 ORDER BY position ASC`,
+        [enrollment.enrollment_id]
+      );
+      const payRes = await client.query(
+        `SELECT p.id, p.enrollment_id, p.amount::bigint AS amount, p.method, p.reference,
+                p.receipt_number, p.paid_at, p.cancelled_at, p.cancel_reason,
+                u.name AS recorded_by_name
+         FROM public.payments p
+         LEFT JOIN public.users u ON u.id = p.recorded_by
+         WHERE p.enrollment_id = $1
+         ORDER BY p.paid_at DESC`,
+        [enrollment.enrollment_id]
+      );
 
       installments = instRes.rows.map((r) => ({
         ...r,
@@ -352,13 +365,22 @@ adminRoutes.post('/students', async (c) => {
   try {
     const result = await withUserContext(user.id, async (client) => {
       const grpRes = await client.query(
-        `SELECT id, licence_category_id, name FROM public.groups WHERE id = $1`,
+        `SELECT g.id, g.licence_category_id, g.name, g.status, lc.is_active AS category_is_active
+         FROM public.groups g
+         JOIN public.licence_categories lc ON lc.id = g.licence_category_id
+         WHERE g.id = $1`,
         [groupId]
       );
       if (grpRes.rowCount === 0) {
         throw new Error('INVALID_GROUP');
       }
       const group = grpRes.rows[0];
+      if (!group.category_is_active) {
+        throw new Error('INACTIVE_LICENCE_CATEGORY');
+      }
+      if (group.status !== 'open') {
+        throw new Error('INVALID_GROUP');
+      }
 
       const stuRes = await client.query(
         `INSERT INTO public.students (full_name, phone, email, licence_category_id, created_by_admin)
@@ -388,9 +410,11 @@ adminRoutes.post('/students', async (c) => {
       appUrl,
     });
     const notification = await dispatchNotification({
-      event: 'student_invite_created',
+      event: 'student_invite',
       recipientPhone: phone,
       messageText,
+      dedupKey: `student_invite:${result.student.id}:${result.inviteCode}`,
+      persistOutbox: true,
       metadata: { studentId: result.student.id, inviteCode: result.inviteCode },
     });
 
@@ -406,6 +430,15 @@ adminRoutes.post('/students', async (c) => {
     if (msg.includes('students_phone_key')) {
       return c.json({ error: 'PHONE_EXISTS', message: 'Ce numéro de téléphone est déjà enregistré.' }, 409);
     }
+    if (msg.includes('INACTIVE_LICENCE_CATEGORY')) {
+      return c.json(
+        { error: 'INACTIVE_LICENCE_CATEGORY', message: 'Cette catégorie de permis est désactivée.' },
+        400
+      );
+    }
+    if (msg.includes('INVALID_GROUP')) {
+      return c.json({ error: 'INVALID_GROUP', message: 'Groupe introuvable ou fermé.' }, 400);
+    }
     return c.json({ error: 'CREATE_STUDENT_FAILED', message: msg }, 400);
   }
 });
@@ -414,6 +447,9 @@ adminRoutes.post('/students', async (c) => {
 adminRoutes.post('/students/:id/invite', async (c) => {
   const user = c.get('user')!;
   const studentId = c.req.param('id');
+  if (!isValidUuid(studentId)) {
+    return c.json({ error: 'INVALID_UUID', message: 'Identifiant élève invalide.' }, 400);
+  }
 
   const result = await withUserContext(user.id, async (client) => {
     const stuRes = await client.query(
@@ -437,9 +473,12 @@ adminRoutes.post('/students/:id/invite', async (c) => {
     appUrl,
   });
   const notification = await dispatchNotification({
-    event: 'student_invite_regenerated',
+    event: 'student_invite',
     recipientPhone: result.student.phone,
     messageText,
+    dedupKey: `student_invite:${studentId}:${result.inviteCode}`,
+    persistOutbox: true,
+    metadata: { studentId, inviteCode: result.inviteCode },
   });
 
   return c.json({
@@ -451,7 +490,7 @@ adminRoutes.post('/students/:id/invite', async (c) => {
 // 6. Record Payment (Calls public.record_payment with Idempotency & Balance Guard)
 const recordPaymentSchema = z.object({
   enrollmentId: z.string().uuid('Inscription invalide'),
-  amount: z.number().int().positive('Le montant doit être strictement positif'),
+  amount: safePositiveMoneySchema,
   method: z.enum(['cash', 'mtn_momo', 'orange_money', 'bank']).default('cash'),
   reference: z.string().trim().optional().nullable(),
   clientId: z.string().uuid().optional().nullable(),
@@ -540,9 +579,11 @@ adminRoutes.post('/payments', async (c) => {
     });
 
     const notification = await dispatchNotification({
-      event: 'payment_recorded',
+      event: 'payment_confirmed',
       recipientPhone: result.details.phone,
       messageText,
+      dedupKey: `payment_confirmed:${result.payment.id}`,
+      persistOutbox: true,
       metadata: {
         paymentId: result.payment.id,
         receiptNumber: result.payment.receipt_number,
@@ -560,6 +601,24 @@ adminRoutes.post('/payments', async (c) => {
     );
   } catch (err: any) {
     const msg = String(err?.message || '');
+    if (msg.includes('GROUP_FULL')) {
+      return c.json(
+        {
+          error: 'GROUP_FULL',
+          message: 'Ce groupe a atteint sa capacité maximale de places confirmées.',
+        },
+        409
+      );
+    }
+    if (msg.includes('IDEMPOTENCY_CONFLICT')) {
+      return c.json(
+        {
+          error: 'IDEMPOTENCY_CONFLICT',
+          message: "Conflit d'identifiant de transaction (clientId déjà attribué à une autre opération).",
+        },
+        409
+      );
+    }
     if (msg.includes('EXCEEDS_BALANCE')) {
       return c.json(
         {
@@ -580,6 +639,9 @@ adminRoutes.post('/payments', async (c) => {
 adminRoutes.post('/payments/:id/cancel', async (c) => {
   const user = c.get('user')!;
   const paymentId = c.req.param('id');
+  if (!isValidUuid(paymentId)) {
+    return c.json({ error: 'INVALID_UUID', message: 'Identifiant de paiement invalide.' }, 400);
+  }
   const body = await c.req.json().catch(() => ({}));
   const reason = typeof body?.reason === 'string' ? body.reason.trim() : '';
 
@@ -611,37 +673,36 @@ adminRoutes.post('/payments/:id/cancel', async (c) => {
 const createGroupSchema = z.object({
   licenceCategoryId: z.string().uuid(),
   name: z.string().trim().min(2),
-  startDate: z.string().optional().nullable(),
-  capacity: z.number().int().positive().optional().nullable(),
-  totalFee: z.number().int().min(0),
+  startDate: isoCalendarDateSchema.optional().nullable(),
+  capacity: z.number().int().positive().max(10000).optional().nullable(),
+  totalFee: safeNonNegativeMoneySchema,
   status: z.enum(['open', 'closed', 'finished']).default('open'),
   installments: z
     .array(
       z.object({
         position: z.number().int().positive(),
         label: z.string().trim().min(1),
-        amount: z.number().int().positive(),
-        dueDate: z.string().min(8),
+        amount: safePositiveMoneySchema,
+        dueDate: isoCalendarDateSchema,
       })
     )
-    .min(1, "L'échéancier doit comporter au moins une tranche"),
+    .min(1, "L'échéancier doit comporter au moins une tranche")
+    .max(24, "L'échéancier ne peut pas dépasser 24 tranches"),
 });
 
 adminRoutes.get('/groups', async (c) => {
   const user = c.get('user')!;
   return withUserContext(user.id, async (client) => {
-    const [licences, groups, installments] = await Promise.all([
-      client.query(`SELECT * FROM public.licence_categories ORDER BY code`),
-      client.query(
-        `SELECT g.*, lc.code AS licence_code, lc.name AS licence_name,
-                go.confirmed_seats, go.trial_seats
-         FROM public.groups g
-         JOIN public.licence_categories lc ON lc.id = g.licence_category_id
-         LEFT JOIN public.group_occupancy go ON go.group_id = g.id
-         ORDER BY g.created_at DESC`
-      ),
-      client.query(`SELECT * FROM public.installments ORDER BY group_id, position ASC`),
-    ]);
+    const licences = await client.query(`SELECT * FROM public.licence_categories ORDER BY code`);
+    const groups = await client.query(
+      `SELECT g.*, lc.code AS licence_code, lc.name AS licence_name,
+              go.confirmed_seats, go.trial_seats
+       FROM public.groups g
+       JOIN public.licence_categories lc ON lc.id = g.licence_category_id
+       LEFT JOIN public.group_occupancy go ON go.group_id = g.id
+       ORDER BY g.created_at DESC`
+    );
+    const installments = await client.query(`SELECT * FROM public.installments ORDER BY group_id, position ASC`);
 
     const instByGroup: Record<string, any[]> = {};
     for (const i of installments.rows) {
@@ -669,7 +730,32 @@ adminRoutes.post('/groups', async (c) => {
   }
 
   const data = parsed.data;
-  const sumInstallments = data.installments.reduce((acc, item) => acc + item.amount, 0);
+
+  // E07: Enforce contiguous positions (1..N) and chronological dueDate order
+  const sortedInst = [...data.installments].sort((a, b) => a.position - b.position);
+  for (let idx = 0; idx < sortedInst.length; idx++) {
+    const expectedPos = idx + 1;
+    if (sortedInst[idx].position !== expectedPos) {
+      return c.json(
+        {
+          error: 'INVALID_INSTALLMENT_POSITIONS',
+          message: `Les positions des tranches doivent être continues de 1 à ${sortedInst.length} sans doublon ni saut.`,
+        },
+        400
+      );
+    }
+    if (idx > 0 && sortedInst[idx].dueDate < sortedInst[idx - 1].dueDate) {
+      return c.json(
+        {
+          error: 'INVALID_INSTALLMENT_CHRONOLOGY',
+          message: `Les dates d'échéance des tranches doivent suivre un ordre chronologique (Tranche ${expectedPos} ne peut pas précéder Tranche ${idx}).`,
+        },
+        400
+      );
+    }
+  }
+
+  const sumInstallments = sortedInst.reduce((acc, item) => acc + item.amount, 0);
   if (sumInstallments !== data.totalFee) {
     return c.json(
       {
@@ -680,55 +766,84 @@ adminRoutes.post('/groups', async (c) => {
     );
   }
 
-  const group = await withUserContext(user.id, async (client) => {
-    const gRes = await client.query(
-      `INSERT INTO public.groups (licence_category_id, name, start_date, capacity, total_fee, status)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING *`,
-      [
-        data.licenceCategoryId,
-        data.name,
-        data.startDate ?? null,
-        data.capacity ?? null,
-        data.totalFee,
-        data.status,
-      ]
-    );
-    const createdGroup = gRes.rows[0];
+  try {
+    const group = await withUserContext(user.id, async (client) => {
+      const catCheck = await client.query(
+        `SELECT id, is_active FROM public.licence_categories WHERE id = $1`,
+        [data.licenceCategoryId]
+      );
+      if (catCheck.rowCount === 0) {
+        throw new Error('INVALID_LICENCE_CATEGORY');
+      }
+      if (!catCheck.rows[0].is_active) {
+        throw new Error('INACTIVE_LICENCE_CATEGORY');
+      }
 
-    for (const inst of data.installments) {
-      await client.query(
-        `INSERT INTO public.installments (group_id, position, label, amount, due_date)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [createdGroup.id, inst.position, inst.label, inst.amount, inst.dueDate]
+      const gRes = await client.query(
+        `INSERT INTO public.groups (licence_category_id, name, start_date, capacity, total_fee, status)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING *`,
+        [
+          data.licenceCategoryId,
+          data.name,
+          data.startDate ?? null,
+          data.capacity ?? null,
+          data.totalFee,
+          data.status,
+        ]
+      );
+      const createdGroup = gRes.rows[0];
+
+      for (const inst of sortedInst) {
+        await client.query(
+          `INSERT INTO public.installments (group_id, position, label, amount, due_date)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [createdGroup.id, inst.position, inst.label, inst.amount, inst.dueDate]
+        );
+      }
+
+      return createdGroup;
+    });
+
+    return c.json({ group: { ...group, total_fee: Number(group.total_fee) } }, 201);
+  } catch (err: any) {
+    const msg = String(err?.message || '');
+    if (msg.includes('INACTIVE_LICENCE_CATEGORY')) {
+      return c.json(
+        {
+          error: 'INACTIVE_LICENCE_CATEGORY',
+          message: 'Impossible de créer un groupe pour une catégorie de permis désactivée.',
+        },
+        400
       );
     }
-
-    return createdGroup;
-  });
-
-  return c.json({ group: { ...group, total_fee: Number(group.total_fee) } }, 201);
+    if (msg.includes('INVALID_LICENCE_CATEGORY')) {
+      return c.json(
+        { error: 'INVALID_LICENCE_CATEGORY', message: 'Catégorie de permis introuvable.' },
+        400
+      );
+    }
+    throw err;
+  }
 });
 
 // 9. Pedagogical Content Management (Resources & Quizzes)
 adminRoutes.get('/content', async (c) => {
   const user = c.get('user')!;
   return withUserContext(user.id, async (client) => {
-    const [resources, quizzes, questions] = await Promise.all([
-      client.query(
-        `SELECT r.*, lc.code AS licence_code
-         FROM public.resources r
-         JOIN public.licence_categories lc ON lc.id = r.licence_category_id
-         ORDER BY lc.code, r.sort_order ASC`
-      ),
-      client.query(
-        `SELECT q.*, lc.code AS licence_code
-         FROM public.quizzes q
-         JOIN public.licence_categories lc ON lc.id = q.licence_category_id
-         ORDER BY lc.code, q.created_at DESC`
-      ),
-      client.query(`SELECT * FROM public.questions ORDER BY quiz_id, position ASC`),
-    ]);
+    const resources = await client.query(
+      `SELECT r.*, lc.code AS licence_code
+       FROM public.resources r
+       JOIN public.licence_categories lc ON lc.id = r.licence_category_id
+       ORDER BY lc.code, r.sort_order ASC`
+    );
+    const quizzes = await client.query(
+      `SELECT q.*, lc.code AS licence_code
+       FROM public.quizzes q
+       JOIN public.licence_categories lc ON lc.id = q.licence_category_id
+       ORDER BY lc.code, q.created_at DESC`
+    );
+    const questions = await client.query(`SELECT * FROM public.questions ORDER BY quiz_id, position ASC`);
 
     return c.json({
       resources: resources.rows,
@@ -793,4 +908,153 @@ adminRoutes.get('/audit-log', async (c) => {
     return c.json({ auditLog: res.rows });
   });
 });
+
+// 11. E12 — Durable Notification Outbox & Scheduled Reminders (Africa/Douala)
+adminRoutes.get('/notifications/outbox', async (c) => {
+  const user = c.get('user')!;
+  return withUserContext(user.id, async (client) => {
+    const res = await client.query(
+      `SELECT id, dedup_key, event_type, recipient_phone, status, attempts, last_error,
+              next_retry_at, sent_at, created_at, updated_at
+       FROM public.notification_outbox
+       ORDER BY created_at DESC
+       LIMIT 100`
+    );
+    return c.json({ outbox: res.rows });
+  });
+});
+
+const runRemindersSchema = z.object({
+  referenceDate: isoCalendarDateSchema.optional(),
+  includeWeeklySummary: z.boolean().optional().default(true),
+  dryRunExternal: z.boolean().optional(),
+});
+
+adminRoutes.post('/notifications/run-reminders', async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = runRemindersSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: 'VALIDATION_ERROR', message: parsed.error.issues[0].message }, 400);
+  }
+  const summary = await runScheduledReminders(parsed.data);
+  return c.json(summary);
+});
+
+// 12. E10 — School Settings, Licence Categories & Group Status Management
+adminRoutes.get('/settings', async (c) => {
+  const user = c.get('user')!;
+  return withUserContext(user.id, async (client) => {
+    const res = await client.query(`SELECT * FROM public.app_settings WHERE id = 1`);
+    return c.json({ settings: res.rows[0] });
+  });
+});
+
+const updateSettingsSchema = z.object({
+  schoolName: z.string().trim().min(2).optional(),
+  trialDays: z.number().int().min(0).max(90).optional(),
+  receiptPrefix: z.string().trim().min(1).max(16).optional(),
+  schoolPhone: z.string().trim().optional().nullable(),
+  schoolAddress: z.string().trim().optional().nullable(),
+});
+
+adminRoutes.patch('/settings', async (c) => {
+  const user = c.get('user')!;
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = updateSettingsSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: 'VALIDATION_ERROR', message: parsed.error.issues[0].message }, 400);
+  }
+  const d = parsed.data;
+  return withUserContext(user.id, async (client) => {
+    const res = await client.query(
+      `UPDATE public.app_settings
+       SET school_name = COALESCE($1, school_name),
+           trial_days = COALESCE($2, trial_days),
+           receipt_prefix = COALESCE($3, receipt_prefix),
+           school_phone = COALESCE($4, school_phone),
+           school_address = COALESCE($5, school_address)
+       WHERE id = 1
+       RETURNING *`,
+      [
+        d.schoolName ?? null,
+        d.trialDays ?? null,
+        d.receiptPrefix ?? null,
+        d.schoolPhone ?? null,
+        d.schoolAddress ?? null,
+      ]
+    );
+    return c.json({ settings: res.rows[0] });
+  });
+});
+
+const updateCategorySchema = z.object({
+  name: z.string().trim().min(2).optional(),
+  isActive: z.boolean().optional(),
+});
+
+adminRoutes.patch('/licence-categories/:id', async (c) => {
+  const user = c.get('user')!;
+  const categoryId = c.req.param('id');
+  if (!isValidUuid(categoryId)) {
+    return c.json({ error: 'INVALID_UUID', message: 'Identifiant de catégorie invalide.' }, 400);
+  }
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = updateCategorySchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: 'VALIDATION_ERROR', message: parsed.error.issues[0].message }, 400);
+  }
+  const d = parsed.data;
+  return withUserContext(user.id, async (client) => {
+    const res = await client.query(
+      `UPDATE public.licence_categories
+       SET name = COALESCE($1, name),
+           is_active = COALESCE($2, is_active)
+       WHERE id = $3
+       RETURNING *`,
+      [d.name ?? null, d.isActive ?? null, categoryId]
+    );
+    if (res.rowCount === 0) {
+      return c.json({ error: 'NOT_FOUND', message: 'Catégorie introuvable.' }, 404);
+    }
+    return c.json({ licenceCategory: res.rows[0] });
+  });
+});
+
+const updateGroupSchema = z.object({
+  name: z.string().trim().min(2).optional(),
+  startDate: isoCalendarDateSchema.optional().nullable(),
+  capacity: z.number().int().positive().max(10000).optional(),
+  status: z.enum(['open', 'closed', 'completed']).optional(),
+});
+
+adminRoutes.patch('/groups/:id', async (c) => {
+  const user = c.get('user')!;
+  const groupId = c.req.param('id');
+  if (!isValidUuid(groupId)) {
+    return c.json({ error: 'INVALID_UUID', message: 'Identifiant de groupe invalide.' }, 400);
+  }
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = updateGroupSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: 'VALIDATION_ERROR', message: parsed.error.issues[0].message }, 400);
+  }
+  const d = parsed.data;
+  return withUserContext(user.id, async (client) => {
+    const res = await client.query(
+      `UPDATE public.groups
+       SET name = COALESCE($1, name),
+           start_date = COALESCE($2::date, start_date),
+           capacity = COALESCE($3, capacity),
+           status = COALESCE($4::public.group_status, status)
+       WHERE id = $5
+       RETURNING *`,
+      [d.name ?? null, d.startDate ?? null, d.capacity ?? null, d.status ?? null, groupId]
+    );
+    if (res.rowCount === 0) {
+      return c.json({ error: 'NOT_FOUND', message: 'Groupe introuvable.' }, 404);
+    }
+    return c.json({ group: { ...res.rows[0], total_fee: Number(res.rows[0].total_fee) } });
+  });
+});
+
 

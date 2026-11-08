@@ -383,8 +383,11 @@ $$;
 
 -- ---------------------------------------------------------------------
 -- 8. Views: balances, instalment status, and occupied group seats
+--    enrollment_balances and installment_status use security_invoker = true
+--    so RLS on enrollments/payments is strictly enforced for student callers.
 -- ---------------------------------------------------------------------
-create or replace view public.enrollment_balances as
+create or replace view public.enrollment_balances
+with (security_invoker = true) as
 select e.id            as enrollment_id,
        e.student_id,
        e.group_id,
@@ -396,7 +399,8 @@ join public.groups g on g.id = e.group_id
 left join public.payments p on p.enrollment_id = e.id
 group by e.id, g.id;
 
-create or replace view public.installment_status as
+create or replace view public.installment_status
+with (security_invoker = true) as
 with plan as (
   select e.id as enrollment_id, e.student_id, i.id as installment_id,
          i.position, i.label, i.amount, i.due_date,
@@ -459,7 +463,15 @@ begin
   if exists (select 1 from students where phone = p_phone) then
     raise exception 'PHONE_EXISTS';
   end if;
-  if p_group_id is not null and not exists (
+  if p_licence_category_id is null or not exists (
+       select 1 from licence_categories
+       where id = p_licence_category_id and is_active = true) then
+    raise exception 'INACTIVE_LICENCE_CATEGORY';
+  end if;
+  if p_group_id is null then
+    raise exception 'GROUP_REQUIRED';
+  end if;
+  if not exists (
        select 1 from groups
        where id = p_group_id and licence_category_id = p_licence_category_id and status = 'open') then
     raise exception 'INVALID_GROUP';
@@ -469,9 +481,7 @@ begin
   values (public.current_user_id(), p_full_name, p_phone, p_email, p_licence_category_id)
   returning id into v_student;
 
-  if p_group_id is not null then
-    insert into enrollments (student_id, group_id) values (v_student, p_group_id);
-  end if;
+  insert into enrollments (student_id, group_id) values (v_student, p_group_id);
   return v_student;
 end $$;
 
@@ -532,14 +542,64 @@ create or replace function public.record_payment(
 ) returns public.payments
 language plpgsql security definer set search_path = public as $$
 declare
-  v_balance bigint;
-  v_row     public.payments;
+  v_group_id       uuid;
+  v_student_id     uuid;
+  v_enrol_status   public.enrollment_status;
+  v_capacity       int;
+  v_confirmed      int;
+  v_already_seated boolean;
+  v_balance        bigint;
+  v_row            public.payments;
 begin
   if not public.is_admin() then raise exception 'FORBIDDEN'; end if;
 
+  -- Fast pre-lock check for idempotent replay or cross-enrollment clientId conflict
   if p_client_id is not null then
     select * into v_row from payments where client_id = p_client_id;
-    if found then return v_row; end if;
+    if found then
+      if v_row.enrollment_id <> p_enrollment_id then
+        raise exception 'IDEMPOTENCY_CONFLICT';
+      end if;
+      return v_row;
+    end if;
+  end if;
+
+  select e.group_id, e.student_id, e.status
+    into v_group_id, v_student_id, v_enrol_status
+    from enrollments e
+   where e.id = p_enrollment_id;
+
+  if v_group_id is null then raise exception 'ENROLLMENT_NOT_FOUND'; end if;
+  if v_enrol_status = 'cancelled' then raise exception 'ENROLLMENT_CANCELLED'; end if;
+
+  -- E02: Serialize seat acquisition in strict parent -> child order (groups -> enrollments)
+  select g.capacity into v_capacity
+    from groups g
+   where g.id = v_group_id
+   for update;
+
+  perform 1 from enrollments e where e.id = p_enrollment_id for update;
+
+  -- Re-check idempotency after acquiring locks
+  if p_client_id is not null then
+    select * into v_row from payments where client_id = p_client_id;
+    if found then
+      if v_row.enrollment_id <> p_enrollment_id then
+        raise exception 'IDEMPOTENCY_CONFLICT';
+      end if;
+      return v_row;
+    end if;
+  end if;
+
+  -- E02: If this student does not yet hold a confirmed seat, verify group capacity
+  v_already_seated := public.student_has_paid(v_student_id);
+  if not v_already_seated and v_capacity is not null then
+    select go.confirmed_seats into v_confirmed
+      from group_occupancy go
+     where go.group_id = v_group_id;
+    if coalesce(v_confirmed, 0) >= v_capacity then
+      raise exception 'GROUP_FULL';
+    end if;
   end if;
 
   select balance into v_balance from enrollment_balances where enrollment_id = p_enrollment_id;
@@ -583,3 +643,314 @@ insert into public.licence_categories (code, name) values
   ('C', 'Permis C (Poids lourds / Camion)'),
   ('D', 'Permis D (Transport en commun / Bus)')
 on conflict (code) do nothing;
+
+-- ---------------------------------------------------------------------
+-- 11. E01 — Database-Level Isolation, Least Privilege & Row-Level Security
+-- ---------------------------------------------------------------------
+
+-- Guard against students modifying sensitive access/trial/identity columns
+create or replace function public.students_protect_fields() returns trigger
+language plpgsql as $$
+begin
+  if current_user = 'aem_app_runtime' and not public.is_admin() then
+    if new.trial_ends_at is distinct from old.trial_ends_at
+       or new.activated_at is distinct from old.activated_at
+       or new.user_id is distinct from old.user_id
+       or new.licence_category_id is distinct from old.licence_category_id
+       or new.created_by_admin is distinct from old.created_by_admin
+       or new.phone is distinct from old.phone then
+      raise exception 'FORBIDDEN_FIELD_MODIFICATION: Students cannot modify access, trial, or identity fields.';
+    end if;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists trg_students_protect_fields on public.students;
+create trigger trg_students_protect_fields
+  before update on public.students
+  for each row execute function public.students_protect_fields();
+
+-- Provision restricted runtime role without superuser or BYPASSRLS
+do $$ begin
+  if not exists (select 1 from pg_roles where rolname = 'aem_app_runtime') then
+    create role aem_app_runtime nologin nocreatedb nocreaterole nobypassrls;
+  else
+    alter role aem_app_runtime nologin nocreatedb nocreaterole nobypassrls;
+  end if;
+  execute format('grant aem_app_runtime to %I', current_user);
+end $$;
+
+grant usage on schema public to aem_app_runtime;
+
+-- Enable Row-Level Security across all application tables
+alter table public.users              enable row level security;
+alter table public.profiles           enable row level security;
+alter table public.sessions           enable row level security;
+alter table public.verifications      enable row level security;
+alter table public.students           enable row level security;
+alter table public.enrollments        enable row level security;
+alter table public.invites            enable row level security;
+alter table public.payments           enable row level security;
+alter table public.quiz_attempts      enable row level security;
+alter table public.audit_log          enable row level security;
+alter table public.app_settings       enable row level security;
+alter table public.licence_categories enable row level security;
+alter table public.groups             enable row level security;
+alter table public.installments       enable row level security;
+alter table public.resources          enable row level security;
+alter table public.quizzes            enable row level security;
+alter table public.questions          enable row level security;
+
+-- Drop existing policies idempotently before recreating
+drop policy if exists users_select_own_or_admin on public.users;
+drop policy if exists users_admin_write on public.users;
+create policy users_select_own_or_admin on public.users
+  for select to aem_app_runtime
+  using (id = public.current_user_id() or public.is_admin());
+create policy users_admin_write on public.users
+  for all to aem_app_runtime
+  using (public.is_admin())
+  with check (public.is_admin());
+
+drop policy if exists profiles_select_own_or_admin on public.profiles;
+drop policy if exists profiles_admin_write on public.profiles;
+create policy profiles_select_own_or_admin on public.profiles
+  for select to aem_app_runtime
+  using (id = public.current_user_id() or public.is_admin());
+create policy profiles_admin_write on public.profiles
+  for all to aem_app_runtime
+  using (public.is_admin())
+  with check (public.is_admin());
+
+drop policy if exists sessions_own_or_admin on public.sessions;
+create policy sessions_own_or_admin on public.sessions
+  for all to aem_app_runtime
+  using (user_id = public.current_user_id() or public.is_admin())
+  with check (user_id = public.current_user_id() or public.is_admin());
+
+drop policy if exists verifications_admin_only on public.verifications;
+create policy verifications_admin_only on public.verifications
+  for all to aem_app_runtime
+  using (public.is_admin())
+  with check (public.is_admin());
+
+drop policy if exists students_select_own_or_admin on public.students;
+drop policy if exists students_update_own_or_admin on public.students;
+drop policy if exists students_admin_insert_delete on public.students;
+create policy students_select_own_or_admin on public.students
+  for select to aem_app_runtime
+  using (user_id = public.current_user_id() or public.is_admin());
+create policy students_update_own_or_admin on public.students
+  for update to aem_app_runtime
+  using (user_id = public.current_user_id() or public.is_admin())
+  with check (user_id = public.current_user_id() or public.is_admin());
+create policy students_admin_insert_delete on public.students
+  for all to aem_app_runtime
+  using (public.is_admin())
+  with check (public.is_admin());
+
+drop policy if exists enrollments_select_own_or_admin on public.enrollments;
+drop policy if exists enrollments_admin_write on public.enrollments;
+create policy enrollments_select_own_or_admin on public.enrollments
+  for select to aem_app_runtime
+  using (student_id = public.current_student_id() or public.is_admin());
+create policy enrollments_admin_write on public.enrollments
+  for all to aem_app_runtime
+  using (public.is_admin())
+  with check (public.is_admin());
+
+drop policy if exists invites_admin_only on public.invites;
+create policy invites_admin_only on public.invites
+  for all to aem_app_runtime
+  using (public.is_admin())
+  with check (public.is_admin());
+
+drop policy if exists payments_select_own_or_admin on public.payments;
+drop policy if exists payments_admin_write on public.payments;
+create policy payments_select_own_or_admin on public.payments
+  for select to aem_app_runtime
+  using (
+    public.is_admin()
+    or enrollment_id in (
+      select e.id from public.enrollments e where e.student_id = public.current_student_id()
+    )
+  );
+create policy payments_admin_write on public.payments
+  for all to aem_app_runtime
+  using (public.is_admin())
+  with check (public.is_admin());
+
+drop policy if exists quiz_attempts_select_own_or_admin on public.quiz_attempts;
+drop policy if exists quiz_attempts_insert_own_or_admin on public.quiz_attempts;
+create policy quiz_attempts_select_own_or_admin on public.quiz_attempts
+  for select to aem_app_runtime
+  using (student_id = public.current_student_id() or public.is_admin());
+create policy quiz_attempts_insert_own_or_admin on public.quiz_attempts
+  for insert to aem_app_runtime
+  with check (student_id = public.current_student_id() or public.is_admin());
+
+drop policy if exists audit_log_admin_select on public.audit_log;
+create policy audit_log_admin_select on public.audit_log
+  for select to aem_app_runtime
+  using (public.is_admin());
+
+drop policy if exists app_settings_read_all on public.app_settings;
+drop policy if exists app_settings_admin_write on public.app_settings;
+create policy app_settings_read_all on public.app_settings
+  for select to aem_app_runtime using (true);
+create policy app_settings_admin_write on public.app_settings
+  for all to aem_app_runtime using (public.is_admin()) with check (public.is_admin());
+
+drop policy if exists licence_categories_read_all on public.licence_categories;
+drop policy if exists licence_categories_admin_write on public.licence_categories;
+create policy licence_categories_read_all on public.licence_categories
+  for select to aem_app_runtime using (true);
+create policy licence_categories_admin_write on public.licence_categories
+  for all to aem_app_runtime using (public.is_admin()) with check (public.is_admin());
+
+drop policy if exists groups_read_all on public.groups;
+drop policy if exists groups_admin_write on public.groups;
+create policy groups_read_all on public.groups
+  for select to aem_app_runtime using (true);
+create policy groups_admin_write on public.groups
+  for all to aem_app_runtime using (public.is_admin()) with check (public.is_admin());
+
+drop policy if exists installments_read_all on public.installments;
+drop policy if exists installments_admin_write on public.installments;
+create policy installments_read_all on public.installments
+  for select to aem_app_runtime using (true);
+create policy installments_admin_write on public.installments
+  for all to aem_app_runtime using (public.is_admin()) with check (public.is_admin());
+
+drop policy if exists resources_read_authorized on public.resources;
+drop policy if exists resources_admin_write on public.resources;
+create policy resources_read_authorized on public.resources
+  for select to aem_app_runtime
+  using (
+    public.is_admin()
+    or (
+      is_published = true
+      and licence_category_id = public.current_licence_id()
+      and public.student_has_access(public.current_student_id())
+    )
+  );
+create policy resources_admin_write on public.resources
+  for all to aem_app_runtime using (public.is_admin()) with check (public.is_admin());
+
+drop policy if exists quizzes_read_authorized on public.quizzes;
+drop policy if exists quizzes_admin_write on public.quizzes;
+create policy quizzes_read_authorized on public.quizzes
+  for select to aem_app_runtime
+  using (
+    public.is_admin()
+    or (
+      is_published = true
+      and licence_category_id = public.current_licence_id()
+      and public.student_has_access(public.current_student_id())
+    )
+  );
+create policy quizzes_admin_write on public.quizzes
+  for all to aem_app_runtime using (public.is_admin()) with check (public.is_admin());
+
+drop policy if exists questions_read_authorized on public.questions;
+drop policy if exists questions_admin_write on public.questions;
+create policy questions_read_authorized on public.questions
+  for select to aem_app_runtime
+  using (
+    public.is_admin()
+    or exists (
+      select 1 from public.quizzes q
+      where q.id = quiz_id
+        and q.is_published = true
+        and q.licence_category_id = public.current_licence_id()
+        and public.student_has_access(public.current_student_id())
+    )
+  );
+create policy questions_admin_write on public.questions
+  for all to aem_app_runtime using (public.is_admin()) with check (public.is_admin());
+
+-- ---------------------------------------------------------------------
+-- 12. E12 — Durable Notification Outbox & Scheduled Reminder Deduplication
+-- ---------------------------------------------------------------------
+create table if not exists public.notification_outbox (
+  id              uuid primary key default gen_random_uuid(),
+  dedup_key       text not null unique,
+  event_type      text not null,
+  recipient_phone text not null,
+  message_text    text not null,
+  wa_me_link      text not null,
+  metadata        jsonb not null default '{}'::jsonb,
+  status          text not null default 'pending' check (status in ('pending', 'sent', 'failed_retryable', 'failed_permanent')),
+  attempts        int not null default 0,
+  last_error      text,
+  next_retry_at   timestamptz not null default now(),
+  sent_at         timestamptz,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
+);
+
+create index if not exists notification_outbox_status_retry_idx
+  on public.notification_outbox (status, next_retry_at)
+  where status in ('pending', 'failed_retryable');
+
+alter table public.notification_outbox enable row level security;
+drop policy if exists notification_outbox_admin_all on public.notification_outbox;
+create policy notification_outbox_admin_all on public.notification_outbox
+  for all to aem_app_runtime
+  using (public.is_admin())
+  with check (public.is_admin());
+
+-- Explicit table, view & function grants for aem_app_runtime
+revoke all on all tables in schema public from aem_app_runtime;
+grant select on
+  public.app_settings,
+  public.users,
+  public.profiles,
+  public.sessions,
+  public.licence_categories,
+  public.groups,
+  public.installments,
+  public.students,
+  public.enrollments,
+  public.payments,
+  public.resources,
+  public.quizzes,
+  public.questions,
+  public.quiz_attempts,
+  public.audit_log,
+  public.notification_outbox,
+  public.enrollment_balances,
+  public.installment_status,
+  public.group_occupancy
+to aem_app_runtime;
+
+grant insert, update on
+  public.app_settings,
+  public.students,
+  public.enrollments,
+  public.groups,
+  public.installments,
+  public.licence_categories,
+  public.resources,
+  public.quizzes,
+  public.questions,
+  public.notification_outbox
+to aem_app_runtime;
+
+grant insert on public.quiz_attempts to aem_app_runtime;
+grant delete on public.sessions to aem_app_runtime;
+
+grant execute on function
+  public.current_user_id(),
+  public.is_admin(),
+  public.current_student_id(),
+  public.current_licence_id(),
+  public.student_has_paid(uuid),
+  public.student_has_access(uuid),
+  public.register_student(text, text, text, uuid, uuid),
+  public.create_invite(uuid, int),
+  public.claim_invite(text),
+  public.cancel_payment(uuid, text),
+  public.record_payment(uuid, bigint, public.payment_method, text, uuid, timestamptz, text),
+  public.admin_dashboard()
+to aem_app_runtime;

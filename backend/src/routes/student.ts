@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { withUserContext } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 import { createResourceDownloadUrl } from '../services/storage.js';
+import { ApiError } from '../utils/validation.js';
 
 export const studentRoutes = new Hono();
 
@@ -93,24 +94,22 @@ studentRoutes.get('/me', async (c) => {
     let payments: any[] = [];
 
     if (enrollment) {
-      const [instRes, payRes] = await Promise.all([
-        client.query(
-          `SELECT installment_id, position, label, amount::bigint AS amount, due_date,
-                  cumulative_due::bigint AS cumulative_due, paid_total::bigint AS paid_total, status
-           FROM public.installment_status
-           WHERE enrollment_id = $1
-           ORDER BY position ASC`,
-          [enrollment.enrollment_id]
-        ),
-        client.query(
-          `SELECT id, enrollment_id, amount::bigint AS amount, method, reference, receipt_number,
-                  paid_at, cancelled_at, cancel_reason
-           FROM public.payments
-           WHERE enrollment_id = $1
-           ORDER BY paid_at DESC`,
-          [enrollment.enrollment_id]
-        ),
-      ]);
+      const instRes = await client.query(
+        `SELECT installment_id, position, label, amount::bigint AS amount, due_date,
+                cumulative_due::bigint AS cumulative_due, paid_total::bigint AS paid_total, status
+         FROM public.installment_status
+         WHERE enrollment_id = $1
+         ORDER BY position ASC`,
+        [enrollment.enrollment_id]
+      );
+      const payRes = await client.query(
+        `SELECT id, enrollment_id, amount::bigint AS amount, method, reference, receipt_number,
+                paid_at, cancelled_at, cancel_reason
+         FROM public.payments
+         WHERE enrollment_id = $1
+         ORDER BY paid_at DESC`,
+        [enrollment.enrollment_id]
+      );
 
       installments = instRes.rows.map((r) => ({
         ...r,
@@ -384,20 +383,70 @@ studentRoutes.post('/quiz-attempts', async (c) => {
   return withUserContext(user.id, async (client) => {
     const stuRes = await client.query(`SELECT id FROM public.students WHERE user_id = $1`, [user.id]);
     if (stuRes.rowCount === 0) {
-      return c.json({ error: 'STUDENT_NOT_FOUND', message: 'Profil élève introuvable.' }, 404);
+      throw new ApiError(404, 'STUDENT_NOT_FOUND', 'Profil élève introuvable.');
     }
     const studentId = stuRes.rows[0].id;
+
+    // Also guard against duplicate clientId with different quizId inside the same request batch
+    const seenInBatch = new Map<string, string>();
+    for (const item of parsed.data) {
+      const prevQuiz = seenInBatch.get(item.clientId);
+      if (prevQuiz && prevQuiz !== item.quizId) {
+        throw new ApiError(
+          409,
+          'IDEMPOTENCY_CONFLICT',
+          "Conflit d'identifiant clientId réutilisé pour un quiz différent dans le même lot."
+        );
+      }
+      seenInBatch.set(item.clientId, item.quizId);
+    }
 
     const synced: any[] = [];
     for (const item of parsed.data) {
       const ins = await client.query(
         `INSERT INTO public.quiz_attempts (student_id, quiz_id, score, total, taken_at, client_id)
          VALUES ($1, $2, $3, $4, COALESCE($5::timestamptz, now()), $6)
-         ON CONFLICT (client_id) DO UPDATE SET score = public.quiz_attempts.score
-         RETURNING id, quiz_id, score, total, taken_at, client_id`,
+         ON CONFLICT (client_id) DO NOTHING
+         RETURNING id, student_id, quiz_id, score, total, taken_at, client_id`,
         [studentId, item.quizId, item.score, item.total, item.takenAt ?? null, item.clientId]
       );
-      synced.push(ins.rows[0]);
+
+      if (ins.rowCount && ins.rowCount > 0) {
+        const row = ins.rows[0];
+        synced.push({
+          id: row.id,
+          quiz_id: row.quiz_id,
+          score: row.score,
+          total: row.total,
+          taken_at: row.taken_at,
+          client_id: row.client_id,
+        });
+      } else {
+        // Conflict on client_id: inspect authoritative row
+        const existingRes = await client.query(
+          `SELECT id, student_id, quiz_id, score, total, taken_at, client_id
+           FROM public.quiz_attempts
+           WHERE client_id = $1`,
+          [item.clientId]
+        );
+        const existing = existingRes.rows[0];
+        if (!existing || existing.student_id !== studentId || existing.quiz_id !== item.quizId) {
+          // Throw ApiError inside withUserContext so the entire batch transaction rolls back!
+          throw new ApiError(
+            409,
+            'IDEMPOTENCY_CONFLICT',
+            "Cet identifiant de tentative (clientId) appartient déjà à un autre élève ou à un autre quiz."
+          );
+        }
+        synced.push({
+          id: existing.id,
+          quiz_id: existing.quiz_id,
+          score: existing.score,
+          total: existing.total,
+          taken_at: existing.taken_at,
+          client_id: existing.client_id,
+        });
+      }
     }
 
     return c.json({ ok: true, synced }, 201);

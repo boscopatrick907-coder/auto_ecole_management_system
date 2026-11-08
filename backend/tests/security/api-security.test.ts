@@ -27,7 +27,7 @@ async function apiRequest(
   return { status: res.status, data: json };
 }
 
-describe('Auto-école La Marseillaise — Backend & Neon PostgreSQL Security Suite', { timeout: 30000 }, () => {
+describe('Auto-école La Marseillaise — Backend & Neon PostgreSQL Security Suite', { timeout: 90000 }, () => {
   let adminToken = '';
   let studentAToken = '';
   let studentAId = '';
@@ -59,15 +59,23 @@ describe('Auto-école La Marseillaise — Backend & Neon PostgreSQL Security Sui
     expect(permisB).toBeDefined();
     permisBId = permisB.id;
 
-    const groupB = cat.data.groups.find((g: any) => g.licence_category_id === permisBId);
+    const groupB =
+      cat.data.groups.find(
+        (g: any) =>
+          g.licence_category_id === permisBId &&
+          g.total_fee === 120000 &&
+          g.confirmed_seats < g.capacity
+      ) || cat.data.groups.find((g: any) => g.licence_category_id === permisBId);
     expect(groupB).toBeDefined();
     groupBId = groupB.id;
-  }, 45000);
+  }, 90000);
 
   afterAll(async () => {
     const pool = getPool();
-    await pool.end();
-  });
+    await pool.query(`DELETE FROM public.notification_outbox WHERE recipient_phone IN ($1, $2)`, [studentAPhone, walkInPhone]).catch(() => {});
+    await pool.query(`DELETE FROM public.students WHERE phone IN ($1, $2)`, [studentAPhone, walkInPhone]).catch(() => {});
+    await pool.query(`DELETE FROM public.users WHERE phone IN ($1, $2)`, [studentAPhone, walkInPhone]).catch(() => {});
+  }, 60000);
 
   it('1. Rejects unauthenticated access to protected student and admin endpoints (401)', async () => {
     const r1 = await apiRequest('/api/student/me');

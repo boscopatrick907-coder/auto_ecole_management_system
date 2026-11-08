@@ -396,3 +396,32 @@ Keep test outcomes separate: pass, fail, blocked and unrun. Record load workload
 - [ ] Production readiness is claimed only after the release prerequisites and school acceptance checks pass.
 
 **Expected handback:** corrected backend/database changes, migration files, regression tests, API contract, test/load evidence, Neon/n8n verification status and a short list of unresolved external prerequisites. No frontend redesign is included in this assignment.
+
+
+---
+
+## 19. TDD Phase Execution & Verification Evidence
+
+All corrections (`E01`–`E12`) were executed under strict **Red -> Green Test-Driven Development (TDD)** across 6 sequential phases plus the existing security suite (`26/26` assertions passing across 7 test files):
+
+| Phase | Test Suite File | Covered Items | Initial Red Run | Final Green Run |
+| :--- | :--- | :--- | :--- | :--- |
+| **Phase 1** | `backend/tests/phases/phase1-validation-errors.test.ts` | `E06`, `E07`, `E08` (Malformed JSON/non-object auth guard, sliding-window rate limiter `429`, strict ISO calendar dates & leap-year checks, safe-integer FCFA bounds, contiguous chronological installment positions `1..N`, UUID param guard `400 INVALID_UUID`) | `4 failed \| 1 passed` | **5 / 5 passed** |
+| **Phase 2** | `backend/tests/phases/phase2-catalogue-registration.test.ts` | `E03`, `E04` (Reject inactive permit categories in group creation, walk-in student creation & self-registration; require mandatory `groupId` in `POST /api/auth/register`; atomic transaction rolling back user + OTP consumption on failure) | `3 failed` | **3 / 3 passed** |
+| **Phase 3** | `backend/tests/phases/phase3-concurrency-idempotency.test.ts` | `E02`, `E05` (Row-level `FOR UPDATE` lock on `public.groups` inside `public.record_payment` preventing concurrent first-payment seat overbooking `409 GROUP_FULL`; cross-enrollment/cross-student `clientId` collision detection `409 IDEMPOTENCY_CONFLICT` with batch rollback) | `2 failed` | **2 / 2 passed** |
+| **Phase 4** | `backend/tests/phases/phase4-rls-least-privilege.test.ts` | `E01` (`aem_app_runtime` role with `NOBYPASSRLS` & `NOSUPERUSER`; `SET LOCAL ROLE aem_app_runtime` inside `withUserContext`; RLS enabled & enforced across all 18 tables; `security_invoker = true` on `enrollment_balances` & `installment_status`; `trg_students_protect_fields` trigger) | `3 failed \| 1 passed` | **4 / 4 passed** |
+| **Phase 5** | `backend/tests/phases/phase5-lease-and-outbox.test.ts` | `E11`, `E12` (Asymmetric `EdDSA`/`Ed25519` offline lease signing, `GET /api/auth/lease-public-key`, `evaluateOfflineLease` checking account binding/clock rollback/expiry; HMAC-SHA256 webhook signature & timestamp replay guard; durable `public.notification_outbox` & deduplicated `Africa/Douala` reminders) | `4 failed` | **4 / 4 passed** |
+| **Phase 6 (Master Combined)** | `backend/tests/phases/phase6-final-combined.test.ts` | `E09`, `E10`, and end-to-end combined verification of Phases 1–6 + all 12 business rules (`runNeonVerificationProbe`, `docs/API_CONTRACT.md`, category/group/settings management, RLS, EdDSA lease, idempotency, capacity lock, outbox) | `3 failed` | **3 / 3 passed** |
+| **Security Suite** | `backend/tests/security/api-security.test.ts` | Core BOLA/BFLA, 14-day trial paywall, permanent unlock on 1st payment, append-only ledger triggers, cancellation recalculation, and one-time SHA-256 walk-in invite claim | Verified | **5 / 5 passed** |
+
+### Live Neon Read-Only Probe Evidence (`npm run test:neon`)
+- **Redacted Endpoint:** `ep-ti***er.c-9.us-east-2.aws.neon.tech` (`neondb`, PostgreSQL 17.11)
+- **TLS Active:** `true`
+- **Restricted Runtime Role (`aem_app_runtime`):** `rolsuper: false`, `rolbypassrls: false`, `rolcreatedb: false`, `rolcreaterole: false`
+- **RLS Enabled Tables:** `18 / 18` (`missingRlsTables: []`)
+- **Security Invoker Views (`enrollment_balances`, `installment_status`):** `true`
+
+### Remaining External Enterprise Prerequisites (`E13`)
+As detailed in `production_readiness_plan.md`, final production cutover awaits the enterprise-owned inputs:
+1. Official school legal/fiscal headers (`NIU`, `RCCM`) and approved CEMAC course PDFs & exam question bank.
+2. Production Meta WhatsApp Cloud API token / live n8n instance activation and optional SMS gateway provider selection (currently flagged as `smsFallbackStatus: "unavailable_pending_provider"`).

@@ -8,6 +8,8 @@
     "build": "tsc",
     "start": "tsx src/server.ts",
     "db:migrate": "tsx src/scripts/migrate.ts",
+    "test:neon": "tsx src/scripts/check-neon.ts",
+    "test:phases": "vitest run tests/phases",
     "test:security": "vitest run tests/security",
     "test": "vitest run"
   },

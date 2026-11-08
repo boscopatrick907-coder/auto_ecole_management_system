@@ -1,9 +1,10 @@
 import { Hono } from 'hono';
 import crypto from 'node:crypto';
 import { z } from 'zod';
-import { getPool, withUserContext } from '../db.js';
+import { connectWithRetry, getPool, withUserContext } from '../db.js';
 import {
   generateOtpCode,
+  getLeasePublicKeyInfo,
   hashPassword,
   normalizeCameroonPhone,
   sha256Hex,
@@ -74,10 +75,12 @@ async function buildStudentAndLeaseState(userId: string, role: 'admin' | 'studen
       serverTimeMs,
       maxOfflineUntilMs,
     });
+    const leasePublicKey = await getLeasePublicKeyInfo();
 
     return {
       student,
       offlineLeaseToken,
+      leasePublicKey,
       accessState: {
         hasAccess,
         hasPaid,
@@ -89,6 +92,12 @@ async function buildStudentAndLeaseState(userId: string, role: 'admin' | 'studen
     };
   });
 }
+
+// 0. Public Key JWK for Offline Asymmetric Lease Verification (E11)
+authRoutes.get('/lease-public-key', async (c) => {
+  const info = await getLeasePublicKeyInfo();
+  return c.json(info);
+});
 
 // 1. Public Catalogue for Registration Screen (Licences & Open Groups)
 authRoutes.get('/catalogue', async (c) => {
@@ -177,7 +186,7 @@ authRoutes.post('/request-otp', async (c) => {
   });
 });
 
-// 3. Student Self-Registration
+// 3. Student Self-Registration (E03 & E04: Requires active licence category & valid open group, atomic transaction)
 const registerSchema = z.object({
   fullName: z.string().trim().min(2, 'Le nom complet est requis'),
   phone: phoneSchema,
@@ -185,7 +194,7 @@ const registerSchema = z.object({
   password: z.string().min(6, 'Le mot de passe doit contenir au moins 6 caractères'),
   otpCode: z.string().trim().length(6, 'Le code de vérification à 6 chiffres est requis'),
   licenceCategoryId: z.string().uuid('Catégorie de permis invalide'),
-  groupId: z.string().uuid('Groupe invalide').nullable().optional(),
+  groupId: z.string().uuid('Groupe requis pour toute inscription'),
 });
 
 authRoutes.post('/register', async (c) => {
@@ -196,92 +205,124 @@ authRoutes.post('/register', async (c) => {
   }
 
   const { fullName, phone, email, password, otpCode, licenceCategoryId, groupId } = parsed.data;
-  const pool = getPool();
-
-  // Verify OTP code
   const otpHash = sha256Hex(otpCode);
-  const verifRes = await pool.query(
-    `SELECT id FROM public.verifications
-     WHERE identifier = $1 AND value = $2 AND used_at IS NULL AND expires_at > now()
-     ORDER BY created_at DESC LIMIT 1`,
-    [phone, otpHash]
-  );
-
-  if (verifRes.rowCount === 0) {
-    return c.json({ error: 'INVALID_OTP', message: 'Code de vérification invalide ou expiré.' }, 400);
-  }
-
-  // Check if phone already exists in students (walk-in or already registered)
-  const existingStu = await pool.query(`SELECT id, user_id FROM public.students WHERE phone = $1`, [phone]);
-  if (existingStu.rowCount! > 0) {
-    if (existingStu.rows[0].user_id === null) {
-      return c.json(
-        {
-          error: 'PHONE_EXISTS_USE_INVITE',
-          message:
-            "L'auto-école a déjà créé votre dossier pour ce numéro. Veuillez utiliser votre code d'invitation pour activer votre compte.",
-        },
-        409
-      );
-    }
-    return c.json({ error: 'PHONE_EXISTS', message: 'Ce numéro de téléphone possède déjà un compte.' }, 409);
-  }
-
   const passwordHash = await hashPassword(password);
 
+  const client = await connectWithRetry();
+  let userId = '';
+  let studentId = '';
+
   try {
-    const newUserRes = await pool.query(
+    await client.query('BEGIN');
+
+    // 1. Verify OTP code inside transaction (FOR UPDATE)
+    const verifRes = await client.query(
+      `SELECT id FROM public.verifications
+       WHERE identifier = $1 AND value = $2 AND used_at IS NULL AND expires_at > now()
+       ORDER BY created_at DESC LIMIT 1
+       FOR UPDATE`,
+      [phone, otpHash]
+    );
+
+    if (verifRes.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return c.json({ error: 'INVALID_OTP', message: 'Code de vérification invalide ou expiré.' }, 400);
+    }
+
+    // 2. Check if phone already exists in students (walk-in or already registered)
+    const existingStu = await client.query(
+      `SELECT id, user_id FROM public.students WHERE phone = $1`,
+      [phone]
+    );
+    if (existingStu.rowCount! > 0) {
+      await client.query('ROLLBACK');
+      if (existingStu.rows[0].user_id === null) {
+        return c.json(
+          {
+            error: 'PHONE_EXISTS_USE_INVITE',
+            message:
+              "L'auto-école a déjà créé votre dossier pour ce numéro. Veuillez utiliser votre code d'invitation pour activer votre compte.",
+          },
+          409
+        );
+      }
+      return c.json({ error: 'PHONE_EXISTS', message: 'Ce numéro de téléphone possède déjà un compte.' }, 409);
+    }
+
+    // 3. Create user, mark OTP used, set transaction user context, and invoke register_student atomically
+    const newUserRes = await client.query(
       `INSERT INTO public.users (name, email, phone, phone_verified, password_hash)
        VALUES ($1, $2, $3, true, $4)
        RETURNING id`,
       [fullName, email, phone, passwordHash]
     );
-    const userId = newUserRes.rows[0].id;
+    userId = newUserRes.rows[0].id;
 
-    await pool.query(`UPDATE public.verifications SET used_at = now() WHERE id = $1`, [
+    await client.query(`UPDATE public.verifications SET used_at = now() WHERE id = $1`, [
       verifRes.rows[0].id,
     ]);
 
-    const studentId = await withUserContext(userId, async (client) => {
-      const regRes = await client.query(
-        `SELECT public.register_student($1, $2, $3, $4, $5) AS student_id`,
-        [fullName, phone, email, licenceCategoryId, groupId ?? null]
-      );
-      return regRes.rows[0].student_id as string;
-    });
+    await client.query(`SELECT set_config('app.current_user_id', $1, true)`, [userId]);
 
-    const token = await createSessionForUser(
-      userId,
-      c.req.header('x-forwarded-for'),
-      c.req.header('user-agent')
+    const regRes = await client.query(
+      `SELECT public.register_student($1, $2, $3, $4, $5) AS student_id`,
+      [fullName, phone, email, licenceCategoryId, groupId]
     );
-    const state = await buildStudentAndLeaseState(userId, 'student');
+    studentId = regRes.rows[0].student_id as string;
 
-    return c.json(
-      {
-        token,
-        user: {
-          id: userId,
-          name: fullName,
-          email,
-          phone,
-          role: 'student',
-        },
-        studentId,
-        ...state,
-      },
-      201
-    );
+    await client.query('COMMIT');
   } catch (err: any) {
+    await client.query('ROLLBACK').catch(() => {});
     const msg = String(err?.message || '');
     if (msg.includes('PHONE_EXISTS') || msg.includes('users_phone_key')) {
       return c.json({ error: 'PHONE_EXISTS', message: 'Ce numéro de téléphone est déjà enregistré.' }, 409);
     }
+    if (msg.includes('INACTIVE_LICENCE_CATEGORY')) {
+      return c.json(
+        { error: 'INACTIVE_LICENCE_CATEGORY', message: 'Cette catégorie de permis est désactivée ou introuvable.' },
+        400
+      );
+    }
+    if (msg.includes('GROUP_REQUIRED')) {
+      return c.json(
+        { error: 'GROUP_REQUIRED', message: 'La sélection d’un groupe est obligatoire.' },
+        400
+      );
+    }
     if (msg.includes('INVALID_GROUP')) {
-      return c.json({ error: 'INVALID_GROUP', message: 'Ce groupe ne correspond pas au permis choisi ou est fermé.' }, 400);
+      return c.json(
+        { error: 'INVALID_GROUP', message: 'Ce groupe ne correspond pas au permis choisi ou est fermé.' },
+        400
+      );
     }
     return c.json({ error: 'REGISTRATION_FAILED', message: msg || "Erreur lors de l'inscription." }, 400);
+  } finally {
+    await client.query(`SELECT set_config('app.current_user_id', '', false)`).catch(() => {});
+    client.release();
   }
+
+  const token = await createSessionForUser(
+    userId,
+    c.req.header('x-forwarded-for'),
+    c.req.header('user-agent')
+  );
+  const state = await buildStudentAndLeaseState(userId, 'student');
+
+  return c.json(
+    {
+      token,
+      user: {
+        id: userId,
+        name: fullName,
+        email,
+        phone,
+        role: 'student',
+      },
+      studentId,
+      ...state,
+    },
+    201
+  );
 });
 
 // 4. Claim Walk-In Invite Code
