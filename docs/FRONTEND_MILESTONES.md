@@ -13,3 +13,7 @@ Validation: production build, strict TypeScript check and 8 frontend unit tests 
 ## 3. add account dashboard, expiry and payment history
 
 Validation: production build, strict TypeScript check and 8 frontend unit tests passed.
+
+## 4. add payment capture, dashboard and printable receipts
+
+Validation: production build, strict TypeScript check and 8 frontend unit tests passed.
