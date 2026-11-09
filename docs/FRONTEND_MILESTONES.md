@@ -25,3 +25,7 @@ Validation: production build, strict TypeScript check and 8 frontend unit tests 
 ## 6. add courses and server-graded timed quizzes
 
 Validation: production build, strict TypeScript check and 8 frontend unit tests passed.
+
+## 7. wire durable synchronization and installable PWA shell
+
+Validation: production build, strict TypeScript check and 8 frontend unit tests passed.
