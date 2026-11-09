@@ -1,10 +1,10 @@
-# Auto-école La Marseillaise — Revised V1 Scope
+# Auto-école La Marseillaise — Historical expanded scope (8 November 2026)
 
 **Approved scope revision:** 8 November 2026, Africa/Douala.
 **Owner decision:** Include Emmanuel's proposed automated Mobile Money payments and instructor-related features in V1.
 **Status:** Requirements approved; implementation and provider readiness are not implied.
 
-This document is the current V1 scope. It supersedes conflicting exclusions in the original DOCX, historical implementation plans and Emmanuel's earlier correction handoff. Historical audit findings remain valid evidence for their recorded versions and must be rechecked against current code.
+This document records the 8 November expanded scope. The owner's later 9 November multi-school launch instructions supersede its architecture and launch inclusions/exclusions. See [Current roadmap and release gates](handoffs/ROADMAP_AND_RELEASE_GATES.md) for the active scope. Keep the requirements below as historical/future-scope reference, not as proof those features are part of the current tenant launch. Historical audit findings must be rechecked against current code.
 
 ## 1. V1 objectives
 
