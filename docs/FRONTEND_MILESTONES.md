@@ -21,3 +21,7 @@ Validation: production build, strict TypeScript check and 8 frontend unit tests 
 ## 5. add student dossiers, invitations and group management
 
 Validation: production build, strict TypeScript check and 8 frontend unit tests passed.
+
+## 6. add courses and server-graded timed quizzes
+
+Validation: production build, strict TypeScript check and 8 frontend unit tests passed.
