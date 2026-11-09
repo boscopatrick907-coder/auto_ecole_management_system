@@ -39,3 +39,23 @@ export const database = new OfflineDatabase();
 export function accountScope(school: string, user: string): string {
   return `${school}:${user}`;
 }
+
+/** Counter and device identity survive account logout together; database eviction rotates both. */
+export async function nextOfflineReceipt(schoolId: string): Promise<string> {
+  return database.transaction("rw", database.snapshots, async () => {
+    const key = "receipt-device:" + schoolId;
+    const old = (await database.snapshots.get(key))?.data as
+      { device: string; seq: number } | undefined;
+    const device =
+      old?.device ||
+      crypto.randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase();
+    const seq = (old?.seq || 0) + 1;
+    await database.snapshots.put({
+      key,
+      scope: "device-receipts",
+      data: { device, seq },
+      updatedAt: Date.now(),
+    });
+    return `RC-${device}-${String(seq).padStart(6, "0")}`;
+  });
+}

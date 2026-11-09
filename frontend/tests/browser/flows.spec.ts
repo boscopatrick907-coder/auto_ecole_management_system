@@ -263,3 +263,24 @@ test("downloaded school shell and cached profile reopen offline", async ({
     page.getByText("Mode hors ligne — Synchronisation au retour du réseau."),
   ).toBeVisible();
 });
+
+test("offline admin payment stays provisional and visible in the queue", async ({
+  page,
+  context,
+}) => {
+  await fixtures(page, "admin");
+  await page.goto("/s/horizon/admin/paiement/student-a");
+  await expect(page.getByRole("heading", { name: "Alice Test" })).toBeVisible();
+  await context.setOffline(true);
+  await page.getByRole("button", { name: "Confirmer", exact: true }).click();
+  await expect(
+    page.getByText("Provisoire — paiement en attente de synchronisation"),
+  ).toBeVisible();
+  await expect(
+    page.getByText("1 modifications en attente", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText(/^RC-[A-F0-9]{12}-000001$/)).toBeVisible();
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Télécharger le PDF" }).click();
+  expect((await download).suggestedFilename()).toMatch(/^RC-.*\.pdf$/);
+});

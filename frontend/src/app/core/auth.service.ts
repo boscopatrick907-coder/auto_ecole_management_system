@@ -71,6 +71,7 @@ export class AuthService {
           { user: User | null; role: Role | null } | undefined;
         if (identity) {
           this.user.set(identity.user);
+          this.api.expectedUserId = identity.user?.id || "";
           this.role.set(identity.role);
           if (!(await this.offlineAllowed(false))) this.user.set(null);
         }

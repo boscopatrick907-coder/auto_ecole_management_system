@@ -2,7 +2,11 @@ import "@angular/compiler";
 import "fake-indexeddb/auto";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { formatMoney, installmentLabel } from "../src/app/shared/money.pipe";
-import { database, accountScope } from "../src/app/core/database";
+import {
+  database,
+  accountScope,
+  nextOfflineReceipt,
+} from "../src/app/core/database";
 import {
   OutboxService,
   retryDelay,
@@ -166,4 +170,25 @@ describe("signed offline access", () => {
     expect(await auth.offlineAllowed()).toBe(false);
     injector.destroy();
   });
+});
+
+it("offline receipt identity/counter survives logout and allocates unique concurrent numbers", async () => {
+  const first = await nextOfflineReceipt("school-a");
+  await database.snapshots.put({
+    key: "profile",
+    scope: "school-a:user-a",
+    data: {},
+    updatedAt: Date.now(),
+  });
+  await database.snapshots.where("scope").equals("school-a:user-a").delete();
+  const next = await nextOfflineReceipt("school-a");
+  expect(next.slice(0, -6)).toBe(first.slice(0, -6));
+  expect(next).toMatch(/000002$/);
+  const concurrent = await Promise.all(
+    Array.from({ length: 20 }, () => nextOfflineReceipt("school-a")),
+  );
+  expect(new Set(concurrent).size).toBe(20);
+  await database.snapshots.clear();
+  const recreated = await nextOfflineReceipt("school-a");
+  expect(recreated.slice(0, -6)).not.toBe(first.slice(0, -6));
 });

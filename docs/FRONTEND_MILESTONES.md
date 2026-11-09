@@ -33,3 +33,7 @@ Validation: production build, strict TypeScript check and 8 frontend unit tests 
 ## 8. add paginated finance reports and release operations
 
 Validation: production build, strict TypeScript check and 8 frontend unit tests passed.
+
+## Final regression correction
+
+Offline receipt device identity and sequence now survive logout together. Database eviction rotates both. Added concurrent allocation and provisional-payment/PDF browser regressions. Final validation: production build, strict TypeScript check, 9 frontend unit tests, 7 Chromium scenarios, 21 tenant/API/import tests, and the original 40 backend tests passed. Worker dry-run bundle and production-only dependency scans passed.

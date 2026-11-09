@@ -11,7 +11,7 @@ import { FR } from "../core/fr";
 import { MoneyPipe, formatMoney } from "../shared/money.pipe";
 import { IconComponent } from "../shared/ui";
 import type { Dossier, Payment } from "../core/models";
-import { database } from "../core/database";
+import { database, nextOfflineReceipt } from "../core/database";
 @Component({
   standalone: true,
   imports: [ReactiveFormsModule, MoneyPipe, IconComponent],
@@ -198,32 +198,9 @@ export class PaymentComponent implements OnInit {
       const paidAt = new Date().toISOString();
       let receiptNumber: string | undefined;
       if (!this.api.online()) {
-        let device = localStorage.getItem("school-device");
-        if (!device) {
-          device = crypto
-            .randomUUID()
-            .replace(/-/g, "")
-            .slice(0, 12)
-            .toUpperCase();
-          localStorage.setItem("school-device", device);
-        }
-        const key = this.auth.scope + ":receipt-seq";
-        const seq = await database.transaction(
-          "rw",
-          database.snapshots,
-          async () => {
-            const old = await database.snapshots.get(key);
-            const n = Number(old?.data || 0) + 1;
-            await database.snapshots.put({
-              key,
-              scope: this.auth.scope,
-              data: n,
-              updatedAt: Date.now(),
-            });
-            return n;
-          },
-        );
-        receiptNumber = `RC-${device}-${String(seq).padStart(6, "0")}`;
+        if (!(await this.auth.offlineAllowed(false)))
+          throw new Error(this.t.accessCheck);
+        receiptNumber = await nextOfflineReceipt(this.auth.school()!.id);
       }
       await this.outbox.enqueue(
         "payment",

@@ -35,9 +35,12 @@ import { BottomNavComponent, IconComponent } from "../shared/ui";
     @if (!api.online() || outbox.count()) {
       <aside class="offline-banner" role="status">
         <app-icon name="wifi_off" /><span>{{
-          !api.online() ? t.offline : outbox.count() + " " + t.pending
-        }}</span
-        ><button
+          !api.online() ? t.offline : t.online
+        }}</span>
+        @if (outbox.count()) {
+          <strong>{{ outbox.count() }} {{ t.pending }}</strong>
+        }
+        <button
           class="btn small ghost"
           [disabled]="!api.online() || outbox.syncing()"
           (click)="outbox.flush()"
