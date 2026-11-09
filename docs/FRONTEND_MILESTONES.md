@@ -17,3 +17,7 @@ Validation: production build, strict TypeScript check and 8 frontend unit tests 
 ## 4. add payment capture, dashboard and printable receipts
 
 Validation: production build, strict TypeScript check and 8 frontend unit tests passed.
+
+## 5. add student dossiers, invitations and group management
+
+Validation: production build, strict TypeScript check and 8 frontend unit tests passed.
