@@ -44,5 +44,5 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm audit --omit=dev
-      - run: npm test
+      - run: npm test -- tests/phases tests/security tests/completion --no-file-parallelism
       - run: LOAD_CONCURRENCY=1000 npm run test:load

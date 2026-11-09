@@ -1,0 +1,41 @@
+{
+  "date": "2026-11-09",
+  "baseCommit": "7400fa392f86d99ccf104ec3704492846c43e11a",
+  "angular": "22.2.5",
+  "frontendUnitTests": 8,
+  "browserScenarios": 6,
+  "browserUsesApiFixtures": true,
+  "tenantPostgresApiImportTests": 21,
+  "legacyBackendTests": 40,
+  "tenantLoad": {
+    "requests": 1000,
+    "concurrency": 20,
+    "failures": 0,
+    "duplicatePayments": 0
+  },
+  "productionBuild": true,
+  "strictTypecheck": true,
+  "workerDryRun": true,
+  "localBackupRestore": true,
+  "liveNeonCutover": false,
+  "liveR2Verified": false,
+  "liveTurnstileVerified": false,
+  "liveRecoveryEmailVerified": false,
+  "androidIosDeviceAcceptance": false,
+  "frontendProductionAudit": {
+    "info": 0,
+    "low": 0,
+    "moderate": 0,
+    "high": 0,
+    "critical": 0,
+    "total": 0
+  },
+  "backendProductionAudit": {
+    "info": 0,
+    "low": 0,
+    "moderate": 0,
+    "high": 0,
+    "critical": 0,
+    "total": 0
+  }
+}

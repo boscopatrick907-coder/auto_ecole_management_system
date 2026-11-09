@@ -5,3 +5,10 @@ dist/
 .dev.vars
 *.log
 coverage/
+
+# Cloudflare and browser generated output
+.dev.vars
+worker-dist/
+.wrangler/
+frontend/test-results/
+frontend/playwright-report/

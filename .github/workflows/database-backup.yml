@@ -1,0 +1,30 @@
+name: PostgreSQL backup to R2
+on:
+  schedule:
+    - cron: '30 1 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: database-backup
+  cancel-in-progress: false
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    environment: production-backups
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client matching production
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      - name: Back up to private R2 bucket
+        run: bash scripts/backup-to-r2.sh
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BACKUP_BUCKET: ${{ secrets.R2_BACKUP_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto

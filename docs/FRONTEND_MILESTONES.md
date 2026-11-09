@@ -29,3 +29,7 @@ Validation: production build, strict TypeScript check and 8 frontend unit tests 
 ## 7. wire durable synchronization and installable PWA shell
 
 Validation: production build, strict TypeScript check and 8 frontend unit tests passed.
+
+## 8. add paginated finance reports and release operations
+
+Validation: production build, strict TypeScript check and 8 frontend unit tests passed.

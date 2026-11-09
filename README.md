@@ -1,3 +1,5 @@
+> **Multi-school frontend / Worker implementation (9 November 2026):** see [setup and remaining prerequisites](docs/FRONTEND_SETUP.md), [migration plan](docs/MULTITENANT_MIGRATION.md) and [backup/restore](docs/BACKUP_RESTORE.md). The new Angular UI uses the new Better Auth/Hono tenant Worker; the older single-school setup below is retained for migration reference. No live cutover was performed.
+
 > **Backend checkpoint, 8 November 2026:** See [current backend status](docs/BACKEND_COMPLETION_20261108.md) and [API v1.3 contract](docs/API_CONTRACT.md). Live integrations and automated merchant collection remain explicit release blockers. Run `npm run build` before `npm start`; the backend now runs compiled JavaScript.
 
 # Auto-École La Marseillaise (AEM) — Plateforme PWA & Gestion Administrative
