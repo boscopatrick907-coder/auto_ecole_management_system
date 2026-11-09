@@ -9,3 +9,7 @@ Validation: production build, strict TypeScript check and 8 frontend unit tests 
 ## 2. port Stitch tokens and accessible shared controls
 
 Validation: production build, strict TypeScript check and 8 frontend unit tests passed.
+
+## 3. add account dashboard, expiry and payment history
+
+Validation: production build, strict TypeScript check and 8 frontend unit tests passed.
