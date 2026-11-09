@@ -1,0 +1,1 @@
+import {Injectable,signal} from '@angular/core';@Injectable({providedIn:'root'}) export class PwaService {updateAvailable=signal(false);installAvailable=signal(false);dismissed=signal(true);ios=false;install(){}dismiss(){}reload(){}}

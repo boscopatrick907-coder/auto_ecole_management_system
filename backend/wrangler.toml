@@ -1,0 +1,14 @@
+name = "driving-schools-api"
+main = "src/tenant/worker.ts"
+compatibility_date = "2026-11-01"
+compatibility_flags = ["nodejs_compat"]
+# Secrets: DATABASE_URL, AUTH_DATABASE_URL, BETTER_AUTH_SECRET, BETTER_AUTH_URL,
+# TRUSTED_ORIGINS, TURNSTILE_SECRET_KEY, OFFLINE_PRIVATE_KEY_PEM,
+# R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME.
+# Restricted application and identity logins only; never the migration owner.
+[[ratelimits]]
+name = "SIGNUP_LIMITER"
+namespace_id = "1001"
+simple = { limit = 10, period = 60 }
+[vars]
+ENVIRONMENT = "production"

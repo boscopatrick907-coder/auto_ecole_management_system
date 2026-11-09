@@ -1,11 +1,11 @@
 {
-  "name": "Auto-école La Marseillaise (AEM)",
-  "short_name": "AEM Permis",
-  "description": "Application officielle de révision (Cours, Quiz Hors Ligne) et suivi des paiements — Auto-école La Marseillaise (Partenaire IUSJ, Cameroun).",
+  "name": "Espace auto-école",
+  "short_name": "Auto-école",
+  "description": "Formation et suivi de votre auto-école.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#F4F7FB",
-  "theme_color": "#3D8BCD",
+  "background_color": "#f7f9ff",
+  "theme_color": "#1f4e8c",
   "orientation": "portrait-primary",
   "lang": "fr",
   "icons": [

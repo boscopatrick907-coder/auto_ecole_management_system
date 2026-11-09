@@ -27,33 +27,5 @@
       }
     }
   ],
-  "dataGroups": [
-    {
-      "name": "api-catalogue-and-content",
-      "urls": [
-        "/**/api/auth/catalogue",
-        "/**/api/student/resources",
-        "/**/api/student/quizzes"
-      ],
-      "cacheConfig": {
-        "strategy": "freshness",
-        "maxSize": 50,
-        "maxAge": "14d",
-        "timeout": "3s"
-      }
-    },
-    {
-      "name": "api-student-profile",
-      "urls": [
-        "/**/api/student/me",
-        "/**/api/auth/session"
-      ],
-      "cacheConfig": {
-        "strategy": "freshness",
-        "maxSize": 20,
-        "maxAge": "7d",
-        "timeout": "3s"
-      }
-    }
-  ]
+  "dataGroups": []
 }
