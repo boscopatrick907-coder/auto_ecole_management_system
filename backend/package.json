@@ -15,6 +15,7 @@
     "worker": "tsx src/scripts/worker.ts",
     "test:load": "tsx scripts/load-test.ts",
     "dev:tenant": "wrangler dev",
+    "dev:tenant:node": "tsx src/tenant/dev-server.ts",
     "build:worker": "wrangler deploy --dry-run --outdir worker-dist",
     "test:tenant": "vitest run tests/tenant",
     "db:migrate:tenant": "tsx src/tenant/migrate.ts",

@@ -11,7 +11,6 @@ concurrency:
 jobs:
   backup:
     runs-on: ubuntu-latest
-    environment: production-backups
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -24,8 +23,26 @@ jobs:
           sudo apt-get install -y postgresql-client-18
           pg_dump --version
       - name: Back up to private R2 bucket
-        run: bash scripts/backup-to-r2.sh
+        run: |
+          # If a single ENVIRONMENT secret with .env contents was provided, source it safely
+          if [ -n "${ENV_SECRET_BLOB:-}" ]; then
+            printf '%s\n' "$ENV_SECRET_BLOB" > /tmp/env.blob
+            set -a
+            # shellcheck disable=SC1091
+            source /tmp/env.blob 2>/dev/null || true
+            set +a
+            rm -f /tmp/env.blob
+          fi
+          # Export variables with fallback to .env aliases
+          export BACKUP_DATABASE_URL="${BACKUP_DATABASE_URL:-${DATABASE_URL:-}}"
+          export R2_ACCOUNT_ID="${R2_ACCOUNT_ID:-}"
+          export R2_BACKUP_BUCKET="${R2_BACKUP_BUCKET:-${R2_BUCKET_NAME:-}}"
+          export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-${R2_BACKUP_ACCESS_KEY_ID:-${R2_ACCESS_KEY_ID:-}}}"
+          export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-${R2_BACKUP_SECRET_ACCESS_KEY:-${R2_SECRET_ACCESS_KEY:-}}}"
+          export AWS_DEFAULT_REGION="auto"
+          bash scripts/backup-to-r2.sh
         env:
+          ENV_SECRET_BLOB: ${{ secrets.ENVIRONMENT }}
           BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BACKUP_BUCKET: ${{ secrets.R2_BACKUP_BUCKET }}
