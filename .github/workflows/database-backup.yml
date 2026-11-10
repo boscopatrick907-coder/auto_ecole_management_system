@@ -3,6 +3,10 @@ on:
   schedule:
     - cron: '30 1 * * *'
   workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/database-backup.yml'
+      - 'scripts/backup-to-r2.sh'
 permissions:
   contents: read
 concurrency:
