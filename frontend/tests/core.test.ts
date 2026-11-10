@@ -137,11 +137,18 @@ describe("signed offline access", () => {
     const auth = runInInjectionContext(injector, () => new AuthService());
     auth.school.set({ id: "a" } as never);
     auth.user.set({ id: "u" } as never);
+    auth.role.set("student");
     const { privateKey, publicKey } = await generateKeyPair("EdDSA");
     const jwk = await exportJWK(publicKey);
     const now = Date.now();
-    const save = async (schoolId: string, max: number, highWater = now) => {
+    const save = async (
+      schoolId: string,
+      max: number,
+      highWater = now,
+      signedRole: "admin" | "student" = "student",
+    ) => {
       const token = await new SignJWT({
+        role: signedRole,
         schoolId,
         hasAccess: true,
         hasPaid: true,
@@ -162,6 +169,8 @@ describe("signed offline access", () => {
     };
     await save("a", now + 60000);
     expect(await auth.offlineAllowed()).toBe(true);
+    await save("a", now + 60000, now, "admin");
+    expect(await auth.offlineAllowed()).toBe(false);
     await save("b", now + 60000);
     expect(await auth.offlineAllowed()).toBe(false);
     await save("a", now - 60000);
@@ -191,4 +200,111 @@ it("offline receipt identity/counter survives logout and allocates unique concur
   await database.snapshots.clear();
   const recreated = await nextOfflineReceipt("school-a");
   expect(recreated.slice(0, -6)).not.toBe(first.slice(0, -6));
+});
+describe("payment recovery", () => {
+  const setup = () => {
+    const auth = {
+      scope: accountScope("school-a", "user-a"),
+    };
+
+    const api = {
+      online: signal(true),
+      tenant: vi.fn().mockResolvedValue({
+        payment: {
+          id: "confirmed-payment",
+          enrollment_id: "enrollment-1",
+          amount: 50000,
+          receipt_number: "RC-001",
+        },
+      }),
+    };
+
+    const injector = createEnvironmentInjector(
+      [
+        { provide: ApiService, useValue: api },
+        { provide: AuthService, useValue: auth },
+      ],
+      null as never,
+    );
+
+    const outbox = runInInjectionContext(injector, () => new OutboxService());
+
+    return { auth, api, outbox, injector };
+  };
+
+  it("recovers a pending payment after page reload", async () => {
+    const { outbox, injector } = setup();
+
+    const body = {
+      enrollmentId: "enrollment-1",
+      amount: 50000,
+      method: "cash",
+      paidAt: new Date().toISOString(),
+    };
+
+    await outbox.rememberPayment("enrollment-1", "payment-1", body);
+    await outbox.enqueue("payment", body, "payment-1");
+
+    const recovered = await outbox.recoverPayment("enrollment-1");
+
+    expect(recovered?.id).toBe("payment-1");
+    expect(recovered?.queued?.id).toBe("payment-1");
+    expect(recovered?.payment).toBeNull();
+
+    injector.destroy();
+  });
+
+  it("recovers a confirmed payment after synchronization", async () => {
+    const { outbox, injector } = setup();
+
+    const body = {
+      enrollmentId: "enrollment-1",
+      amount: 50000,
+      method: "cash",
+    };
+
+    await outbox.rememberPayment("enrollment-1", "payment-2", body);
+    await outbox.enqueue("payment", body, "payment-2");
+    await outbox.flush();
+
+    const recovered = await outbox.recoverPayment("enrollment-1");
+
+    expect(recovered?.id).toBe("payment-2");
+    expect(recovered?.queued).toBeNull();
+    expect(recovered?.payment?.id).toBe("confirmed-payment");
+
+    injector.destroy();
+  });
+
+  it("does not expose another account's payment", async () => {
+    const { auth, outbox, injector } = setup();
+
+    await outbox.rememberPayment("enrollment-1", "private-payment", {
+      enrollmentId: "enrollment-1",
+    });
+
+    auth.scope = accountScope("school-a", "user-b");
+
+    const recovered = await outbox.recoverPayment("enrollment-1");
+
+    expect(recovered).toBeNull();
+
+    injector.destroy();
+  });
+
+  it("does not mistake a missing operation for a failed payment", async () => {
+    const { outbox, injector } = setup();
+
+    await outbox.rememberPayment("enrollment-1", "uncertain-payment", {
+      enrollmentId: "enrollment-1",
+    });
+
+    const recovered = await outbox.recoverPayment("enrollment-1");
+
+    expect(recovered?.id).toBe("uncertain-payment");
+    expect(recovered?.queued).toBeNull();
+    expect(recovered?.payment).toBeNull();
+
+    injector.destroy();
+  });
 });
