@@ -351,6 +351,8 @@ end $$;
 
 grant usage on schema school_app, identity, public to aem_backup_reader;
 grant select on all tables in schema school_app, identity, public to aem_backup_reader;
+grant usage, select on all sequences in schema school_app, identity, public to aem_backup_reader;
+alter default privileges in schema school_app, identity, public grant usage, select on sequences to aem_backup_reader;
 
 do $$ declare t text; begin
   foreach t in array array['schools','school_members','platform_admins','licence_categories','groups','installments','students','enrollments','invites','receipt_counters','payments','audit_log','resources','quizzes','questions','quiz_attempts','legacy_deferred_archive','platform_audit'] loop
