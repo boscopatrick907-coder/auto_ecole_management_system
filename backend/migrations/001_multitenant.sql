@@ -337,3 +337,24 @@ end $$;
 
 revoke all on function school_app.actor_display_name(text),school_app.admin_save_category(uuid,text,text,boolean),school_app.admin_save_resource(uuid,uuid,text,text,text,text,text,boolean),school_app.admin_save_quiz(uuid,uuid,text,integer,boolean),school_app.admin_save_question(uuid,uuid,text,jsonb,integer,text,text,integer),school_app.admin_list_questions(uuid) from public;
 grant execute on function school_app.actor_display_name(text),school_app.admin_save_category(uuid,text,text,boolean),school_app.admin_save_resource(uuid,uuid,text,text,text,text,text,boolean),school_app.admin_save_quiz(uuid,uuid,text,integer,boolean),school_app.admin_save_question(uuid,uuid,text,jsonb,integer,text,text,integer),school_app.admin_list_questions(uuid) to aem_tenant_runtime;
+
+-- P1: Dedicated read-only backup policies for aem_backup_reader
+do $$ begin
+  if not exists (select 1 from pg_roles where rolname = 'aem_backup_reader') then
+    create role aem_backup_reader login nobypassrls nocreatedb nocreaterole;
+  end if;
+  alter role aem_backup_reader login nobypassrls nocreatedb nocreaterole;
+  if (select rolsuper from pg_roles where rolname = current_user) then
+    alter role aem_backup_reader nosuperuser;
+  end if;
+end $$;
+
+grant usage on schema school_app, identity to aem_backup_reader;
+grant select on all tables in schema school_app, identity to aem_backup_reader;
+
+do $$ declare t text; begin
+  foreach t in array array['schools','school_members','platform_admins','licence_categories','groups','installments','students','enrollments','invites','receipt_counters','payments','audit_log','resources','quizzes','questions','quiz_attempts','legacy_deferred_archive','platform_audit'] loop
+    execute format('drop policy if exists backup_read on school_app.%I', t);
+    execute format('create policy backup_read on school_app.%I for select to aem_backup_reader using(true)', t);
+  end loop;
+end $$;
