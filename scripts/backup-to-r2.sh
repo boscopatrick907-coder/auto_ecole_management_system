@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Normalize Neon pooler to direct endpoint for pg_dump snapshot compatibility
+BACKUP_DATABASE_URL="${BACKUP_DATABASE_URL//-pooler./.}"
+
 # Validate mandatory secrets with clear operational error messaging
 for var in BACKUP_DATABASE_URL R2_ACCOUNT_ID R2_BACKUP_BUCKET AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
   if [ -z "${!var:-}" ]; then
-    printf 'Error: %s is not set. Configure it in GitHub repository secrets under environment "production-backups".\n' "$var" >&2
+    printf 'Error: %s is not set. Configure it in GitHub repository secrets.\n' "$var" >&2
     exit 1
   fi
 done
