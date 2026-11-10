@@ -21,8 +21,8 @@ endpoint_url="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 
 printf 'Starting pg_dump for %s at %s...\n' "$R2_BACKUP_BUCKET" "$backup_stamp"
 
-# Perform compressed custom-format pg_dump using restricted non-owner backup role
-pg_dump --dbname="$BACKUP_DATABASE_URL" --format=custom --no-owner --no-acl --file="$backup_file"
+# Perform compressed custom-format pg_dump using restricted non-owner backup role with RLS enabled
+pg_dump --dbname="$BACKUP_DATABASE_URL" --schema=school_app --schema=identity --enable-row-security --format=custom --no-owner --no-acl --file="$backup_file"
 
 # Verify table of contents and compute SHA-256 checksum
 pg_restore --list "$backup_file" > "$backup_dir/contents.txt"
