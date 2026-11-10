@@ -21,8 +21,32 @@ endpoint_url="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 
 printf 'Starting pg_dump for %s at %s...\n' "$R2_BACKUP_BUCKET" "$backup_stamp"
 
-# Perform compressed custom-format pg_dump using restricted non-owner backup role with RLS enabled
-pg_dump --dbname="$BACKUP_DATABASE_URL" --schema=school_app --schema=identity --enable-row-security --format=custom --no-owner --no-acl --file="$backup_file"
+# Warm up Neon compute endpoint before running pg_dump
+printf 'Warming up database compute endpoint...\n'
+for i in 1 2 3 4 5; do
+  if psql "$BACKUP_DATABASE_URL" -c "SELECT 1" >/dev/null 2>&1; then
+    printf 'Database compute is warm and ready.\n'
+    break
+  fi
+  sleep 2
+done
+
+# Perform compressed custom-format pg_dump with retries for serverless compute transitions
+dump_success=0
+for attempt in 1 2 3; do
+  printf 'Executing pg_dump (attempt %d/3)...\n' "$attempt"
+  if pg_dump --dbname="$BACKUP_DATABASE_URL" --schema=school_app --schema=identity --enable-row-security --format=custom --no-owner --no-acl --file="$backup_file"; then
+    dump_success=1
+    break
+  fi
+  printf 'pg_dump attempt %d failed, waiting 3s for compute stabilization...\n' "$attempt"
+  sleep 3
+done
+
+if [ "$dump_success" -ne 1 ]; then
+  printf 'Error: pg_dump failed after 3 attempts.\n' >&2
+  exit 1
+fi
 
 # Verify table of contents and compute SHA-256 checksum
 pg_restore --list "$backup_file" > "$backup_dir/contents.txt"
