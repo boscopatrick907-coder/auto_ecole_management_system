@@ -20,11 +20,14 @@ import {
   signal,
 } from "@angular/core";
 import { SignJWT, exportJWK, generateKeyPair } from "jose";
+
 const storage = new Map<string, string>();
+
 Object.defineProperty(globalThis, "navigator", {
   value: { onLine: true },
   configurable: true,
 });
+
 Object.assign(globalThis, {
   window: new EventTarget(),
   localStorage: {
@@ -38,32 +41,40 @@ Object.assign(globalThis, {
     }
   },
 });
+
 beforeEach(async () => {
   vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
   await database.snapshots.clear();
   await database.outbox.clear();
   await database.files.clear();
 });
+
 afterEach(() => vi.useRealTimers());
+
 describe("French finance display", () => {
   it("uses narrow non-breaking spaces and whole FCFA", () => {
     expect(formatMoney(50000)).toBe("50\u202f000 FCFA");
     expect(formatMoney(0)).toBe("0 FCFA");
     expect(formatMoney("150000")).toBe("150\u202f000 FCFA");
   });
+
   it("maps all server installment states without recomputing amounts", () => {
     for (const status of ["paid", "partial", "overdue", "upcoming"])
       expect(installmentLabel(status)).toBe(status);
+
     expect(installmentLabel("unknown")).toBe("upcoming");
   });
 });
+
 describe("durable scoped outbox", () => {
   const setup = () => {
     const auth = { scope: accountScope("school-a", "user-a") };
+
     const api = {
       online: signal(true),
       tenant: vi.fn().mockResolvedValue({ payment: { id: "confirmed" } }),
     };
+
     const injector = createEnvironmentInjector(
       [
         { provide: ApiService, useValue: api },
@@ -71,55 +82,87 @@ describe("durable scoped outbox", () => {
       ],
       null as never,
     );
+
     const outbox = runInInjectionContext(injector, () => new OutboxService());
+
     return { auth, api, outbox, injector };
   };
+
   it("keeps idempotency keys, stores confirmation and deletes only successful actions", async () => {
     const { outbox, api, injector } = setup();
+
     await outbox.enqueue("payment", { amount: 50000 }, "stable-id");
     await outbox.flush();
+
     expect(api.tenant).toHaveBeenCalledWith("admin/payments", "POST", {
       amount: 50000,
       clientId: "stable-id",
     });
+
     expect(await database.outbox.count()).toBe(0);
+
     expect(
       await database.snapshots.get("school-a:user-a:result:stable-id"),
     ).toBeDefined();
+
     injector.destroy();
   });
+
   it("cannot flush another school or account queue", async () => {
     const { outbox, api, auth, injector } = setup();
+
     await outbox.enqueue("quiz", { quizId: "q" }, "other");
+
     auth.scope = accountScope("school-b", "user-a");
+
     await outbox.flush();
+
     expect(api.tenant).not.toHaveBeenCalled();
     expect(await database.outbox.count()).toBe(1);
+
     injector.destroy();
   });
+
   it("retains rejected payments for intervention and backs off transient failures", async () => {
     const { outbox, api, injector } = setup();
+
     await outbox.enqueue("payment", { amount: 50000 }, "conflict");
+
     api.tenant.mockRejectedValueOnce(new RequestError(409, "GROUP_FULL"));
+
     await outbox.flush();
+
     expect((await database.outbox.get("conflict"))?.state).toBe("blocked");
+
     await outbox.enqueue("quiz", { quizId: "q" }, "transient");
+
     api.tenant.mockRejectedValueOnce(new RequestError(503, "UNAVAILABLE"));
+
     await outbox.flush();
+
     const row = await database.outbox.get("transient");
+
     expect(row?.state).toBe("pending");
     expect(row?.nextAt).toBeGreaterThan(Date.now());
     expect(await database.outbox.count()).toBe(2);
+
     injector.destroy();
   });
+
   it("does not delete actions on authentication expiry", async () => {
     const { outbox, api, injector } = setup();
+
     await outbox.enqueue("payment", { amount: 1 }, "auth");
+
     api.tenant.mockRejectedValue(new RequestError(401, "AUTH_REQUIRED"));
+
     await outbox.flush();
+
     expect(await database.outbox.get("auth")).toBeDefined();
+
     injector.destroy();
   });
+
   it("bounds retry delays and treats rate limits as retryable", () => {
     expect(retryDelay(1)).toBe(2000);
     expect(retryDelay(50)).toBeLessThanOrEqual(3600000);
@@ -127,21 +170,34 @@ describe("durable scoped outbox", () => {
     expect(shouldBlock(400)).toBe(true);
   });
 });
+
 describe("signed offline access", () => {
   it("rejects a paid-user lease after its offline limit, wrong school and clock rollback", async () => {
     const api = { online: signal(false) };
+
     const injector = createEnvironmentInjector(
       [{ provide: ApiService, useValue: api }],
       null as never,
     );
+
     const auth = runInInjectionContext(injector, () => new AuthService());
+
     auth.school.set({ id: "a" } as never);
     auth.user.set({ id: "u" } as never);
+    auth.role.set("student");
+
     const { privateKey, publicKey } = await generateKeyPair("EdDSA");
     const jwk = await exportJWK(publicKey);
     const now = Date.now();
-    const save = async (schoolId: string, max: number, highWater = now) => {
+
+    const save = async (
+      schoolId: string,
+      max: number,
+      highWater = now,
+      signedRole: "admin" | "student" = "student",
+    ) => {
       const token = await new SignJWT({
+        role: signedRole,
         schoolId,
         hasAccess: true,
         hasPaid: true,
@@ -153,6 +209,7 @@ describe("signed offline access", () => {
         .setAudience("school-pwa")
         .setExpirationTime(Math.floor(max / 1000))
         .sign(privateKey);
+
       await database.snapshots.put({
         key: "a:u:lease",
         scope: "a:u",
@@ -160,35 +217,262 @@ describe("signed offline access", () => {
         updatedAt: now,
       });
     };
+
     await save("a", now + 60000);
     expect(await auth.offlineAllowed()).toBe(true);
+
+    await save("a", now + 60000, now, "admin");
+    expect(await auth.offlineAllowed()).toBe(false);
+
     await save("b", now + 60000);
     expect(await auth.offlineAllowed()).toBe(false);
+
     await save("a", now - 60000);
     expect(await auth.offlineAllowed()).toBe(false);
+
     await save("a", now + 60000, now + 600000);
     expect(await auth.offlineAllowed()).toBe(false);
+
     injector.destroy();
   });
 });
 
 it("offline receipt identity/counter survives logout and allocates unique concurrent numbers", async () => {
   const first = await nextOfflineReceipt("school-a");
+
   await database.snapshots.put({
     key: "profile",
     scope: "school-a:user-a",
     data: {},
     updatedAt: Date.now(),
   });
+
   await database.snapshots.where("scope").equals("school-a:user-a").delete();
+
   const next = await nextOfflineReceipt("school-a");
+
   expect(next.slice(0, -6)).toBe(first.slice(0, -6));
   expect(next).toMatch(/000002$/);
+
   const concurrent = await Promise.all(
     Array.from({ length: 20 }, () => nextOfflineReceipt("school-a")),
   );
+
   expect(new Set(concurrent).size).toBe(20);
+
   await database.snapshots.clear();
+
   const recreated = await nextOfflineReceipt("school-a");
+
   expect(recreated.slice(0, -6)).not.toBe(first.slice(0, -6));
+});
+
+describe("payment recovery", () => {
+  const setup = () => {
+    const auth = {
+      scope: accountScope("school-a", "user-a"),
+    };
+
+    const api = {
+      online: signal(true),
+      tenant: vi.fn().mockResolvedValue({
+        payment: {
+          id: "confirmed-payment",
+          enrollment_id: "enrollment-1",
+          amount: 50000,
+          receipt_number: "RC-001",
+        },
+      }),
+    };
+
+    const injector = createEnvironmentInjector(
+      [
+        { provide: ApiService, useValue: api },
+        { provide: AuthService, useValue: auth },
+      ],
+      null as never,
+    );
+
+    const outbox = runInInjectionContext(injector, () => new OutboxService());
+
+    return { auth, api, outbox, injector };
+  };
+
+  it("atomically queues a payment and saves its recovery reference", async () => {
+    const { outbox, injector } = setup();
+
+    const body = {
+      enrollmentId: "enrollment-1",
+      amount: 50000,
+      method: "cash",
+      paidAt: new Date().toISOString(),
+    };
+
+    await outbox.enqueuePayment("enrollment-1", body, "atomic-payment");
+
+    const queued = await database.outbox.get("atomic-payment");
+
+    const reference = await database.snapshots.get(
+      "school-a:user-a:payment-operation:enrollment-1",
+    );
+
+    expect(queued).toBeDefined();
+    expect(queued?.kind).toBe("payment");
+    expect(queued?.body["clientId"]).toBe("atomic-payment");
+
+    expect(reference).toBeDefined();
+    expect((reference?.data as { id: string }).id).toBe("atomic-payment");
+
+    injector.destroy();
+  });
+
+  it("prevents a second active payment for the same enrollment", async () => {
+    const { outbox, injector } = setup();
+
+    const body = {
+      enrollmentId: "enrollment-1",
+      amount: 50000,
+      method: "cash",
+    };
+
+    await outbox.enqueuePayment("enrollment-1", body, "payment-first");
+
+    await expect(
+      outbox.enqueuePayment("enrollment-1", body, "payment-second"),
+    ).rejects.toThrow("PAYMENT_OPERATION_IN_PROGRESS");
+
+    expect(await database.outbox.count()).toBe(1);
+    expect(await database.outbox.get("payment-first")).toBeDefined();
+    expect(await database.outbox.get("payment-second")).toBeUndefined();
+
+    injector.destroy();
+  });
+
+  it("does not create duplicate entries when the same payment is retried", async () => {
+    const { outbox, injector } = setup();
+
+    const body = {
+      enrollmentId: "enrollment-1",
+      amount: 50000,
+      method: "cash",
+    };
+
+    await outbox.enqueuePayment("enrollment-1", body, "payment-retry");
+    await outbox.enqueuePayment("enrollment-1", body, "payment-retry");
+
+    expect(await database.outbox.count()).toBe(1);
+
+    const recovered = await outbox.recoverPayment("enrollment-1");
+
+    expect(recovered?.id).toBe("payment-retry");
+    expect(recovered?.queued?.id).toBe("payment-retry");
+
+    injector.destroy();
+  });
+
+  it("rejects reuse of a payment ID with a different payload", async () => {
+    const { outbox, injector } = setup();
+
+    await outbox.enqueuePayment(
+      "enrollment-1",
+      {
+        enrollmentId: "enrollment-1",
+        amount: 50000,
+        method: "cash",
+      },
+      "payment-conflict",
+    );
+
+    await expect(
+      outbox.enqueuePayment(
+        "enrollment-1",
+        {
+          enrollmentId: "enrollment-1",
+          amount: 100000,
+          method: "bank",
+        },
+        "payment-conflict",
+      ),
+    ).rejects.toThrow("OUTBOX_OPERATION_CONFLICT");
+
+    expect(await database.outbox.count()).toBe(1);
+
+    injector.destroy();
+  });
+
+  it("recovers a pending payment after page reload", async () => {
+    const { outbox, injector } = setup();
+
+    const body = {
+      enrollmentId: "enrollment-1",
+      amount: 50000,
+      method: "cash",
+      paidAt: new Date().toISOString(),
+    };
+
+    await outbox.rememberPayment("enrollment-1", "payment-1", body);
+    await outbox.enqueue("payment", body, "payment-1");
+
+    const recovered = await outbox.recoverPayment("enrollment-1");
+
+    expect(recovered?.id).toBe("payment-1");
+    expect(recovered?.queued?.id).toBe("payment-1");
+    expect(recovered?.payment).toBeNull();
+
+    injector.destroy();
+  });
+
+  it("recovers a confirmed payment after synchronization", async () => {
+    const { outbox, injector } = setup();
+
+    const body = {
+      enrollmentId: "enrollment-1",
+      amount: 50000,
+      method: "cash",
+    };
+
+    await outbox.rememberPayment("enrollment-1", "payment-2", body);
+    await outbox.enqueue("payment", body, "payment-2");
+    await outbox.flush();
+
+    const recovered = await outbox.recoverPayment("enrollment-1");
+
+    expect(recovered?.id).toBe("payment-2");
+    expect(recovered?.queued).toBeNull();
+    expect(recovered?.payment?.id).toBe("confirmed-payment");
+
+    injector.destroy();
+  });
+
+  it("does not expose another account's payment", async () => {
+    const { auth, outbox, injector } = setup();
+
+    await outbox.rememberPayment("enrollment-1", "private-payment", {
+      enrollmentId: "enrollment-1",
+    });
+
+    auth.scope = accountScope("school-a", "user-b");
+
+    const recovered = await outbox.recoverPayment("enrollment-1");
+
+    expect(recovered).toBeNull();
+
+    injector.destroy();
+  });
+
+  it("does not mistake a missing operation for a failed payment", async () => {
+    const { outbox, injector } = setup();
+
+    await outbox.rememberPayment("enrollment-1", "uncertain-payment", {
+      enrollmentId: "enrollment-1",
+    });
+
+    const recovered = await outbox.recoverPayment("enrollment-1");
+
+    expect(recovered?.id).toBe("uncertain-payment");
+    expect(recovered?.queued).toBeNull();
+    expect(recovered?.payment).toBeNull();
+
+    injector.destroy();
+  });
 });
