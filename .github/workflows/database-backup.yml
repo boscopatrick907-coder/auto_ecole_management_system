@@ -1,4 +1,5 @@
 name: PostgreSQL backup to R2
+# Trigger automated backup verification with configured repository secrets
 on:
   schedule:
     - cron: '30 1 * * *'
