@@ -10,6 +10,7 @@ on:
       - 'scripts/backup-to-r2.sh'
 permissions:
   contents: read
+  issues: write
 concurrency:
   group: database-backup
   cancel-in-progress: false
@@ -81,8 +82,12 @@ jobs:
             cat /tmp/backup.out
             echo "\`\`\`"
           } >> "$GITHUB_STEP_SUMMARY"
+          if [ $status -ne 0 ]; then
+            gh issue create --title "Automated Backup Diagnostic Log" --body-file /tmp/backup.out --repo "$GITHUB_REPOSITORY" 2>/dev/null || true
+          fi
           exit $status
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ENV_SECRET_BLOB: ${{ secrets.ENVIRONMENT }}
           ENV_SECRET_BLOB_01: ${{ secrets.ENVIRONMENT01 }}
           BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL || secrets.DATABASE_URL }}
