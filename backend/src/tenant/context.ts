@@ -30,9 +30,16 @@ export function poolFor(env: TenantBindings, identity = false): pg.Pool {
     connectionTimeoutMillis: 10000,
     idleTimeoutMillis: 1000,
     statement_timeout: 10000,
-    options: identity
-      ? "-c search_path=identity,pg_catalog"
-      : "-c timezone=Africa/Douala",
+    ...((identity
+      ? env.AUTH_DB?.connectionString || env.AUTH_DATABASE_URL
+      : env.APP_DB?.connectionString || env.DATABASE_URL
+    ).includes("-pooler.")
+      ? {}
+      : {
+          options: identity
+            ? "-c search_path=identity,pg_catalog"
+            : "-c timezone=Africa/Douala",
+        }),
   });
 }
 export async function tenantTransaction<T>(

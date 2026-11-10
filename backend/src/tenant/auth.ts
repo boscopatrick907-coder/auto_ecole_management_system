@@ -28,6 +28,8 @@ export function createAuth(env: TenantBindings, pool: pg.Pool) {
     trustedOrigins: env.TRUSTED_ORIGINS.split(",").map((x) => x.trim()),
     emailAndPassword: {
       enabled: true,
+      revokeSessionsOnPasswordReset: true,
+      resetPasswordTokenExpiresIn: 3600,
       sendResetPassword: async ({ user, url }) => {
         if (!env.AUTH_EMAIL_WEBHOOK || !env.AUTH_EMAIL_TOKEN)
           throw new Error("EMAIL_DELIVERY_UNAVAILABLE");
@@ -66,7 +68,12 @@ export function createAuth(env: TenantBindings, pool: pg.Pool) {
         },
       },
     },
-    advanced: { useSecureCookies: env.ENVIRONMENT !== "development" },
+    advanced: {
+      useSecureCookies: env.ENVIRONMENT !== "development",
+      ipAddress: {
+        ipAddressHeaders: ["cf-connecting-ip", "x-forwarded-for"],
+      },
+    },
     rateLimit: { enabled: true, storage: "database" },
     session: { expiresIn: 60 * 60 * 24 * 7, updateAge: 60 * 60 * 24 },
   });

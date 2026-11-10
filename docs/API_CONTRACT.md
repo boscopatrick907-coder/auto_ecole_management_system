@@ -1,3 +1,7 @@
+> [!IMPORTANT]
+> **Multi-School Tenant API Contract (`2026-11-10.v1`):** The active launch architecture (`Angular 22 → Hono Cloudflare Worker → Neon + Better Auth + Private R2` at `backend/src/tenant/worker.ts`) is documented in [**`docs/TENANT_API_CONTRACT.md`**](./TENANT_API_CONTRACT.md).  
+> The sections below remain as the historical v1.3 reference for the single-school legacy server (`backend/src/server.ts`).
+
 # Auto-école La Marseillaise — Frozen Backend API Contract (v1.3.0)
 
 **Status:** Updated 8 November 2026; backend acceptance report: `docs/BACKEND_COMPLETION_20261108.md`. Frozen for Stitch *Clarté Routière* Angular 19 PWA Integration (`E10`)

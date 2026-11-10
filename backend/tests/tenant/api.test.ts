@@ -162,7 +162,7 @@ it("refuses signup without Turnstile", async () => {
   );
   expect(r.status).toBe(403);
 });
-it("creates a hashed walk-in invitation and idempotent payment", async () => {
+it("creates a hashed walk-in invitation, handles idempotent and offline RC-device-sequence payments, and returns explicit 409 conflicts", async () => {
   const r = await request("admin/students", "POST", {
     fullName: "Walk-in Student",
     phone: "+237699000099",
@@ -178,6 +178,16 @@ it("creates a hashed walk-in invitation and idempotent payment", async () => {
     )
   ).rows[0].code_hash;
   expect(hash).not.toBe(d.inviteCode);
+
+  // Duplicate phone registration returns 409 PHONE_ALREADY_REGISTERED instead of 500
+  const dupPhone = await request("admin/students", "POST", {
+    fullName: "Duplicate Phone",
+    phone: "+237699000099",
+    groupId: group,
+  });
+  expect(dupPhone.status).toBe(409);
+  expect((await dupPhone.json()).error).toBe("PHONE_ALREADY_REGISTERED");
+
   const body = {
     enrollmentId: d.enrollment.id,
     amount: 50000,
@@ -188,13 +198,52 @@ it("creates a hashed walk-in invitation and idempotent payment", async () => {
   const first = await request("admin/payments", "POST", body);
   expect(first.status).toBe(201);
   const p = await first.json();
+  expect(p.payment.balance_at_issuance).toBe("50000");
+  expect(p.payment.current_balance).toBe("50000");
+  expect(p.payment.receipt_status).toBe("confirmed");
   expect(
     (await (await request("admin/payments", "POST", body)).json()).payment.id,
   ).toBe(p.payment.id);
   expect(
     (await request("admin/payments", "POST", { ...body, amount: 40000 }))
       .status,
-  ).toBe(400);
+  ).toBe(409);
+
+  // Reject custom receipt numbers that mimic server year numbering (e.g. RC-2026-000002)
+  const fakeYearReceipt = await request("admin/payments", "POST", {
+    enrollmentId: d.enrollment.id,
+    amount: 10000,
+    method: "cash",
+    clientId: randomUUID(),
+    paidAt: new Date().toISOString(),
+    receiptNumber: "RC-2026-000002",
+  });
+  expect(fakeYearReceipt.status).toBe(400);
+  expect((await fakeYearReceipt.json()).error).toBe("INVALID_RECEIPT_NUMBER");
+
+  // Accept valid offline RC-device-sequence receipt without advancing server year counter
+  const offlineBody = {
+    enrollmentId: d.enrollment.id,
+    amount: 10000,
+    method: "cash",
+    clientId: randomUUID(),
+    paidAt: new Date().toISOString(),
+    receiptNumber: "RC-DEV9A8B7C6D5-000001",
+  };
+  const offlineRes = await request("admin/payments", "POST", offlineBody);
+  expect(offlineRes.status).toBe(201);
+  const offlinePayment = (await offlineRes.json()).payment;
+  expect(offlinePayment.receipt_number).toBe("RC-DEV9A8B7C6D5-000001");
+  expect(offlinePayment.is_offline_provisional_number).toBe(true);
+  expect(offlinePayment.balance_at_issuance).toBe("40000");
+
+  // Colliding receiptNumber from a different clientId returns 409 RECEIPT_NUMBER_CONFLICT
+  const receiptConflict = await request("admin/payments", "POST", {
+    ...offlineBody,
+    clientId: randomUUID(),
+  });
+  expect(receiptConflict.status).toBe(409);
+  expect((await receiptConflict.json()).error).toBe("RECEIPT_NUMBER_CONFLICT");
 });
 it("does not authorize the same identity in another school", async () => {
   const r = await app.request(

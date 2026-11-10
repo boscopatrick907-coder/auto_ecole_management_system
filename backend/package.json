@@ -19,7 +19,10 @@
     "test:tenant": "vitest run tests/tenant",
     "db:migrate:tenant": "tsx src/tenant/migrate.ts",
     "tenant:bootstrap": "tsx src/tenant/bootstrap.ts",
-    "tenant:import-legacy": "tsx src/tenant/import-legacy.ts"
+    "tenant:import-legacy": "tsx src/tenant/import-legacy.ts",
+    "tenant:verify": "tsx src/tenant/verify-staging.ts",
+    "tenant:rehearse": "tsx src/tenant/rehearse-migration.ts",
+    "tenant:verify:e04-e05": "tsx src/tenant/verify-e04-e05.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.700.0",

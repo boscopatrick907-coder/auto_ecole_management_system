@@ -292,6 +292,72 @@ describe("school isolation and finance invariants", () => {
       ),
     ).rejects.toThrow();
   });
+  it("E03: preserves learning access for a valid payment on a cancelled enrollment or overdue installment until the last valid payment is cancelled", async () => {
+    const resId = randomUUID();
+    await owner.query(
+      "insert into school_app.resources(id,school_id,licence_category_id,title,type,external_url,is_published) values($1,$2,$3,'Code PDF','pdf','https://example.com/code.pdf',true)",
+      [resId, a, catA],
+    );
+    await owner.query(
+      "update school_app.students set trial_ends_at=now()-interval '5 days' where id=$1",
+      [sa],
+    );
+    await owner.query(
+      "update school_app.installments set due_date=current_date-10 where school_id=$1 and group_id=$2",
+      [a, groupA],
+    );
+    const pay = await tx(a, "admin-a", async (c) =>
+      (
+        await c.query(
+          "select * from school_app.record_payment($1,10000,'cash',null,$2)",
+          [ea, randomUUID()],
+        )
+      ).rows[0],
+    );
+    await owner.query(
+      "update school_app.enrollments set status='cancelled' where id=$1",
+      [ea],
+    );
+    await tx(a, "student-a", async (c) => {
+      const state = (
+        await c.query(
+          "select school_app.student_has_paid($1) as has_paid,school_app.student_has_access($1) as has_access,school_app.can_learn($2) as can_learn",
+          [sa, catA],
+        )
+      ).rows[0];
+      expect(state.has_paid).toBe(true);
+      expect(state.has_access).toBe(true);
+      expect(state.can_learn).toBe(true);
+      expect(
+        (await c.query("select id from school_app.resources where id=$1", [resId]))
+          .rowCount,
+      ).toBe(1);
+    });
+    await tx(a, "admin-a", (c) =>
+      c.query("select school_app.cancel_payment($1,'Remboursement intégral')", [
+        pay.id,
+      ]),
+    );
+    await tx(a, "student-a", async (c) => {
+      const state = (
+        await c.query(
+          "select school_app.student_has_paid($1) as has_paid,school_app.student_has_access($1) as has_access,school_app.can_learn($2) as can_learn",
+          [sa, catA],
+        )
+      ).rows[0];
+      expect(state.has_paid).toBe(false);
+      expect(state.has_access).toBe(false);
+      expect(state.can_learn).toBe(false);
+      expect(
+        (await c.query("select id from school_app.resources where id=$1", [resId]))
+          .rowCount,
+      ).toBe(0);
+    });
+    await owner.query(
+      "update school_app.enrollments set status='active' where id=$1",
+      [ea],
+    );
+  });
 });
 it("platform school changes require explicit operator membership and persist immutable audit", async () => {
   await expect(
