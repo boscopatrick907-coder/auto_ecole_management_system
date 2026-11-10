@@ -57,16 +57,31 @@ jobs:
           export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-${R2_BACKUP_SECRET_ACCESS_KEY:-${R2_SECRET_ACCESS_KEY:-}}}"
           export AWS_DEFAULT_REGION="auto"
 
-          printf 'Checking configured backup variables:\n'
-          for v in BACKUP_DATABASE_URL R2_ACCOUNT_ID R2_BACKUP_BUCKET AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
-            if [ -n "${!v:-}" ]; then
-              printf '  ✓ %s is configured\n' "$v"
-            else
-              printf '  ✗ %s is missing\n' "$v"
-            fi
-          done
+          {
+            echo "### Backup Execution Diagnostic"
+            echo "#### Variables Check"
+            echo "| Variable | Status |"
+            echo "| :--- | :--- |"
+            for v in BACKUP_DATABASE_URL R2_ACCOUNT_ID R2_BACKUP_BUCKET AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
+              if [ -n "${!v:-}" ]; then
+                echo "| \`$v\` | ✅ Configured |"
+              else
+                echo "| \`$v\` | ❌ Missing |"
+              fi
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
 
-          bash scripts/backup-to-r2.sh
+          # Run backup script and pipe output to summary and console
+          set +e
+          bash scripts/backup-to-r2.sh 2>&1 | tee /tmp/backup.out
+          status=${PIPESTATUS[0]}
+          {
+            echo "#### Backup Script Output"
+            echo "\`\`\`"
+            cat /tmp/backup.out
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $status
         env:
           ENV_SECRET_BLOB: ${{ secrets.ENVIRONMENT }}
           ENV_SECRET_BLOB_01: ${{ secrets.ENVIRONMENT01 }}
