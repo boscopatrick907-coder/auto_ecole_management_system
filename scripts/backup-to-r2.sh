@@ -49,3 +49,5 @@ if [ -n "$cutoff_stamp" ]; then
 fi
 
 printf 'Backup successfully uploaded, verified, and lifecycle enforced: %s\n' "$backup_stamp"
+
+# Trigger verification run
