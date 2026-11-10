@@ -44,7 +44,7 @@ export class DataService {
 
         return data;
       } catch (e) {
-        // Never expose cached protected data after an authorization
+        // Never use cached data after an authorization
         // or other client error from the server.
         if (e instanceof RequestError && e.status >= 400 && e.status < 500) {
           throw e;
@@ -53,6 +53,12 @@ export class DataService {
         // Only use cached data after a network/server failure.
         if (!cached) throw e;
 
+        // Cached protected data requires a valid offline lease.
+        if (!(await this.auth.offlineAllowed())) {
+          throw new Error("ACCESS_EXPIRED");
+        }
+
+        // Ensure the authenticated account has not changed.
         if (this.auth.scope !== scope) return null;
 
         onCached?.(cached.data as T);

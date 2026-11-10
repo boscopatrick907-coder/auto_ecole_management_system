@@ -25,12 +25,14 @@ export class OutboxService {
   }
 
   async refresh() {
-    const items = this.auth.scope
-      ? await database.outbox.where("scope").equals(this.auth.scope).toArray()
+    const scope = this.auth.scope;
+
+    const items = scope
+      ? await database.outbox.where("scope").equals(scope).toArray()
       : [];
 
     this.count.set(items.length);
-    this.blocked.set(items.filter((x) => x.state === "blocked").length);
+    this.blocked.set(items.filter((item) => item.state === "blocked").length);
   }
 
   async enqueue(
@@ -39,12 +41,20 @@ export class OutboxService {
     id: string = crypto.randomUUID(),
   ) {
     const scope = this.auth.scope;
-    if (!scope) throw new Error("AUTH_REQUIRED");
+
+    if (!scope) {
+      throw new Error("AUTH_REQUIRED");
+    }
 
     const existing = await database.outbox.get(id);
 
     if (existing) {
-      if (existing.scope !== scope || existing.kind !== kind) {
+      if (
+        existing.scope !== scope ||
+        existing.kind !== kind ||
+        JSON.stringify(existing.body) !==
+          JSON.stringify({ ...body, clientId: id })
+      ) {
         throw new Error("OUTBOX_OPERATION_CONFLICT");
       }
 
@@ -52,7 +62,11 @@ export class OutboxService {
       return id;
     }
 
-    await database.outbox.put({
+    if (this.auth.scope !== scope) {
+      throw new Error("AUTH_CHANGED");
+    }
+
+    await database.outbox.add({
       id,
       scope,
       kind,
@@ -67,9 +81,109 @@ export class OutboxService {
     return id;
   }
 
+  async enqueuePayment(
+    enrollmentId: string,
+    body: Record<string, unknown>,
+    id: string = crypto.randomUUID(),
+  ) {
+    const scope = this.auth.scope;
+
+    if (!scope) {
+      throw new Error("AUTH_REQUIRED");
+    }
+
+    const referenceKey = `${scope}:payment-operation:${enrollmentId}`;
+    const resultKey = `${scope}:result:${id}`;
+    const paymentBody = { ...body, clientId: id };
+
+    await database.transaction(
+      "rw",
+      database.snapshots,
+      database.outbox,
+      async () => {
+        if (this.auth.scope !== scope) {
+          throw new Error("AUTH_CHANGED");
+        }
+
+        const referenceRow = await database.snapshots.get(referenceKey);
+
+        if (referenceRow && referenceRow.scope !== scope) {
+          throw new Error("PAYMENT_SCOPE_CONFLICT");
+        }
+
+        const reference = referenceRow?.data as
+          | { id?: string; enrollmentId?: string }
+          | undefined;
+
+        if (reference?.id && reference.id !== id) {
+          throw new Error("PAYMENT_OPERATION_IN_PROGRESS");
+        }
+
+        const existing = await database.outbox.get(id);
+
+        if (
+          existing &&
+          (existing.scope !== scope ||
+            existing.kind !== "payment" ||
+            existing.body["enrollmentId"] !== enrollmentId ||
+            JSON.stringify(existing.body) !== JSON.stringify(paymentBody))
+        ) {
+          throw new Error("OUTBOX_OPERATION_CONFLICT");
+        }
+
+        const result = await database.snapshots.get(resultKey);
+
+        if (result && result.scope !== scope) {
+          throw new Error("PAYMENT_SCOPE_CONFLICT");
+        }
+
+        if (result) {
+          if (reference?.id === id) {
+            return;
+          }
+
+          throw new Error("PAYMENT_ALREADY_PROCESSED");
+        }
+
+        if (!existing) {
+          await database.outbox.add({
+            id,
+            scope,
+            kind: "payment",
+            body: paymentBody,
+            createdAt: Date.now(),
+            attempts: 0,
+            nextAt: 0,
+            state: "pending",
+          });
+        }
+
+        if (!referenceRow) {
+          await database.snapshots.add({
+            key: referenceKey,
+            scope,
+            data: {
+              id,
+              enrollmentId,
+              body: paymentBody,
+              createdAt: Date.now(),
+            },
+            updatedAt: Date.now(),
+          });
+        }
+      },
+    );
+
+    await this.refresh();
+    return id;
+  }
+
   async pendingPayment(enrollmentId: string): Promise<QueueAction | null> {
     const scope = this.auth.scope;
-    if (!scope) return null;
+
+    if (!scope) {
+      return null;
+    }
 
     const items = await database.outbox.where("scope").equals(scope).toArray();
 
@@ -86,11 +200,16 @@ export class OutboxService {
 
   async savedResult<T>(id: string): Promise<T | null> {
     const scope = this.auth.scope;
-    if (!scope) return null;
 
-    const row = await database.snapshots.get(scope + ":result:" + id);
+    if (!scope) {
+      return null;
+    }
 
-    if (row?.scope !== scope) return null;
+    const row = await database.snapshots.get(`${scope}:result:${id}`);
+
+    if (row?.scope !== scope) {
+      return null;
+    }
 
     return (row.data as T | undefined) ?? null;
   }
@@ -101,10 +220,13 @@ export class OutboxService {
     body: Record<string, unknown>,
   ) {
     const scope = this.auth.scope;
-    if (!scope) throw new Error("AUTH_REQUIRED");
+
+    if (!scope) {
+      throw new Error("AUTH_REQUIRED");
+    }
 
     await database.snapshots.put({
-      key: scope + ":payment-operation:" + enrollmentId,
+      key: `${scope}:payment-operation:${enrollmentId}`,
       scope,
       data: {
         id,
@@ -118,23 +240,32 @@ export class OutboxService {
 
   async recoverPayment(enrollmentId: string) {
     const scope = this.auth.scope;
-    if (!scope) return null;
 
-    const key = scope + ":payment-operation:" + enrollmentId;
+    if (!scope) {
+      return null;
+    }
+
+    const key = `${scope}:payment-operation:${enrollmentId}`;
     let row = await database.snapshots.get(key);
 
-    if (row && row.scope !== scope) return null;
+    if (row && row.scope !== scope) {
+      return null;
+    }
 
     if (!row) {
       const queued = await this.pendingPayment(enrollmentId);
 
-      if (!queued) return null;
+      if (!queued) {
+        return null;
+      }
 
       await this.rememberPayment(enrollmentId, queued.id, queued.body);
       row = await database.snapshots.get(key);
     }
 
-    if (!row) return null;
+    if (!row || row.scope !== scope) {
+      return null;
+    }
 
     const reference = row.data as {
       id: string;
@@ -143,6 +274,7 @@ export class OutboxService {
     };
 
     const queuedItem = await database.outbox.get(reference.id);
+
     const queued =
       queuedItem?.scope === scope && queuedItem.kind === "payment"
         ? queuedItem
@@ -160,26 +292,38 @@ export class OutboxService {
     };
   }
 
-  // Remove the active reference only for the specified operation.
-  // This does not delete the saved server result or queued operation.
   async clearPaymentReference(enrollmentId: string, id: string) {
     const scope = this.auth.scope;
-    if (!scope) throw new Error("AUTH_REQUIRED");
 
-    const key = scope + ":payment-operation:" + enrollmentId;
-    const row = await database.snapshots.get(key);
-
-    if (!row || row.scope !== scope) return;
-
-    const reference = row.data as { id?: string };
-
-    if (reference.id === id) {
-      await database.snapshots.delete(key);
+    if (!scope) {
+      throw new Error("AUTH_REQUIRED");
     }
+
+    const key = `${scope}:payment-operation:${enrollmentId}`;
+
+    await database.transaction("rw", database.snapshots, async () => {
+      if (this.auth.scope !== scope) {
+        throw new Error("AUTH_CHANGED");
+      }
+
+      const row = await database.snapshots.get(key);
+
+      if (!row || row.scope !== scope) {
+        return;
+      }
+
+      const reference = row.data as { id?: string };
+
+      if (reference.id === id) {
+        await database.snapshots.delete(key);
+      }
+    });
   }
 
   async flush() {
-    if (this.syncing() || !this.api.online() || !this.auth.scope) return;
+    if (this.syncing() || !this.api.online() || !this.auth.scope) {
+      return;
+    }
 
     this.syncing.set(true);
     const scope = this.auth.scope;
@@ -191,8 +335,13 @@ export class OutboxService {
         .toArray();
 
       for (const item of items) {
-        if (this.auth.scope !== scope || !this.api.online()) break;
-        if (item.state === "blocked" || item.nextAt > Date.now()) continue;
+        if (this.auth.scope !== scope || !this.api.online()) {
+          break;
+        }
+
+        if (item.state === "blocked" || item.nextAt > Date.now()) {
+          continue;
+        }
 
         try {
           const result = await this.api.tenant(
@@ -201,15 +350,21 @@ export class OutboxService {
             item.body,
           );
 
-          if (this.auth.scope !== scope) break;
+          if (this.auth.scope !== scope) {
+            break;
+          }
 
           await database.transaction(
             "rw",
             database.snapshots,
             database.outbox,
             async () => {
+              if (this.auth.scope !== scope) {
+                throw new Error("AUTH_CHANGED");
+              }
+
               await database.snapshots.put({
-                key: scope + ":result:" + item.id,
+                key: `${scope}:result:${item.id}`,
                 scope,
                 data: result,
                 updatedAt: Date.now(),
@@ -220,16 +375,22 @@ export class OutboxService {
           );
 
           window.dispatchEvent(new CustomEvent("school:sync"));
-        } catch (e) {
-          const status = e instanceof RequestError ? e.status : 0;
+        } catch (error) {
+          if (this.auth.scope !== scope) {
+            break;
+          }
 
-          if (status === 401) break;
+          const status = error instanceof RequestError ? error.status : 0;
+
+          if (status === 401 || status === 403) {
+            break;
+          }
 
           await database.outbox.update(item.id, {
             attempts: item.attempts + 1,
             nextAt: Date.now() + retryDelay(item.attempts + 1),
             state: shouldBlock(status) ? "blocked" : "pending",
-            error: e instanceof Error ? e.message : "NETWORK",
+            error: error instanceof Error ? error.message : "NETWORK",
           });
         }
       }
@@ -238,10 +399,12 @@ export class OutboxService {
     try {
       if (navigator.locks) {
         await navigator.locks.request(
-          "school-outbox:" + scope,
+          `school-outbox:${scope}`,
           { ifAvailable: true },
           async (lock) => {
-            if (lock) await run();
+            if (lock) {
+              await run();
+            }
           },
         );
       } else {
@@ -255,7 +418,10 @@ export class OutboxService {
 
   async retryBlocked() {
     const scope = this.auth.scope;
-    if (!scope) return;
+
+    if (!scope) {
+      return;
+    }
 
     await database.outbox
       .where("scope")

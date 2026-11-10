@@ -332,13 +332,17 @@ export class PaymentComponent implements OnInit, OnDestroy {
       return;
     }
 
+    const scope = this.auth.scope;
+
+    if (!scope) {
+      this.error.set("AUTH_REQUIRED");
+      return;
+    }
+
     this.busy.set(true);
     this.error.set("");
 
     try {
-      const scope = this.auth.scope;
-      if (!scope) throw new Error("AUTH_REQUIRED");
-
       const id = crypto.randomUUID();
       const paidAt = new Date().toISOString();
 
@@ -347,6 +351,10 @@ export class PaymentComponent implements OnInit, OnDestroy {
       if (!this.api.online()) {
         if (!(await this.auth.offlineAllowed(false))) {
           throw new Error(this.t.accessCheck);
+        }
+
+        if (this.auth.scope !== scope) {
+          throw new Error("AUTH_CHANGED");
         }
 
         receiptNumber = await nextOfflineReceipt(this.auth.school()!.id);
@@ -361,13 +369,15 @@ export class PaymentComponent implements OnInit, OnDestroy {
         ...(receiptNumber ? { receiptNumber } : {}),
       };
 
-      await this.outbox.rememberPayment(d.enrollment.id, id, body);
-
       if (this.auth.scope !== scope) {
         throw new Error("AUTH_CHANGED");
       }
 
-      await this.outbox.enqueue("payment", body, id);
+      await this.outbox.enqueuePayment(d.enrollment.id, body, id);
+
+      if (this.auth.scope !== scope) {
+        throw new Error("AUTH_CHANGED");
+      }
 
       this.payment.set({
         id,
@@ -388,7 +398,7 @@ export class PaymentComponent implements OnInit, OnDestroy {
 
       await this.restorePayment();
     } catch {
-      if (this.auth.scope) {
+      if (this.auth.scope === scope) {
         await this.restorePayment();
       }
 
@@ -414,7 +424,6 @@ export class PaymentComponent implements OnInit, OnDestroy {
     this.error.set("");
 
     try {
-      // Verify that the server result really exists.
       const recovered = await this.outbox.recoverPayment(enrollment.id);
 
       if (this.auth.scope !== scope) return;
@@ -430,7 +439,6 @@ export class PaymentComponent implements OnInit, OnDestroy {
         return;
       }
 
-      // Only clear the reference to this confirmed operation.
       await this.outbox.clearPaymentReference(enrollment.id, p.id);
 
       if (this.auth.scope !== scope) return;
