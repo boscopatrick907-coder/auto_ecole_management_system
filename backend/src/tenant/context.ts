@@ -28,7 +28,7 @@ export function poolFor(env: TenantBindings, identity = false): pg.Pool {
       : env.APP_DB?.connectionString || env.DATABASE_URL,
     max: 2,
     connectionTimeoutMillis: 10000,
-    idleTimeoutMillis: 1000,
+    idleTimeoutMillis: 5000,
     statement_timeout: 10000,
     ...((identity
       ? env.AUTH_DB?.connectionString || env.AUTH_DATABASE_URL

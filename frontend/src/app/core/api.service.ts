@@ -35,7 +35,7 @@ export class ApiService {
     headers: Record<string, string> = {},
   ): Promise<T> {
     const abort = new AbortController();
-    const timer = setTimeout(() => abort.abort(), 15000);
+    const timer = setTimeout(() => abort.abort(), 30000);
     try {
       const r = await fetch(this.base + path, {
         method,

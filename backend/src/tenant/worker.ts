@@ -226,9 +226,12 @@ app.all("/api/schools/:slug/*", async (c) => {
   const pool = poolFor(c.env);
   const authPool = poolFor(c.env, true);
   try {
-    const session = await createAuth(c.env, authPool).api.getSession({
-      headers: c.req.raw.headers,
-    });
+    const hasSessionCookie = Boolean(c.req.header("cookie"));
+    const session = hasSessionCookie
+      ? await createAuth(c.env, authPool).api.getSession({
+          headers: c.req.raw.headers,
+        })
+      : null;
     const userId = session?.user.id || null;
     if (
       c.req.header("X-Expected-User") &&
@@ -1155,6 +1158,7 @@ const statusByCode: Record<string, number> = {
 };
 
 app.onError((e, c) => {
+  console.error("Worker error:", e);
   if (e instanceof z.ZodError) {
     const customIssue = e.issues.find(
       (i) => i.message && i.message in statusByCode,
