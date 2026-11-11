@@ -85,9 +85,11 @@ async function run() {
     });
     const studentCookies = studentLoginRes.headers.getSetCookie();
     const cookieHeader = studentCookies.map((c) => c.split(";")[0]).join("; ");
+    const studentBody = await studentLoginRes.text();
     console.log("4. Student Sign-In:", {
       status: studentLoginRes.status,
       cookiesReceived: studentCookies.length,
+      body: studentBody,
     });
     if (studentLoginRes.status !== 200 || studentCookies.length === 0) {
       throw new Error("Student authentication failed");
@@ -120,12 +122,20 @@ async function run() {
         Origin: "http://localhost:4200",
       },
       body: JSON.stringify({
-        email: "direction@lamarseillaise.cm",
+        email: "admin@lamarseillaise.cm",
         password: "Admin@Marseillaise2026!",
       }),
     });
     const adminCookies = adminLoginRes.headers.getSetCookie();
     const adminCookieHeader = adminCookies.map((c) => c.split(";")[0]).join("; ");
+    console.log("6. Admin Sign-In:", {
+      status: adminLoginRes.status,
+      cookiesReceived: adminCookies.length,
+    });
+    if (adminLoginRes.status !== 200 || adminCookies.length === 0) {
+      throw new Error("Admin authentication failed");
+    }
+
     const dashRes = await fetch(`http://localhost:${port}/api/schools/la-marseillaise/admin/dashboard`, {
       headers: {
         Origin: "http://localhost:4200",
@@ -133,7 +143,7 @@ async function run() {
       },
     });
     const dashData = (await dashRes.json()) as { stats: Record<string, unknown> };
-    console.log("6. Admin Dashboard:", {
+    console.log("7. Admin Dashboard:", {
       status: dashRes.status,
       stats: dashData.stats,
     });
@@ -147,7 +157,11 @@ async function run() {
   }
 }
 
-run().catch((err) => {
-  console.error("❌ Frontend connection test failed:", err);
-  process.exit(1);
-});
+run()
+  .then(() => {
+    process.exit(0);
+  })
+  .catch((err) => {
+    console.error("❌ Frontend connection test failed:", err);
+    process.exit(1);
+  });
