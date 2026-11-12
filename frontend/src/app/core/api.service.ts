@@ -40,7 +40,7 @@ export class ApiService {
       const r = await fetch(this.base + path, {
         method,
         credentials: "include",
-        headers: { "Content-Type": "application/json", ...headers },
+        headers: { ...(body !== undefined ? { "Content-Type": "application/json" } : {}), ...headers },
         body: body === undefined ? undefined : JSON.stringify(body),
         signal: abort.signal,
       });

@@ -81,6 +81,9 @@ app.get("/api/config", (c) =>
 );
 
 app.all("/api/auth/*", async (c) => {
+  if (c.req.path.endsWith("/get-session") && !c.req.header("cookie")) {
+    return c.json(null);
+  }
   const pool = poolFor(c.env, true);
   try {
     if (c.req.path.endsWith("/sign-up/email")) {
