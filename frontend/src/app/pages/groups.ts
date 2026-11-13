@@ -22,12 +22,15 @@ import type { Group, Category } from "../core/models";
   ],
   template: `<div class="page-heading">
       <h1>{{ t.groups }}</h1>
-      <button class="btn" (click)="creating.set(!creating())">
+      <button class="btn" [disabled]="loading()" (click)="creating.set(!creating())">
         <app-icon name="add" />{{ t.newGroup }}
       </button>
     </div>
     @if (error()) {
       <p role="alert" class="error-box">{{ t.conflict }}</p>
+    }
+    @if (loading()) {
+      <p role="status">{{ groups().length ? t.refreshing : t.loading }}</p>
     }
     @if (creating()) {
       <section class="card">
@@ -112,14 +115,14 @@ import type { Group, Category } from "../core/models";
           <p>{{ g.confirmed_seats }} / {{ g.capacity }} · {{ t.capacity }}</p>
           <button
             class="btn secondary full"
-            [disabled]="!api.online()"
+            [disabled]="!api.online() || loading()"
             (click)="toggle(g)"
           >
             {{ g.status === "open" ? t.close : t.open }}
           </button>
         </article>
       } @empty {
-        <app-empty />
+        @if (!loading() && !error()) { <app-empty /> }
       }
     </div>`,
 })
@@ -133,6 +136,8 @@ export class GroupsComponent implements OnInit {
   creating = signal(false);
   busy = signal(false);
   error = signal(false);
+  loading = signal(true);
+  private loadVersion = 0;
   form = this.fb.nonNullable.group({
     name: ["", [Validators.required, Validators.minLength(2)]],
     category: ["", Validators.required],
@@ -162,16 +167,24 @@ export class GroupsComponent implements OnInit {
     void this.load();
   }
   async load() {
+    const version = ++this.loadVersion;
+    this.loading.set(true);
     try {
       const [r, catalogue] = await Promise.all([
-        this.store.read("groups", () => this.api.groups()),
+        this.store.read("groups", () => this.api.groups(), (cached) => {
+          if (version === this.loadVersion) this.groups.set(cached?.groups || []);
+        }),
         this.api.catalogue(),
       ]);
+      if (version !== this.loadVersion) return;
       this.groups.set(r?.groups || []);
       this.categories.set(catalogue.categories);
       this.error.set(false);
     } catch {
+      if (version !== this.loadVersion) return;
       this.error.set(true);
+    } finally {
+      if (version === this.loadVersion) this.loading.set(false);
     }
   }
   async create() {
