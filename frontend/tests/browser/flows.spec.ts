@@ -195,6 +195,25 @@ test("student dashboard follows design and has no merchant checkout", async ({
     page.getByRole("button", { name: /MoMo|Orange Money/ }),
   ).toHaveCount(0);
 });
+test("dashboard stays usable while an offline lease is pending or fails", async ({ page }) => {
+  await fixtures(page, "admin");
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => { release = resolve; });
+  await page.context().route("**/api/**/lease", async (route) => {
+    await pending;
+    await route.fulfill({ status: 503, contentType: "application/json", body: '{"error":"REQUEST_FAILED"}' });
+  });
+  try {
+    await page.goto("/s/horizon/admin");
+    await expect(page.getByRole("heading", { name: "Tableau de bord" })).toBeVisible();
+    await expect(page.locator(".primary-kpi strong")).toHaveText("50\u202f000 FCFA");
+    release();
+    await expect(page.getByText("L’accès hors ligne n’a pas pu être actualisé. Restez connecté et réessayez.")).toBeVisible();
+    await expect(page.locator(".primary-kpi strong")).toHaveText("50\u202f000 FCFA");
+    await expect(page.getByRole("heading", { name: "École introuvable ou indisponible." })).toHaveCount(0);
+  } finally { release(); }
+});
+
 test("student cannot navigate into admin", async ({ page }) => {
   await fixtures(page);
   await page.goto("/s/horizon/admin");
