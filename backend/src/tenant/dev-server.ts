@@ -36,7 +36,17 @@ const port = Number(process.env.PORT || 8788);
 
 export const server = serve(
   {
-    fetch: (req) => app.fetch(req, bindings),
+    fetch: async (req) => {
+      const started = performance.now();
+      const response = await app.fetch(req, bindings);
+      const elapsed = Math.round(performance.now() - started);
+      response.headers.set("Server-Timing", `app;dur=${elapsed}`);
+      if (elapsed >= 1000) {
+        // Include no query parameters, cookies, credentials or response bodies.
+        console.log(`[slow API] ${req.method} ${new URL(req.url).pathname} ${response.status} ${elapsed}ms`);
+      }
+      return response;
+    },
     port,
   },
   (info) => {
