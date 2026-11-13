@@ -9,6 +9,7 @@
     "start": "node dist/server.js",
     "db:migrate": "tsx src/scripts/migrate.ts",
     "test:neon": "tsx src/scripts/check-neon.ts",
+    "db:latency": "tsx src/tenant/check-latency.ts",
     "test:phases": "vitest run tests/phases",
     "test:security": "vitest run tests/security",
     "test": "vitest run",

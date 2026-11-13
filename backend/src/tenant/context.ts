@@ -53,6 +53,14 @@ export async function closeRequestPools(env: TenantBindings) {
   if (pools) await Promise.all([...pools.values()].map((pool) => pool.end()));
 }
 
+/** Batch trusted, parameter-free SQL only. User input must use a separate parameterized query. */
+export async function queryBatch(client: pg.PoolClient, statements: readonly string[]): Promise<pg.QueryResult[]> {
+  const result = await client.query(statements.join(";\n"));
+  const results = Array.isArray(result) ? result : [result];
+  if (results.length !== statements.length) throw new Error("INVALID_QUERY_BATCH");
+  return results;
+}
+
 export function poolFor(env: TenantBindings, identity = false): pg.Pool {
   return new pg.Pool({
     connectionString: identity
@@ -83,19 +91,18 @@ export async function tenantTransaction<T>(
   const c = await pool.connect();
   let dirty = false;
   try {
-    await c.query("BEGIN");
-    const role = await c.query(
+    const [, role] = await queryBatch(c, [
+      "BEGIN",
       `SELECT r.rolsuper,r.rolbypassrls,EXISTS(SELECT 1 FROM pg_class t JOIN pg_namespace n ON n.oid=t.relnamespace WHERE n.nspname='school_app' AND pg_has_role(r.oid,t.relowner,'MEMBER')) AS owns_tables FROM pg_roles r WHERE r.rolname=current_user`,
-    );
+    ]);
     if (
       role.rows[0]?.rolsuper ||
       role.rows[0]?.rolbypassrls ||
       role.rows[0]?.owns_tables
     )
       throw new Error("UNSAFE_DATABASE_ROLE");
-    await c.query("SET LOCAL ROLE aem_tenant_runtime");
     await c.query(
-      "SELECT set_config('app.user_id',$1,true),set_config('app.school_id',$2,true)",
+      "SELECT set_config('role','aem_tenant_runtime',true),set_config('app.user_id',$1,true),set_config('app.school_id',$2,true)",
       [userId || "", schoolId],
     );
     const result = await run(c);

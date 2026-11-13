@@ -1,4 +1,4 @@
-import { beforeAll, afterAll, it, expect } from "vitest";
+import { beforeAll, afterAll, it, expect, vi } from "vitest";
 import pg from "pg";
 import fs from "node:fs/promises";
 import { randomUUID, generateKeyPairSync } from "node:crypto";
@@ -118,6 +118,39 @@ it("public catalogue contains only the selected school", async () => {
   const b = await r.json();
   expect(b.school.id).toBe(school);
   expect(b.groups).toHaveLength(1);
+});
+it("loads a public catalogue in at most six database round trips", async () => {
+  const queries = vi.spyOn(pg.Client.prototype, "query");
+  try {
+    const r = await request("catalogue", "GET", undefined, "");
+    expect(r.status).toBe(200);
+    const data = await r.json();
+    expect(data.school.id).toBe(school);
+    expect(data.school).not.toHaveProperty("request_role");
+    expect(data.categories[0].id).toBe(cat);
+    expect(data.groups[0].installments).toEqual([]);
+    expect(queries.mock.calls.length).toBeLessThanOrEqual(6);
+  } finally { queries.mockRestore(); }
+});
+it("creates ordered installments in one bulk insert and returns matching catalogue/groups data", async () => {
+  const installments = [
+    { label: "One", amount: 20000, dueDate: "2027-01-01" },
+    { label: "Two", amount: 30000, dueDate: "2027-02-01" },
+    { label: "Three", amount: 50000, dueDate: "2027-03-01" },
+  ];
+  const r = await request("admin/groups", "POST", {
+    name: "Bulk installments", licenceCategoryId: cat, startDate: "2027-01-01",
+    scheduleText: "Morning", capacity: 15, totalFee: 100000, installments,
+  });
+  expect(r.status).toBe(201);
+  const created = (await r.json()).group;
+  expect(created.installments.map((x: { position: number }) => x.position)).toEqual([1, 2, 3]);
+  expect(created.installments.map((x: { amount: string }) => Number(x.amount))).toEqual([20000, 30000, 50000]);
+  const groups = (await (await request("admin/groups")).json()).groups;
+  expect(groups.find((x: { id: string }) => x.id === created.id).installments).toEqual(created.installments);
+  const dashboard = await request("admin/dashboard");
+  expect(dashboard.status).toBe(200);
+  expect((await dashboard.json()).recentPayments).toBeInstanceOf(Array);
 });
 it("authenticates a real Better Auth cookie and membership", async () => {
   const r = await request("session");
