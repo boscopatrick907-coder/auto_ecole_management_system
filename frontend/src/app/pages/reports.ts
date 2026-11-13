@@ -102,17 +102,22 @@ export class ReportsComponent implements OnInit {
   ngOnInit() {
     void this.load();
   }
+  private loadVersion = 0;
   async load() {
+    const version = ++this.loadVersion;
+    const date = this.date;
     try {
-      const r = await this.store.read("report:" + this.date, () =>
-        this.api.payments(this.date),
+      const r = await this.store.read("report:" + date, () =>
+        this.api.payments(date),
       );
+      if (version !== this.loadVersion) return;
       this.payments.set(r?.payments || []);
       this.count.set(r?.count || 0);
       this.collected.set(r?.collected || 0);
       this.hasMore.set(r?.hasMore || false);
       this.error.set(false);
     } catch {
+      if (version !== this.loadVersion) return;
       this.error.set(true);
     }
   }
@@ -120,11 +125,16 @@ export class ReportsComponent implements OnInit {
     return this.collected();
   }
   async more() {
+    const version = this.loadVersion;
+    const date = this.date;
+    const offset = this.payments().length;
     try {
-      const r = await this.api.payments(this.date, this.payments().length);
+      const r = await this.api.payments(date, offset);
+      if (version !== this.loadVersion || date !== this.date || offset !== this.payments().length) return;
       this.payments.update((x) => [...x, ...r.payments]);
       this.hasMore.set(r.hasMore);
     } catch {
+      if (version !== this.loadVersion) return;
       this.error.set(true);
     }
   }
