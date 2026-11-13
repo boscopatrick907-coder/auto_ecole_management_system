@@ -28,6 +28,9 @@ import type { Dashboard, Payment } from "../core/models";
         }}<button class="btn small" (click)="load()">{{ t.retry }}</button>
       </p>
     }
+    @if (!dashboard() && !error()) {
+      <p role="status">{{ t.loading }}</p>
+    }
     @if (dashboard(); as d) {
       <div class="kpi-grid">
         <div class="card">
