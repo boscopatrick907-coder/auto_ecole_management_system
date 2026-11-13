@@ -224,6 +224,41 @@ test("student cannot navigate into admin", async ({ page }) => {
     page.getByRole("heading", { name: "Tableau de bord" }),
   ).toHaveCount(0);
 });
+
+test("returning to dashboard keeps verified saved figures visible during a slow refresh", async ({ page }) => {
+  await fixtures(page, "admin");
+  const lease = page.waitForResponse((r) => r.url().endsWith("/lease"));
+  await page.goto("/s/horizon/admin");
+  await lease;
+  await expect(page.locator(".primary-kpi strong")).toHaveText("50\u202f000 FCFA");
+  // Wait for the signed token to be stored before exercising its cache permission.
+  await expect.poll(() => page.evaluate(async () => {
+    return new Promise<boolean>((resolve) => {
+      const open = indexedDB.open("school-pwa-v2");
+      open.onsuccess = () => {
+        const db = open.result;
+        const request = db.transaction("snapshots").objectStore("snapshots").get("school-a:user-a:lease");
+        request.onsuccess = () => { resolve(Boolean(request.result)); db.close(); };
+      };
+    });
+  })).toBe(true);
+  await page.getByRole("link", { name: "Élèves", exact: true }).first().click();
+  await expect(page.getByRole("heading", { name: "Élèves", exact: true })).toBeVisible();
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => { release = resolve; });
+  await page.context().route("**/api/**/admin/dashboard", async (route) => {
+    await pending;
+    await route.fulfill({ json: { students: 2, collected: 60000, owed: 90000, overdue: 0, recentPayments: [] } });
+  });
+  try {
+    await page.getByRole("link", { name: "Tableau de bord", exact: true }).first().click();
+    await expect(page.locator(".primary-kpi strong")).toHaveText("50\u202f000 FCFA");
+    await expect(page.getByRole("status")).toContainText("Actualisation");
+    release();
+    await expect(page.locator(".primary-kpi strong")).toHaveText("60\u202f000 FCFA");
+    await expect(page.getByText("Actualisation… Les données affichées peuvent avoir changé.")).toHaveCount(0);
+  } finally { release(); }
+});
 test("quiz submits real answers and displays server grading", async ({
   page,
 }) => {
