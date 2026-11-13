@@ -4,6 +4,7 @@ export const FR = {
     "La vérification anti-robot est indisponible. Contactez votre école.",
   app: "Espace auto-école",
   loading: "Chargement…",
+  refreshing: "Actualisation… Les données affichées peuvent avoir changé.",
   retry: "Réessayer",
   save: "Enregistrer",
   cancel: "Annuler",
