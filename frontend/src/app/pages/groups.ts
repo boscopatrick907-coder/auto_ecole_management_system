@@ -163,9 +163,12 @@ export class GroupsComponent implements OnInit {
   }
   async load() {
     try {
-      const r = await this.store.read("groups", () => this.api.groups());
+      const [r, catalogue] = await Promise.all([
+        this.store.read("groups", () => this.api.groups()),
+        this.api.catalogue(),
+      ]);
       this.groups.set(r?.groups || []);
-      this.categories.set((await this.api.catalogue()).categories);
+      this.categories.set(catalogue.categories);
       this.error.set(false);
     } catch {
       this.error.set(true);
