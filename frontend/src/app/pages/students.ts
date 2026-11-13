@@ -81,14 +81,19 @@ export class StudentListComponent implements OnInit {
     e.preventDefault();
     void this.load();
   }
+  private loadVersion = 0;
   async load() {
+    const version = ++this.loadVersion;
+    const query = this.query;
     try {
-      const r = await this.store.read("students:" + this.query, () =>
-        this.api.students(this.query),
+      const r = await this.store.read("students:" + query, () =>
+        this.api.students(query),
       );
+      if (version !== this.loadVersion) return;
       this.students.set(r?.students || []);
       this.error.set(false);
     } catch {
+      if (version !== this.loadVersion) return;
       this.error.set(true);
     }
   }
