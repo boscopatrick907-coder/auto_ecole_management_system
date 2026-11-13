@@ -22,6 +22,10 @@ export class AuthService {
   readonly role = signal<Role | null>(null);
   readonly ready = signal(false);
   readonly error = signal("");
+  readonly leaseError = signal(false);
+  private initialization = 0;
+  private opening?: { slug: string; promise: Promise<void> };
+  private leases = new Map<string, Promise<void>>();
 
   private readonly pendingSignoutKey = "school-pending-signout";
 
@@ -69,17 +73,38 @@ export class AuthService {
     return null;
   }
 
-  async openSchool(slug: string) {
+  openSchool(slug: string): Promise<void> {
+    if (this.opening?.slug === slug) return this.opening.promise;
+    const promise = this.loadSchool(slug);
+    this.opening = { slug, promise };
+    void promise.finally(() => {
+      if (this.opening?.promise === promise) this.opening = undefined;
+    });
+    return promise;
+  }
+
+  private async loadSchool(slug: string) {
+    const generation = ++this.initialization;
+    const ensureCurrent = () => {
+      if (generation !== this.initialization) throw new Error("INITIALIZATION_REPLACED");
+    };
     this.ready.set(false);
+    this.error.set("");
+    this.leaseError.set(false);
     this.clearIdentity();
     this.school.set(null);
     this.api.slug = slug;
 
     try {
       let cat: Catalogue;
+      let session: { user: User } | null = null;
 
       if (this.api.online()) {
-        cat = await this.api.catalogue();
+        [cat, session] = await Promise.all([
+          this.api.catalogue(),
+          this.api.request<{ user: User } | null>("/auth/get-session"),
+        ]);
+        ensureCurrent();
 
         await database.snapshots.put({
           key: "school:" + slug,
@@ -95,14 +120,11 @@ export class AuthService {
         cat = cached.data as Catalogue;
       }
 
+      ensureCurrent();
       this.school.set(cat.school);
       this.applyBrand(cat.school);
 
       if (this.api.online()) {
-        const session = await this.api.request<{ user: User } | null>(
-          "/auth/get-session",
-        );
-
         const pending = this.readPendingSignout();
 
         let currentUser = session?.user || null;
@@ -114,6 +136,7 @@ export class AuthService {
             currentUser?.id === pending.userId
           ) {
             await this.api.request("/auth/sign-out", "POST", {});
+            ensureCurrent();
             currentUser = null;
           }
 
@@ -129,13 +152,13 @@ export class AuthService {
         if (currentUser) {
           try {
             const membership = await this.api.tenant<{ role: Role }>("session");
+            ensureCurrent();
 
             if (!this.isRole(membership.role)) {
               throw new Error("INVALID_USER_ROLE");
             }
 
             this.role.set(membership.role);
-            await this.refreshLease();
           } catch (e) {
             if (!(e instanceof RequestError && e.status === 403)) {
               throw e;
@@ -154,8 +177,10 @@ export class AuthService {
           },
           updatedAt: Date.now(),
         });
+        ensureCurrent();
       } else {
         const cached = await database.snapshots.get("identity:" + slug);
+        ensureCurrent();
 
         const identity = cached?.data as CachedIdentity | undefined;
 
@@ -164,7 +189,9 @@ export class AuthService {
           this.role.set(identity.role);
           this.api.expectedUserId = identity.user.id;
 
-          if (!(await this.offlineAllowed(false))) {
+          const allowed = await this.offlineAllowed(false);
+          ensureCurrent();
+          if (!allowed) {
             this.clearIdentity();
           }
         } else {
@@ -173,12 +200,20 @@ export class AuthService {
       }
 
       this.error.set("");
+      if (this.api.online() && this.role()) {
+        void this.refreshLease().catch(() => {
+          if (generation === this.initialization) this.leaseError.set(true);
+        });
+      }
     } catch (e) {
+      if (generation !== this.initialization) return;
       console.error("School initialization failed", e);
       this.clearIdentity();
-      this.error.set("noSchool");
+      this.error.set(
+        e instanceof RequestError && e.code === "SCHOOL_NOT_FOUND" ? "noSchool" : "loadFailed",
+      );
     } finally {
-      this.ready.set(true);
+      if (generation === this.initialization) this.ready.set(true);
     }
   }
 
@@ -255,7 +290,18 @@ export class AuthService {
     );
   }
 
-  async refreshLease() {
+  refreshLease(): Promise<void> {
+    const scope = this.scope;
+    const key = this.initialization + ":" + scope;
+    const pending = this.leases.get(key);
+    if (pending) return pending;
+    const promise = this.loadLease(scope, this.initialization);
+    this.leases.set(key, promise);
+    void promise.finally(() => this.leases.delete(key)).catch(() => {});
+    return promise;
+  }
+
+  private async loadLease(scope: string, generation: number) {
     if (!this.scope || !this.role()) {
       throw new Error("INVALID_LEASE_IDENTITY");
     }
@@ -265,6 +311,8 @@ export class AuthService {
       publicKey: JWK;
     }>("lease");
 
+    if (this.scope !== scope || generation !== this.initialization) return;
+
     if (!lease.token || !lease.publicKey) {
       throw new Error("INVALID_OFFLINE_LEASE");
     }
@@ -272,14 +320,15 @@ export class AuthService {
     const now = Date.now();
 
     await database.snapshots.put({
-      key: this.scope + ":lease",
-      scope: this.scope,
+      key: scope + ":lease",
+      scope,
       data: {
         ...lease,
         highWater: now,
       },
       updatedAt: now,
     });
+    if (this.scope === scope && generation === this.initialization) this.leaseError.set(false);
   }
 
   async offlineAllowed(learning = true): Promise<boolean> {
@@ -348,6 +397,8 @@ export class AuthService {
   }
 
   async logout() {
+    ++this.initialization;
+    this.opening = undefined;
     const scope = this.scope;
     const currentUser = this.user();
     const slug = this.api.slug;
