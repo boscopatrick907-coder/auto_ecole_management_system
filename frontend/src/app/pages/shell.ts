@@ -58,9 +58,12 @@ import { BottomNavComponent, IconComponent } from "../shared/ui";
       </aside>
     }
     <main id="main" class="page">
+      @if (auth.leaseError()) {
+        <p role="status" class="error-box">{{ t.leaseRefreshFailed }}</p>
+      }
       @if (auth.error()) {
         <div class="empty">
-          <h1>{{ t.noSchool }}</h1>
+          <h1>{{ auth.error() === 'noSchool' ? t.noSchool : t.error }}</h1>
           <a class="btn" routerLink="/">{{ t.back }}</a>
         </div>
       } @else {

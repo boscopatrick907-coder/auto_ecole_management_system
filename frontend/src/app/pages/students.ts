@@ -45,6 +45,9 @@ import type { Dossier, Student, Group, Payment } from "../core/models";
       @if (error()) {
         <p class="error-box" role="alert">{{ t.error }}</p>
       }
+      @if (loading()) {
+        <p role="status">{{ students().length ? t.refreshing : t.loading }}</p>
+      }
       @for (s of students(); track s.id) {
         <a class="list-row student-row" [routerLink]="base + '/' + s.id"
           ><span class="avatar">{{ s.full_name.charAt(0) }}</span>
@@ -58,7 +61,7 @@ import type { Dossier, Student, Group, Payment } from "../core/models";
             ><app-icon name="chevron_right" /></div
         ></a>
       } @empty {
-        <app-empty />
+        @if (!loading() && !error()) { <app-empty /> }
       }
     </section>`,
 })
@@ -71,6 +74,7 @@ export class StudentListComponent implements OnInit {
     [],
   );
   error = signal(false);
+  loading = signal(true);
   get base() {
     return "/s/" + this.api.slug + "/admin/eleves";
   }
@@ -81,15 +85,27 @@ export class StudentListComponent implements OnInit {
     e.preventDefault();
     void this.load();
   }
+  private loadVersion = 0;
   async load() {
+    const version = ++this.loadVersion;
+    const query = this.query;
+    this.loading.set(true);
+    this.students.set([]);
     try {
-      const r = await this.store.read("students:" + this.query, () =>
-        this.api.students(this.query),
+      const r = await this.store.read("students:" + query, () =>
+        this.api.students(query),
+        (cached) => {
+          if (version === this.loadVersion) this.students.set(cached?.students || []);
+        },
       );
+      if (version !== this.loadVersion) return;
       this.students.set(r?.students || []);
       this.error.set(false);
     } catch {
+      if (version !== this.loadVersion) return;
       this.error.set(true);
+    } finally {
+      if (version === this.loadVersion) this.loading.set(false);
     }
   }
 }

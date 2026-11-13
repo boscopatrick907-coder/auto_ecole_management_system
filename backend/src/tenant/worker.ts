@@ -7,8 +7,8 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { SignJWT, importPKCS8, exportJWK, importSPKI } from "jose";
 import { createHash, createPublicKey, randomUUID } from "node:crypto";
 import type pg from "pg";
-import { poolFor, tenantTransaction, type TenantBindings } from "./context.js";
-import { createAuth } from "./auth.js";
+import { requestPoolFor as poolFor, releaseRequestPool, queryBatch, tenantTransaction, type TenantBindings } from "./context.js";
+import { requestAuth as createAuth } from "./auth.js";
 
 const app = new Hono<{ Bindings: TenantBindings }>();
 const uuid = z.string().uuid();
@@ -136,7 +136,7 @@ app.all("/api/auth/*", async (c) => {
     }
     throw e;
   } finally {
-    await pool.end();
+    await releaseRequestPool(c.env, pool);
   }
 });
 
@@ -221,7 +221,7 @@ app.post("/api/platform/schools", async (c) => {
       }),
     );
   } finally {
-    await Promise.all([pool.end(), identity.end()]);
+    await Promise.all([releaseRequestPool(c.env, pool), releaseRequestPool(c.env, identity)]);
   }
 });
 
@@ -243,34 +243,27 @@ app.all("/api/schools/:slug/*", async (c) => {
       throw fail("SESSION_IDENTITY_CHANGED", 403);
     return await tenantTransaction(pool, "", userId, async (db) => {
       const resolved = await db.query(
-        "select * from school_app.resolve_school($1)",
+        "select id,set_config('app.school_id',id::text,true) from school_app.resolve_school($1)",
         [c.req.param("slug")],
       );
       if (!resolved.rowCount) throw fail("SCHOOL_NOT_FOUND", 404);
       const schoolId = resolved.rows[0].id;
-      await db.query("select set_config('app.school_id',$1,true)", [schoolId]);
       const path = c.req.path.split("/").slice(4).join("/");
       const method = c.req.method;
-      const school = (await db.query("select * from school_app.schools"))
+      const schoolRow = (await db.query("select s.*,school_app.member_role() as request_role from school_app.schools s"))
         .rows[0];
-      if (!school) throw fail("SCHOOL_NOT_FOUND", 404);
+      if (!schoolRow) throw fail("SCHOOL_NOT_FOUND", 404);
+      const { request_role: role, ...school } = schoolRow;
 
       if (path === "catalogue" && method === "GET") {
-        const categories = (
-          await db.query(
+        const [categoryResult, groupResult, installmentResult] = await queryBatch(db, [
             "select * from school_app.licence_categories where is_active order by code",
-          )
-        ).rows;
-        const groups = (
-          await db.query(
             `select g.*,lc.name as licence_name,(select count(distinct e.id)::int from school_app.enrollments e join school_app.payments p on p.school_id=e.school_id and p.enrollment_id=e.id and p.cancelled_at is null where e.school_id=g.school_id and e.group_id=g.id and e.status<>'cancelled') as confirmed_seats from school_app.groups g join school_app.licence_categories lc on lc.school_id=g.school_id and lc.id=g.licence_category_id where g.status='open' order by g.start_date, g.id`,
-          )
-        ).rows;
-        const allInstallments = (
-          await db.query(
             "select * from school_app.installments order by group_id, position",
-          )
-        ).rows;
+        ]);
+        const categories = categoryResult.rows;
+        const groups = groupResult.rows;
+        const allInstallments = installmentResult.rows;
         return c.json({
           school,
           categories,
@@ -282,8 +275,6 @@ app.all("/api/schools/:slug/*", async (c) => {
       }
 
       if (!session) throw fail("AUTH_REQUIRED", 401);
-      const role = (await db.query("select school_app.member_role() as role"))
-        .rows[0].role;
       if (path === "enroll" && method === "POST") {
         const b = z
           .object({
@@ -439,18 +430,13 @@ app.all("/api/schools/:slug/*", async (c) => {
       if (role !== "admin") throw fail("ADMIN_REQUIRED", 403);
 
       if (path === "admin/dashboard") {
-        const k = (
-          await db.query(
+        const [summary, recent] = await queryBatch(db, [
             `select (select count(*) from school_app.students) as students,(select coalesce(sum(amount),0) from school_app.payments where cancelled_at is null) as collected,(select coalesce(sum(balance),0) from school_app.enrollment_balances) as owed,(select count(distinct enrollment_id) from school_app.installment_status where status='overdue') as overdue`,
-          )
-        ).rows[0];
-        return c.json({
-          ...k,
-          recentPayments: (
-            await db.query(
               `select ${enrichPaymentSql("p")},s.full_name as student_name,s.phone from school_app.payments p join school_app.enrollments e on e.school_id=p.school_id and e.id=p.enrollment_id join school_app.enrollment_balances b on b.school_id=p.school_id and b.enrollment_id=p.enrollment_id join school_app.students s on s.school_id=e.school_id and s.id=e.student_id order by p.paid_at desc, p.id desc limit 10`,
-            )
-          ).rows,
+        ]);
+        return c.json({
+          ...summary.rows[0],
+          recentPayments: recent.rows,
         });
       }
 
@@ -674,16 +660,12 @@ app.all("/api/schools/:slug/*", async (c) => {
       }
 
       if (path === "admin/groups" && method === "GET") {
-        const groups = (
-          await db.query(
+        const [groupResult, installmentResult] = await queryBatch(db, [
             `select g.*,l.name as licence_name,(select count(distinct e.id)::int from school_app.enrollments e join school_app.payments p on p.school_id=e.school_id and p.enrollment_id=e.id and p.cancelled_at is null where e.school_id=g.school_id and e.group_id=g.id and e.status<>'cancelled') as confirmed_seats from school_app.groups g join school_app.licence_categories l on l.school_id=g.school_id and l.id=g.licence_category_id order by g.start_date desc, g.id desc`,
-          )
-        ).rows;
-        const allInstallments = (
-          await db.query(
             "select * from school_app.installments order by group_id, position",
-          )
-        ).rows;
+        ]);
+        const groups = groupResult.rows;
+        const allInstallments = installmentResult.rows;
         return c.json({
           groups: groups.map((g) => ({
             ...g,
@@ -743,16 +725,13 @@ app.all("/api/schools/:slug/*", async (c) => {
             ],
           )
         ).rows[0];
-        const insertedInstallments = [];
-        for (const [i, x] of b.installments.entries()) {
-          const inst = (
-            await db.query(
-              "insert into school_app.installments(school_id,group_id,position,label,amount,due_date) values($1,$2,$3,$4,$5,$6) returning *",
-              [schoolId, g.id, i + 1, x.label, x.amount, x.dueDate],
-            )
-          ).rows[0];
-          insertedInstallments.push(inst);
-        }
+        const insertedInstallments = (await db.query(
+          `insert into school_app.installments(school_id,group_id,position,label,amount,due_date)
+           select $1,$2,ordinality::int,item->>'label',(item->>'amount')::bigint,(item->>'dueDate')::date
+           from jsonb_array_elements($3::jsonb) with ordinality as x(item,ordinality)
+           order by ordinality returning *`,
+          [schoolId, g.id, JSON.stringify(b.installments)],
+        )).rows.sort((a, b) => a.position - b.position);
         return c.json(
           { group: { ...g, confirmed_seats: 0, installments: insertedInstallments } },
           201,
@@ -1108,7 +1087,7 @@ app.all("/api/schools/:slug/*", async (c) => {
       throw fail("NOT_FOUND", 404);
     });
   } finally {
-    await Promise.all([pool.end(), authPool.end()]);
+    await Promise.all([releaseRequestPool(c.env, pool), releaseRequestPool(c.env, authPool)]);
   }
 });
 

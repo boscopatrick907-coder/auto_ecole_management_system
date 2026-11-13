@@ -2,7 +2,7 @@ import { serve } from "@hono/node-server";
 import fs from "node:fs/promises";
 import dotenv from "dotenv";
 import app from "./worker.js";
-import { type TenantBindings } from "./context.js";
+import { closeRequestPools, type TenantBindings } from "./context.js";
 
 let devVars: Record<string, string> = {};
 try {
@@ -28,6 +28,7 @@ const bindings: TenantBindings = {
   AUTH_EMAIL_WEBHOOK: envVars.AUTH_EMAIL_WEBHOOK,
   AUTH_EMAIL_TOKEN: envVars.AUTH_EMAIL_TOKEN,
   ENVIRONMENT: "development",
+  NODE_DATABASE_POOLS: true,
   SIGNUP_LIMITER: { limit: async () => ({ success: true }) },
 };
 
@@ -35,10 +36,28 @@ const port = Number(process.env.PORT || 8788);
 
 export const server = serve(
   {
-    fetch: (req) => app.fetch(req, bindings),
+    fetch: async (req) => {
+      const started = performance.now();
+      const response = await app.fetch(req, bindings);
+      const elapsed = Math.round(performance.now() - started);
+      response.headers.set("Server-Timing", `app;dur=${elapsed}`);
+      if (elapsed >= 1000) {
+        // Include no query parameters, cookies, credentials or response bodies.
+        console.log(`[slow API] ${req.method} ${new URL(req.url).pathname} ${response.status} ${elapsed}ms`);
+      }
+      return response;
+    },
     port,
   },
   (info) => {
     console.log(`🚗 Multi-tenant API dev server running on http://localhost:${info.port}`);
   },
 );
+
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.once(signal, () => {
+    server.close(() => {
+      void closeRequestPools(bindings).then(() => process.exit(0));
+    });
+  });
+}
