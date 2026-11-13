@@ -16,7 +16,7 @@ import type { Dashboard, Payment } from "../core/models";
       <h1>{{ monthly ? t.report : t.journal }}</h1>
       <button
         class="btn secondary"
-        [disabled]="!payments().length"
+        [disabled]="loading() || !payments().length"
         (click)="exportCsv()"
       >
         <app-icon name="download" />{{ t.export }}
@@ -30,6 +30,7 @@ import type { Dashboard, Payment } from "../core/models";
           [(ngModel)]="date"
           (change)="load()"
       /></label>
+      @if (loaded()) {
       <div class="money-grid">
         <div class="inset">
           <span>{{ t.collected }}</span
@@ -40,7 +41,11 @@ import type { Dashboard, Payment } from "../core/models";
           ><strong>{{ count() }}</strong>
         </div>
       </div>
+      }
     </section>
+    @if (loading()) {
+      <p role="status">{{ loaded() ? t.refreshing : t.loading }}</p>
+    }
     @if (error()) {
       <p class="error-box" role="alert">{{ t.error }}</p>
     }
@@ -71,11 +76,11 @@ import type { Dashboard, Payment } from "../core/models";
           </tbody>
         </table>
       </div>
-      @if (!payments().length) {
+      @if (!payments().length && !loading() && !error()) {
         <app-empty />
       }
       @if (hasMore()) {
-        <button class="btn secondary full" (click)="more()">
+        <button class="btn secondary full" [disabled]="loading()" (click)="more()">
           {{ t.next }}
         </button>
       }
@@ -99,6 +104,8 @@ export class ReportsComponent implements OnInit {
   count = signal(0);
   hasMore = signal(false);
   error = signal(false);
+  loading = signal(true);
+  loaded = signal(false);
   ngOnInit() {
     void this.load();
   }
@@ -106,19 +113,31 @@ export class ReportsComponent implements OnInit {
   async load() {
     const version = ++this.loadVersion;
     const date = this.date;
-    try {
-      const r = await this.store.read("report:" + date, () =>
-        this.api.payments(date),
-      );
+    this.loading.set(true);
+    this.loaded.set(false);
+    this.payments.set([]);
+    this.hasMore.set(false);
+    const apply = (r: Awaited<ReturnType<ApiService["payments"]>> | null) => {
       if (version !== this.loadVersion) return;
       this.payments.set(r?.payments || []);
       this.count.set(r?.count || 0);
       this.collected.set(r?.collected || 0);
       this.hasMore.set(r?.hasMore || false);
+      this.loaded.set(r !== null);
+    };
+    try {
+      const r = await this.store.read("report:" + date, () =>
+        this.api.payments(date),
+        apply,
+      );
+      if (version !== this.loadVersion) return;
+      apply(r);
       this.error.set(false);
     } catch {
       if (version !== this.loadVersion) return;
       this.error.set(true);
+    } finally {
+      if (version === this.loadVersion) this.loading.set(false);
     }
   }
   total() {
