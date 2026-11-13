@@ -12,6 +12,7 @@ export const FR = {
   logout: "Se déconnecter",
   empty: "Aucun élément pour le moment.",
   error: "Impossible de charger les données. Réessayez.",
+  leaseRefreshFailed: "L’accès hors ligne n’a pas pu être actualisé. Restez connecté et réessayez.",
   online: "En ligne",
   offline: "Mode hors ligne — Synchronisation au retour du réseau.",
   pending: "modifications en attente",
