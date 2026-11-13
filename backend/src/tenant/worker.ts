@@ -7,8 +7,8 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { SignJWT, importPKCS8, exportJWK, importSPKI } from "jose";
 import { createHash, createPublicKey, randomUUID } from "node:crypto";
 import type pg from "pg";
-import { poolFor, tenantTransaction, type TenantBindings } from "./context.js";
-import { createAuth } from "./auth.js";
+import { requestPoolFor as poolFor, releaseRequestPool, tenantTransaction, type TenantBindings } from "./context.js";
+import { requestAuth as createAuth } from "./auth.js";
 
 const app = new Hono<{ Bindings: TenantBindings }>();
 const uuid = z.string().uuid();
@@ -136,7 +136,7 @@ app.all("/api/auth/*", async (c) => {
     }
     throw e;
   } finally {
-    await pool.end();
+    await releaseRequestPool(c.env, pool);
   }
 });
 
@@ -221,7 +221,7 @@ app.post("/api/platform/schools", async (c) => {
       }),
     );
   } finally {
-    await Promise.all([pool.end(), identity.end()]);
+    await Promise.all([releaseRequestPool(c.env, pool), releaseRequestPool(c.env, identity)]);
   }
 });
 
@@ -1108,7 +1108,7 @@ app.all("/api/schools/:slug/*", async (c) => {
       throw fail("NOT_FOUND", 404);
     });
   } finally {
-    await Promise.all([pool.end(), authPool.end()]);
+    await Promise.all([releaseRequestPool(c.env, pool), releaseRequestPool(c.env, authPool)]);
   }
 });
 
