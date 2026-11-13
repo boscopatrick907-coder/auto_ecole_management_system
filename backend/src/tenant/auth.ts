@@ -3,6 +3,18 @@ import { hashPassword, verifyPassword } from "better-auth/crypto";
 import { scryptAsync } from "@noble/hashes/scrypt.js";
 import type pg from "pg";
 import type { TenantBindings } from "./context.js";
+const nodeAuth = new WeakMap<pg.Pool, ReturnType<typeof createAuth>>();
+
+export function requestAuth(env: TenantBindings, pool: pg.Pool) {
+  if (!env.NODE_DATABASE_POOLS) return createAuth(env, pool);
+  let auth = nodeAuth.get(pool);
+  if (!auth) {
+    auth = createAuth(env, pool);
+    nodeAuth.set(pool, auth);
+  }
+  return auth;
+}
+
 export function createAuth(env: TenantBindings, pool: pg.Pool) {
   return betterAuth({
     database: pool,
