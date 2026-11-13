@@ -1,4 +1,4 @@
-import { Component, inject } from "@angular/core";
+import { Component, inject, signal } from "@angular/core";
 import { FormControl, ReactiveFormsModule, Validators } from "@angular/forms";
 import { Router } from "@angular/router";
 import { FR } from "../core/fr";
@@ -21,8 +21,8 @@ import { IconComponent } from "../shared/ui";
             [formControl]="slug"
             autocomplete="organization"
             placeholder="mon-ecole" /></label
-        ><button class="btn full" [disabled]="slug.invalid">
-          {{ t.selectSchool }}<app-icon name="arrow_forward" />
+        ><button class="btn full" [disabled]="slug.invalid || opening()" [attr.aria-busy]="opening()">
+          {{ opening() ? t.loading : t.selectSchool }}<app-icon name="arrow_forward" />
         </button>
       </form>
     </section>
@@ -31,6 +31,7 @@ import { IconComponent } from "../shared/ui";
 export class LandingComponent {
   t = FR;
   router = inject(Router);
+  opening = signal(false);
   slug = new FormControl("", {
     nonNullable: true,
     validators: [
@@ -38,9 +39,14 @@ export class LandingComponent {
       Validators.pattern(/^[a-z0-9][a-z0-9-]{1,62}$/),
     ],
   });
-  open(e: Event) {
+  async open(e: Event) {
     e.preventDefault();
-    if (this.slug.valid)
-      void this.router.navigate(["/s", this.slug.value, "connexion"]);
+    if (this.slug.invalid || this.opening()) return;
+    this.opening.set(true);
+    try {
+      await this.router.navigate(["/s", this.slug.value, "connexion"]);
+    } finally {
+      this.opening.set(false);
+    }
   }
 }
