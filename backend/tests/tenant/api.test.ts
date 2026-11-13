@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import { randomUUID, generateKeyPairSync } from "node:crypto";
 import app from "../../src/tenant/worker.js";
 import { createAuth } from "../../src/tenant/auth.js";
-import { poolFor, type TenantBindings } from "../../src/tenant/context.js";
+import { poolFor, requestPoolFor, closeRequestPools, type TenantBindings } from "../../src/tenant/context.js";
 const url =
   process.env.TENANT_TEST_DATABASE_URL ||
   "postgresql://postgres:local_tenant_test@127.0.0.1:55436/postgres";
@@ -125,6 +125,32 @@ it("authenticates a real Better Auth cookie and membership", async () => {
   const b = await r.json();
   expect(b.user.id).toBe(userId);
   expect(b.role).toBe("admin");
+});
+it("reuses Node connections without leaking identity, role or school between requests", async () => {
+  const nodeEnv = { ...env, NODE_DATABASE_POOLS: true };
+  const call = (path: string, sessionCookie = cookie) => app.request(
+    "http://localhost:8788/api/" + path,
+    { headers: { Cookie: sessionCookie } }, nodeEnv,
+  );
+  try {
+    const warm = await call("schools/" + slug + "/session");
+    expect(warm.status).toBe(200);
+    const checks = await Promise.all([
+      call("schools/" + slug + "/session"),
+      call("schools/" + slug + "/admin/students", ""),
+      call("schools/other-" + other + "/session"),
+      call("auth/get-session"),
+    ]);
+    expect(checks.map((r) => r.status)).toEqual([200, 401, 403, 200]);
+    expect((await checks[0].json()).user.id).toBe(userId);
+    expect((await checks[3].json()).user.id).toBe(userId);
+    const reset = await requestPoolFor(nodeEnv).query(
+      "select current_user as role,current_setting('app.school_id',true) as school,current_setting('app.user_id',true) as actor",
+    );
+    expect(reset.rows[0].role).toBe("api_tenant_login");
+    expect(reset.rows[0].school || "").toBe("");
+    expect(reset.rows[0].actor || "").toBe("");
+  } finally { await closeRequestPools(nodeEnv); }
 });
 it("requires authentication for school data", async () => {
   expect((await request("admin/students", "GET", undefined, "")).status).toBe(
