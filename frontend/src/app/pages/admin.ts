@@ -28,8 +28,8 @@ import type { Dashboard, Payment } from "../core/models";
         }}<button class="btn small" (click)="load()">{{ t.retry }}</button>
       </p>
     }
-    @if (!dashboard() && !error()) {
-      <p role="status">{{ t.loading }}</p>
+    @if (loading()) {
+      <p role="status">{{ dashboard() ? t.refreshing : t.loading }}</p>
     }
     @if (dashboard(); as d) {
       <div class="kpi-grid">
@@ -92,6 +92,8 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   store = inject(DataService);
   dashboard = signal<Dashboard | null>(null);
   error = signal(false);
+  loading = signal(true);
+  private loadVersion = 0;
   get base() {
     return "/s/" + this.api.slug + "/admin";
   }
@@ -104,13 +106,20 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     window.removeEventListener("school:sync", this.listener);
   }
   async load() {
+    const version = ++this.loadVersion;
+    this.loading.set(true);
     try {
-      this.dashboard.set(
-        await this.store.read("dashboard", () => this.api.dashboard()),
-      );
+      const value = await this.store.read("dashboard", () => this.api.dashboard(), (cached) => {
+        if (version === this.loadVersion) this.dashboard.set(cached);
+      });
+      if (version !== this.loadVersion) return;
+      this.dashboard.set(value);
       this.error.set(false);
     } catch {
+      if (version !== this.loadVersion) return;
       this.error.set(true);
+    } finally {
+      if (version === this.loadVersion) this.loading.set(false);
     }
   }
 }
