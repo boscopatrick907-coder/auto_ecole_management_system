@@ -111,3 +111,28 @@ Return a report containing SHA, entry point, redacted role/TLS evidence, migrati
 
 ## Inputs to obtain from Patrick / each school
 Use [the customer checklist](CUSTOMER_SCHOOL_ONBOARDING_FR.md): approved identity/logo/colors/contacts/agrément, slug, admin email/responsibilities, permits/groups/capacity, integer-FCFA tariffs/installments, real course/quiz files and rights, receipt/legal sample, migration data plus reconciliation owner, and consented pilot participants. Patrick gathers business information; you provision technical roles/keys/buckets securely. Do not ask a customer for database-owner passwords, Mobile Money PINs or unnecessary identity photographs. Record which missing input blocks each E task.
+
+## Current coding assignments — 16 November 2026
+
+Patrick authorised merging the admin content portal and asked for concrete remaining coding work. Preserve the new portal and startup validation; do not recreate them. Implement the assignments below in separate reviewable branches with tests. Coordinate response-shape changes with Willy before merging.
+
+### EM-C1 — Storage quotas and safe unused-object cleanup (P1)
+
+- Add server-enforced per-school storage usage/quota accounting and bounded upload signing. Keep credentials server-side, private buckets, 25 MiB validation and create-only PUTs.
+- Track uploads and replacements so failed record saves do not leave permanent unaccounted objects. Cleanup must use a grace period and prove the object is no longer referenced; never delete all old objects or another school's files.
+- Define a minimal upload/finalisation/status API with Willy. Test quota exhaustion, failed/retried completion, interrupted transfers, concurrent uploads, and school isolation using synthetic storage fixtures. Separately verify real R2/CORS on disposable staging.
+
+### EM-C2 — Historical receipt data contract (P0)
+
+- Agree with Patrick which school/student/legal details are immutable issuance snapshots and which displayed balances are explicitly current.
+- Extend the tenant receipt response/schema with approved snapshots and required labels. Preserve existing payment IDs, receipt numbers, issuance-balance calculation and audited cancellation. Do not fabricate historical snapshots where source information is missing; mark provenance/unknown fields.
+- Give Willy examples for original, reprinted, provisional, confirmed and cancelled receipts. Add migration/reapplication and financial regression tests; no production backfill without a reviewed reconciliation plan.
+
+### EM-C3 — Repeatable staging integration/operations evidence (P0)
+
+- Turn existing verification scripts into a documented noninteractive staging workflow that fails with a nonzero exit code and produces a redacted report for the exact commit tested.
+- Use disposable data and explicit environment selection. Cover restricted DB roles/TLS, cookies, school isolation, R2 authoring, and recovery-provider behavior; missing credentials are blocked checks, not passes.
+- Confirm successful scheduled backup execution and a checksum-verified restore drill, alerts and rollback. Scripts existing in Git do not prove these operations succeeded.
+- Share a staging origin and limited test-account invitation with Willy securely. Never send database-owner credentials or production accounts as the integration workaround.
+
+**Handback for each assignment:** commit/PR, changed API/schema, migration/rollback notes, exact test commands/results, and remaining external prerequisites. The live migration, private R2 and restore gates in the shared task list remain outstanding until evidence is recorded.

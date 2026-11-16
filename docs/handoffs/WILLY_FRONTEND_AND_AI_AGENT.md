@@ -118,3 +118,35 @@ npm run test:e2e --prefix frontend
 ```
 
 Current `lint` is a strict TypeScript check, not an ESLint ruleset. Do not report a real-device or real-Neon test that was only simulated. Send Patrick a per-task commit/test report and the remaining blockers.
+
+## Current coding assignments — 16 November 2026
+
+Patrick authorised merging the admin content portal and asked for substantial remaining coding work. The portal now lives at `/s/:school/admin/contenus`, including categories, uploads and quiz authoring. Preserve it and the current Stitch design. Work in separate reviewable branches; the public marketing website and deferred merchant/staff features are not in these assignments.
+
+### WI-C1 — Durable active quiz drafts and delayed results (P0)
+
+- Persist school/user, quiz/question identity, stable attempt ID, answers, flags, current question, and start/deadline in scoped IndexedDB records. Recover after reload/navigation/backgrounding.
+- Keep grading on the server. Preserve the same attempt ID through submission retries; expose pending/rejected/result states after the original component is gone.
+- Handle content changes/unpublication, expired entitlement, account changes and clock rollback explicitly. Do not resurrect another account's draft or manufacture a score.
+- Test reload midway, offline finish/reconnect, repeated submit, expired lease and account/school switch; retain the existing authoring/attempt-history protections.
+
+### WI-C2 — Payment reconciliation and receipt recovery (P0)
+
+- Build an account/school-scoped pending-action list with student/enrollment, amount, provisional receipt, status, retry, and actionable rejection reasons.
+- Preserve existing atomic enqueue/device sequence/idempotency fixes. Recover pending receipts after reload and handle ambiguous acknowledgements without generating a new payment ID.
+- Define an audited correction path for blocked overpayment/full-group/conflicting entries with Emmanuel. Keep the rejected evidence; a pending payment must not become a confirmed balance on the client.
+- Test dropped acknowledgement, duplicate retry, reload, blocked entry, account switch and cancellation against backend invariants.
+
+### WI-C3 — Accurate printable receipts (P0, coordinate EM-C2)
+
+- Consume Emmanuel's approved issuance/current-data contract. Clearly label current balances; do not display present school/student details as historical snapshots.
+- Translate method/status enums into French and agree the learner-number prefix with Patrick.
+- Add long-content pagination/dynamic ticket-height handling and verify A4/80-mm output, accents, legal header, amounts and Africa/Douala dates. Assert extracted PDF text/layout, not only a filename.
+
+### WI-C4 — Reach every learner and complete phone usability (P1)
+
+- Wire the existing backend pagination into student search/list, retaining filters and deterministic enrollment selection. Prove learner 201+ is reachable without stale results from an earlier search.
+- Improve material upload progress/cancellation/retry against the agreed EM-C1 API; preserve form state and clear French errors on slow networks and quota failure. Do not implement resumable upload using an invented server contract.
+- Run responsive/accessibility checks and actual Android/iPhone installation/update, private-file download, offline, storage-full and reconnect scenarios. Keep fixture browser tests separate from live staging and physical-device evidence.
+
+**Handback for each assignment:** commit/PR, test commands and counts, relevant screenshots/PDF samples with synthetic data, staging origin/commit tested and specific blockers. Existing local green tests do not replace the real-stack pilot report.

@@ -70,3 +70,12 @@ Patrick requested correction of reproducibility problems rather than forwarding 
 **Willy's next handback:** authoring and student-use browser results against that staging origin, including access denial, interrupted upload, pending-payment recovery and real-phone behavior. Keep fixture results separate from real integration results.
 
 These are written assignments for review, not notifications sent to either collaborator. No merge or deployment was authorised by this follow-up.
+
+## Merge-authorised coding allocation
+
+Patrick authorised merging the tested portal on 16 November. The latest remote session/request fixes are incorporated. Detailed coding briefs are now in each collaborator's own handoff:
+
+- Emmanuel: **EM-C1** quota/accounting/unused-object cleanup; **EM-C2** historical receipt contract; **EM-C3** reproducible staging/backup verification.
+- Willy: **WI-C1** durable quiz drafts/results; **WI-C2** payment reconciliation; **WI-C3** receipt rendering; **WI-C4** learner pagination and phone/upload usability.
+
+Finish WI-C1 and WI-C2 first while Emmanuel establishes the receipt contract and live storage evidence. These are documented assignments, not messages sent to collaborators. Merge authorisation does not constitute production deployment or acceptance of unverified live services.
