@@ -97,6 +97,11 @@ export class ShellComponent {
             icon: "groups",
           },
           {
+            path: base + "/admin/contenus",
+            label: "Contenus",
+            icon: "library_books",
+          },
+          {
             path: base + "/admin/groupes",
             label: this.t.groups,
             icon: "calendar_month",

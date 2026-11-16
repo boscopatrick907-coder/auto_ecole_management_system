@@ -8,6 +8,7 @@ import type {
   Quiz,
   Resource,
 } from "./models";
+import type { AdminResource, AdminQuiz, MaterialKind } from "./content";
 export class RequestError extends Error {
   constructor(
     public status: number,
@@ -90,6 +91,45 @@ export class ApiService {
       hasMore: boolean;
       nextOffset: number;
     }>("admin/payments?date=" + encodeURIComponent(date) + "&offset=" + offset);
+  }
+  adminResources() {
+    return this.tenant<{ resources: AdminResource[] }>("admin/resources");
+  }
+  adminQuizzes() {
+    return this.tenant<{ quizzes: AdminQuiz[] }>("admin/quizzes");
+  }
+  async uploadMaterial(file: File, _kind: MaterialKind) {
+    const slug = this.slug,
+      user = this.expectedUserId;
+    const name =
+      file.name
+        .normalize("NFKD")
+        .replace(/[^a-zA-Z0-9._-]/g, "_")
+        .slice(-120) || "material";
+    const data = await this.tenant<{ uploadUrl: string; storagePath: string }>(
+      "admin/resources/upload-url",
+      "POST",
+      { fileName: name, contentType: file.type, size: file.size },
+    );
+    if (this.slug !== slug || this.expectedUserId !== user)
+      throw new RequestError(403, "SESSION_IDENTITY_CHANGED");
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), 120000);
+    try {
+      const result = await fetch(data.uploadUrl, {
+        method: "PUT",
+        credentials: "omit",
+        headers: { "Content-Type": file.type, "If-None-Match": "*" },
+        body: file,
+        signal: abort.signal,
+      });
+      if (!result.ok) throw new RequestError(result.status, "UPLOAD_FAILED");
+      if (this.slug !== slug || this.expectedUserId !== user)
+        throw new RequestError(403, "SESSION_IDENTITY_CHANGED");
+      return data.storagePath;
+    } finally {
+      clearTimeout(timer);
+    }
   }
   resources() {
     return this.tenant<{ resources: Resource[] }>("resources");

@@ -1,3 +1,5 @@
+> **16 November update:** Patrick requested the admin content portal. See [portal delivery and remaining collaborator tasks](CONTENT_PORTAL_AND_REMAINING_TASKS.md) for the current additions, priorities and live-validation limits. Earlier findings below are historical; do not reopen items already fixed without checking current code.
+
 # Emmanuel — backend, Neon and deployment handoff
 
 **Reviewed:** main at `8ce436f`, 9 November 2026. **Priority:** make the multi-school API safe and usable in staging; do not declare the product finished from a successful database connection alone.

@@ -73,12 +73,83 @@ async function fixtures(
     .setExpirationTime("3d")
     .sign(privateKey);
   const key = await exportJWK(publicKey);
+  const contentCategories = [{ id: "cat-a", code: "B", name: "Permis B" }];
+  const materials: any[] = [];
+  const authorQuizzes: any[] = [];
+  await page
+    .context()
+    .route("https://uploads.test/**", (route) =>
+      route.fulfill({ status: 200, body: "" }),
+    );
   await page.context().route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    const method = route.request().method();
+    if (path.endsWith("/admin/categories") && method === "POST") {
+      const b = route.request().postDataJSON();
+      const category = { id: crypto.randomUUID(), code: b.code, name: b.name };
+      contentCategories.push(category);
+      return route.fulfill({ status: 201, json: { category } });
+    }
+
+    if (path.includes("/admin/resources") || path.includes("/admin/quizzes")) {
+      if (role !== "admin")
+        return route.fulfill({
+          status: 403,
+          json: { error: "ADMIN_REQUIRED" },
+        });
+      if (path.endsWith("/upload-url"))
+        return route.fulfill({
+          status: 201,
+          json: {
+            uploadUrl: "https://uploads.test/private-file",
+            storagePath: "school-a/resources/synthetic.pdf",
+          },
+        });
+      const isQuiz = path.includes("/admin/quizzes");
+      const list = isQuiz ? authorQuizzes : materials;
+      if (method === "GET")
+        return route.fulfill({
+          json: isQuiz ? { quizzes: list } : { resources: list },
+        });
+      const b = route.request().postDataJSON();
+      const id = path.split("/").at(-1);
+      const current =
+        method === "PATCH"
+          ? list.find((x) => x.id === id)
+          : { id: crypto.randomUUID() };
+      if (!current)
+        return route.fulfill({ status: 404, json: { error: "NOT_FOUND" } });
+      if (b.title !== undefined) current.title = b.title;
+      if (b.licenceCategoryId !== undefined)
+        current.licence_category_id = b.licenceCategoryId;
+      if (b.isPublished !== undefined) current.is_published = b.isPublished;
+      if (isQuiz) {
+        if (b.durationMinutes !== undefined)
+          current.duration_minutes = b.durationMinutes;
+        if (b.questions !== undefined)
+          current.questions = b.questions.map((q: any, i: number) => ({
+            ...q,
+            id: q.id || crypto.randomUUID(),
+            correct_index: q.correctIndex,
+            image_url: q.imageUrl,
+            position: i + 1,
+          }));
+      } else {
+        if (b.description !== undefined) current.description = b.description;
+        if (b.type !== undefined) current.type = b.type;
+        if (b.storagePath !== undefined) current.storage_path = b.storagePath;
+        if (b.externalUrl !== undefined) current.external_url = b.externalUrl;
+      }
+      if (method === "POST") list.push(current);
+      return route.fulfill({
+        status: method === "POST" ? 201 : 200,
+        json: isQuiz ? { quiz: current } : { resource: current },
+      });
+    }
     const data = path.endsWith("/catalogue")
       ? {
           school,
-          categories: [{ id: "cat-a", code: "B", name: "Permis B" }],
+          categories: contentCategories,
           groups: [],
         }
       : path.endsWith("/get-session")
@@ -283,4 +354,193 @@ test("offline admin payment stays provisional and visible in the queue", async (
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Télécharger le PDF" }).click();
   expect((await download).suggestedFilename()).toMatch(/^RC-.*\.pdf$/);
+});
+
+test("admin authors private courses, previews drafts, edits and changes publication", async ({
+  page,
+}) => {
+  await fixtures(page, "admin");
+  await page.goto("/s/horizon/admin/contenus");
+  await expect(
+    page.getByRole("heading", { name: "Supports et quiz" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Aucun cours pour cette sélection" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", {
+      name: "Ajouter une catégorie de permis",
+      exact: true,
+    })
+    .click();
+  await page.getByLabel("Code du permis", { exact: true }).fill("A");
+  await page
+    .getByLabel("Nom de la catégorie", { exact: true })
+    .fill("Permis moto");
+  await page
+    .getByRole("button", { name: "Enregistrer le permis", exact: true })
+    .click();
+  await expect(page.getByRole("status")).toContainText(
+    "Catégorie de permis ajoutée",
+  );
+  await page
+    .getByLabel("Filtrer par permis")
+    .selectOption({ label: "Permis moto" });
+  await page
+    .getByRole("button", { name: "Nouveau cours", exact: true })
+    .click();
+  await page.getByLabel("Titre", { exact: true }).fill("Les priorités");
+  await page
+    .getByLabel("Description", { exact: true })
+    .fill("Support synthétique de sécurité routière");
+  await page.getByLabel("Fichier (25 Mo maximum)").setInputFiles({
+    name: "cours.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("%PDF-1.7 synthetic"),
+  });
+  await page
+    .getByRole("button", { name: "Prévisualiser", exact: true })
+    .click();
+  await expect(
+    page.getByRole("region", { name: "Aperçu du contenu" }),
+  ).toContainText("Les priorités");
+  const upload = page.waitForRequest("https://uploads.test/private-file");
+  await page
+    .getByRole("button", { name: "Enregistrer en brouillon", exact: true })
+    .click();
+  const uploadRequest = await upload;
+  expect(uploadRequest.method()).toBe("PUT");
+  expect(uploadRequest.headers()["if-none-match"]).toBe("*");
+  expect(uploadRequest.headers()["content-type"]).toBe("application/pdf");
+  await expect(page.getByRole("status")).toContainText("Brouillon enregistré");
+  const article = page.locator("article").filter({
+    has: page.getByRole("heading", { name: "Les priorités", exact: true }),
+  });
+  await expect(article).toContainText("Brouillon");
+  await article.getByRole("button", { name: "Publier", exact: true }).click();
+  await expect(article).toContainText("Publié");
+  await article.getByRole("button", { name: "Modifier", exact: true }).click();
+  await page
+    .getByLabel("Titre", { exact: true })
+    .fill("Priorités et intersections");
+  await page
+    .getByRole("button", { name: "Enregistrer et publier", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", {
+      name: "Priorités et intersections",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Dépublier", exact: true }).click();
+  await expect(page.locator("article")).toContainText("Brouillon");
+  await page.screenshot({
+    path: "/workspace/.onboarding/content-admin-mobile.png",
+    fullPage: true,
+  });
+});
+test("admin creates, previews, edits and duplicates quizzes with correct answers", async ({
+  page,
+}) => {
+  await fixtures(page, "admin");
+  await page.goto("/s/horizon/admin/contenus");
+  await page
+    .getByRole("button", { name: "Quiz et examens", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Nouveau quiz", exact: true }).click();
+  await page.getByLabel("Titre", { exact: true }).fill("Signalisation");
+  await page.getByLabel("Durée en minutes").fill("15");
+  await page
+    .getByLabel("Énoncé", { exact: true })
+    .fill("Quel feu impose l’arrêt ?");
+  await page
+    .getByRole("textbox", { name: "Choix 1, question 1", exact: true })
+    .fill("Rouge");
+  await page
+    .getByRole("textbox", { name: "Choix 2, question 1", exact: true })
+    .fill("Vert");
+  await page
+    .getByLabel("Explication de la réponse")
+    .fill("Le rouge impose l’arrêt.");
+  await page
+    .getByRole("button", { name: "Prévisualiser", exact: true })
+    .click();
+  await expect(
+    page.getByRole("region", { name: "Aperçu du contenu" }),
+  ).toContainText("Rouge — Bonne réponse");
+  await page
+    .getByRole("button", { name: "Enregistrer et publier", exact: true })
+    .click();
+  await expect(page.locator("article")).toContainText("Publié");
+  await expect(page.locator("article")).toContainText("1 question(s) · 15 min");
+  await page.getByRole("button", { name: "Modifier", exact: true }).click();
+  await page
+    .getByLabel("Énoncé", { exact: true })
+    .fill("Que signifie le feu rouge ?");
+  await page
+    .getByRole("button", { name: "Enregistrer en brouillon", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Aperçu du quiz", exact: true })
+    .click();
+  await expect(
+    page.getByRole("region", { name: "Aperçu du contenu" }),
+  ).toContainText("Que signifie le feu rouge ?");
+  await page
+    .getByRole("button", { name: "Fermer sans enregistrer", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Dupliquer", exact: true }).click();
+  await expect(page.getByLabel("Titre", { exact: true })).toHaveValue(
+    "Signalisation — copie",
+  );
+  await page
+    .getByRole("button", { name: "Enregistrer en brouillon", exact: true })
+    .click();
+  await expect(page.locator("article")).toHaveCount(2);
+});
+test("material failures preserve the form and unsupported files are rejected", async ({
+  page,
+}) => {
+  await fixtures(page, "admin");
+  await page.goto("/s/horizon/admin/contenus");
+  await page
+    .getByRole("button", { name: "Nouveau cours", exact: true })
+    .click();
+  await page.getByLabel("Titre", { exact: true }).fill("Cours à reprendre");
+  await page.getByLabel("Fichier (25 Mo maximum)").setInputFiles({
+    name: "danger.html",
+    mimeType: "text/html",
+    buffer: Buffer.from("<html>no</html>"),
+  });
+  await expect(page.getByRole("alert")).toContainText("Format non autorisé");
+  await page.getByLabel("Fichier (25 Mo maximum)").setInputFiles({
+    name: "cours.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("%PDF-1.7 test"),
+  });
+  await page
+    .context()
+    .route("**/admin/resources/upload-url", (route) =>
+      route.fulfill({ status: 503, json: { error: "STORAGE_UNCONFIGURED" } }),
+    );
+  await page
+    .getByRole("button", { name: "Enregistrer en brouillon", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText(
+    "stockage privé n’est pas configuré",
+  );
+  await expect(page.getByLabel("Titre", { exact: true })).toHaveValue(
+    "Cours à reprendre",
+  );
+  await expect(
+    page.getByRole("button", { name: "Enregistrer en brouillon", exact: true }),
+  ).toBeEnabled();
+});
+test("student cannot open admin content authoring", async ({ page }) => {
+  await fixtures(page, "student");
+  await page.goto("/s/horizon/admin/contenus");
+  await expect(page).toHaveURL(/\/s\/horizon\/accueil$/);
+  await expect(
+    page.getByRole("button", { name: "Nouveau cours", exact: true }),
+  ).toHaveCount(0);
 });

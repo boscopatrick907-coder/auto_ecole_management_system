@@ -138,9 +138,10 @@ create or replace function school_app.claim_invite(p_code text,p_phone text) ret
 end $$;
 create or replace function school_app.submit_quiz(p_quiz uuid,p_answers jsonb,p_client uuid,p_taken timestamptz) returns school_app.quiz_attempts language plpgsql security definer set search_path=pg_catalog,school_app as $$ declare s school_app.students;q school_app.quizzes;r school_app.quiz_attempts;v_score integer;v_total integer;begin
  select * into s from school_app.students where school_id=school_app.school_id() and user_id=school_app.user_id();if not found then raise exception 'STUDENT_REQUIRED';end if;
- select * into q from school_app.quizzes where school_id=s.school_id and id=p_quiz and licence_category_id=s.licence_category_id and is_published;if not found then raise exception 'QUIZ_FORBIDDEN';end if;
+ select * into q from school_app.quizzes where school_id=s.school_id and id=p_quiz and licence_category_id=s.licence_category_id and is_published for share;if not found then raise exception 'QUIZ_FORBIDDEN';end if;
  perform pg_advisory_xact_lock(hashtextextended(s.school_id::text||p_client::text,0));
  select * into r from school_app.quiz_attempts where school_id=s.school_id and client_id=p_client;if found then if r.student_id<>s.id or r.quiz_id<>q.id or r.answers<>p_answers then raise exception 'IDEMPOTENCY_CONFLICT';end if;return r;end if;
+ if not school_app.student_has_access(s.id) then raise exception 'QUIZ_FORBIDDEN';end if;
  select count(*)::integer,count(*) filter(where p_answers->>id::text=correct_index::text)::integer into v_total,v_score from school_app.questions where school_id=s.school_id and quiz_id=q.id;
  if v_total=0 then raise exception 'EMPTY_QUIZ';end if;
  insert into school_app.quiz_attempts(school_id,student_id,quiz_id,answers,score,total,taken_at,client_id) values(s.school_id,s.id,q.id,p_answers,v_score,v_total,p_taken,p_client) returning * into r;return r;
@@ -317,7 +318,9 @@ create or replace function school_app.admin_save_question(p_id uuid,p_quiz uuid,
 declare r school_app.questions;v_school uuid;begin
  if not school_app.is_admin() then raise exception 'ADMIN_REQUIRED';end if;
  v_school=school_app.school_id();
- if not exists(select 1 from school_app.quizzes where school_id=v_school and id=p_quiz) then raise exception 'QUIZ_NOT_FOUND';end if;
+ perform 1 from school_app.quizzes where school_id=v_school and id=p_quiz for update;
+ if not found then raise exception 'QUIZ_NOT_FOUND';end if;
+ if exists(select 1 from school_app.quiz_attempts where school_id=v_school and quiz_id=p_quiz) then raise exception 'QUIZ_HAS_ATTEMPTS';end if;
  if p_options is null or jsonb_typeof(p_options)<>'array' or jsonb_array_length(p_options)<2 or p_correct_index is null or p_correct_index<0 or p_correct_index>=jsonb_array_length(p_options) then raise exception 'INVALID_QUESTION_OPTIONS';end if;
  if p_id is null then
   insert into school_app.questions(school_id,quiz_id,body,options,correct_index,image_url,explanation,position) values(v_school,p_quiz,trim(p_body),p_options,p_correct_index,nullif(trim(p_image_url),''),coalesce(p_explanation,''),p_position) returning * into r;
@@ -360,3 +363,28 @@ do $$ declare t text; begin
     execute format('create policy backup_read on school_app.%I for select to aem_backup_reader using(true)', t);
   end loop;
 end $$;
+
+-- Atomic authoring replacement: never allow a question ID from another quiz/school.
+-- Submitted attempts retain their original question set; create a copy to revise it.
+create or replace function school_app.admin_replace_questions(p_quiz uuid,p_questions jsonb) returns void language plpgsql security definer set search_path=pg_catalog,school_app as $$
+declare v_school uuid; q jsonb; n integer:=0;
+begin
+ if not school_app.is_admin() then raise exception 'ADMIN_REQUIRED'; end if;
+ v_school:=school_app.school_id();
+ perform 1 from school_app.quizzes where school_id=v_school and id=p_quiz for update;
+ if not found then raise exception 'QUIZ_NOT_FOUND'; end if;
+ if p_questions is null or jsonb_typeof(p_questions)<>'array' or jsonb_array_length(p_questions)>100 then raise exception 'VALIDATION_ERROR'; end if;
+ if exists(select 1 from school_app.quiz_attempts where school_id=v_school and quiz_id=p_quiz) then raise exception 'QUIZ_HAS_ATTEMPTS'; end if;
+ if (select count(*) from jsonb_array_elements(p_questions) x where x ? 'id')<>(select count(distinct x->>'id') from jsonb_array_elements(p_questions) x where x ? 'id') then raise exception 'VALIDATION_ERROR'; end if;
+ for q in select * from jsonb_array_elements(p_questions) loop
+  if q ? 'id' and not exists(select 1 from school_app.questions where school_id=v_school and quiz_id=p_quiz and id=(q->>'id')::uuid) then raise exception 'NOT_FOUND'; end if;
+ end loop;
+ delete from school_app.questions where school_id=v_school and quiz_id=p_quiz and id not in (select (x->>'id')::uuid from jsonb_array_elements(p_questions) x where x ? 'id');
+ for q in select * from jsonb_array_elements(p_questions) loop
+  n:=n+1;
+  perform school_app.admin_save_question((q->>'id')::uuid,p_quiz,q->>'body',q->'options',(q->>'correctIndex')::integer,q->>'imageUrl',coalesce(q->>'explanation',''),n);
+ end loop;
+ insert into school_app.audit_log(school_id,actor,action,row_id,details) values(v_school,school_app.user_id(),'REPLACE_QUESTIONS',p_quiz,jsonb_build_object('count',n));
+end $$;
+revoke all on function school_app.admin_replace_questions(uuid,jsonb) from public;
+grant execute on function school_app.admin_replace_questions(uuid,jsonb) to aem_tenant_runtime;

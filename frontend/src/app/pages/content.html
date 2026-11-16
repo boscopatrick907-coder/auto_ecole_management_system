@@ -1,0 +1,435 @@
+<div class="page-heading">
+  <div>
+    <span class="eyebrow">{{ auth.school()?.name }}</span>
+    <h1>Supports et quiz</h1>
+  </div>
+</div>
+<p>
+  Préparez les cours et les évaluations de votre école. Seuls les contenus
+  publiés sont accessibles aux élèves autorisés.
+</p>
+<div class="content-tools" aria-label="Types de contenus">
+  <button
+    class="btn"
+    [class.secondary]="tab !== 'courses'"
+    [attr.aria-pressed]="tab === 'courses'"
+    [disabled]="busy()"
+    (click)="switchTab('courses')"
+  >
+    Cours et supports
+  </button>
+  <button
+    class="btn"
+    [class.secondary]="tab !== 'quizzes'"
+    [attr.aria-pressed]="tab === 'quizzes'"
+    [disabled]="busy()"
+    (click)="switchTab('quizzes')"
+  >
+    Quiz et examens
+  </button>
+  <label
+    >Filtrer par permis<select [(ngModel)]="filter" [disabled]="busy()">
+      <option value="">Tous les permis</option>
+      @for (c of categories(); track c.id) {
+      <option [value]="c.id">{{ c.name }}</option>
+      }
+    </select></label
+  >
+  <button
+    class="btn"
+    [disabled]="busy() || loading() || !categories().length"
+    (click)="create()"
+  >
+    {{ tab === 'courses' ? 'Nouveau cours' : 'Nouveau quiz' }}
+  </button>
+</div>
+<button
+  class="btn ghost small"
+  [disabled]="busy()"
+  (click)="categoryEditor = !categoryEditor"
+>
+  Ajouter une catégorie de permis
+</button>
+@if (categoryEditor || (!loading() && !categories().length)) {
+<section class="card">
+  <h2>Nouvelle catégorie de permis</h2>
+  <form #categoryForm="ngForm" (ngSubmit)="addCategory()">
+    <fieldset [disabled]="busy()">
+      <legend>Permis proposé par votre école</legend>
+      <label
+        >Code du permis<input
+          name="newCategoryCode"
+          [(ngModel)]="newCategoryCode"
+          required
+          maxlength="20"
+      /></label>
+      <label
+        >Nom de la catégorie<input
+          name="newCategoryName"
+          [(ngModel)]="newCategoryName"
+          required
+          minlength="2"
+          maxlength="100"
+      /></label>
+      <button
+        type="submit"
+        class="btn"
+        [disabled]="busy() || categoryForm.invalid"
+      >
+        Enregistrer le permis
+      </button>
+    </fieldset>
+  </form>
+</section>
+} @if (error()) {
+<p role="alert" class="error-box">{{ error() }}</p>
+} @if (success()) {
+<p role="status" class="success">{{ success() }}</p>
+} @if (loading()) {
+<p role="status">Chargement des contenus…</p>
+} @else if (!categories().length) {
+<section class="card">
+  <h2>Aucune catégorie de permis</h2>
+  <p>Ajoutez une catégorie de permis avant de créer du contenu.</p>
+</section>
+}
+<button
+  class="btn ghost small"
+  [disabled]="busy() || loading()"
+  (click)="load()"
+>
+  Actualiser les contenus
+</button>
+@if (!editing && !loading()) {
+<div class="content-list">
+  @if (tab === 'courses') { @for (r of filteredResources(); track r.id) {
+  <article class="card content-item">
+    <div>
+      <span class="badge">{{ r.is_published ? 'Publié' : 'Brouillon' }}</span>
+      <h2>{{ r.title }}</h2>
+      <p>
+        {{ categoryName(r.licence_category_id) }} · {{ r.type === 'pdf' ? 'PDF'
+        : r.type === 'video' ? 'Vidéo' : r.type === 'image' ? 'Image' : 'Lien'
+        }}
+      </p>
+      <p>{{ r.description }}</p>
+    </div>
+    <div class="actions">
+      <button
+        class="btn secondary"
+        [disabled]="busy()"
+        (click)="openResource(r)"
+      >
+        Aperçu du support</button
+      ><button
+        class="btn secondary"
+        [disabled]="busy()"
+        (click)="editResource(r)"
+      >
+        Modifier</button
+      ><button class="btn" [disabled]="busy()" (click)="publish(r)">
+        {{ r.is_published ? 'Dépublier' : 'Publier' }}
+      </button>
+    </div>
+  </article>
+  } @empty {
+  <section class="card">
+    <h2>Aucun cours pour cette sélection</h2>
+    <p>Ajoutez votre premier support pour préparer les leçons de vos élèves.</p>
+  </section>
+  } } @else { @for (q of filteredQuizzes(); track q.id) {
+  <article class="card content-item">
+    <div>
+      <span class="badge">{{ q.is_published ? 'Publié' : 'Brouillon' }}</span>
+      <h2>{{ q.title }}</h2>
+      <p>
+        {{ categoryName(q.licence_category_id) }} · {{ q.questions.length }}
+        question(s) · {{ q.duration_minutes }} min
+      </p>
+    </div>
+    <div class="actions">
+      <button
+        class="btn secondary"
+        [disabled]="busy()"
+        (click)="editQuiz(q); preview = true"
+      >
+        Aperçu du quiz</button
+      ><button class="btn secondary" [disabled]="busy()" (click)="editQuiz(q)">
+        Modifier</button
+      ><button
+        class="btn secondary"
+        [disabled]="busy()"
+        (click)="editQuiz(q, true)"
+      >
+        Dupliquer</button
+      ><button class="btn" [disabled]="busy()" (click)="publish(q)">
+        {{ q.is_published ? 'Dépublier' : 'Publier' }}
+      </button>
+    </div>
+  </article>
+  } @empty {
+  <section class="card">
+    <h2>Aucun quiz pour cette sélection</h2>
+    <p>Créez une évaluation avec ses réponses et explications.</p>
+  </section>
+  } }
+</div>
+} @if (editing) {
+<section class="card">
+  <h2>
+    {{ id ? 'Modifier' : 'Créer' }} {{ tab === 'courses' ? 'un cours' : 'un
+    quiz' }}
+  </h2>
+  <p>
+    Enregistrer en brouillon retire le contenu de la publication. Les
+    modifications sont appliquées uniquement après enregistrement.
+  </p>
+  <form #editor="ngForm" (ngSubmit)="save(false)">
+    <fieldset [disabled]="busy()">
+      <legend>Informations générales</legend>
+      <div class="grid-two">
+        <label
+          >Titre<input
+            name="title"
+            [(ngModel)]="title"
+            required
+            minlength="2"
+            maxlength="200"
+        /></label>
+        <label
+          >Catégorie de permis<select
+            name="category"
+            [(ngModel)]="category"
+            required
+          >
+            <option value="">Choisir un permis</option>
+            @for (c of categories(); track c.id) {
+            <option [value]="c.id">{{ c.name }}</option>
+            }
+          </select></label
+        >
+      </div>
+      @if (tab === 'courses') {
+      <label
+        >Description<textarea
+          name="description"
+          [(ngModel)]="description"
+          maxlength="1000"
+          rows="3"
+        ></textarea>
+      </label>
+      <label
+        >Type de support<select
+          name="kind"
+          [(ngModel)]="kind"
+          (ngModelChange)="changeKind()"
+        >
+          <option value="pdf">PDF</option>
+          <option value="image">Image</option>
+          <option value="video">Vidéo MP4</option>
+          <option value="link">Lien HTTPS externe</option>
+        </select></label
+      >
+      @if (kind === 'link') {<label
+        >Adresse HTTPS<input
+          name="externalUrl"
+          type="url"
+          [(ngModel)]="externalUrl"
+          maxlength="500"
+          required
+      /></label>
+      <p>
+        Un lien externe dépend du site destinataire ; il ne bénéficie pas de la
+        confidentialité du stockage privé.
+      </p>
+      } @else {
+      <label
+        >Fichier (25 Mo maximum)<input
+          type="file"
+          [accept]="kind === 'pdf' ? 'application/pdf' : kind === 'video' ? 'video/mp4' : 'image/png,image/jpeg,image/webp'"
+          (change)="selectFile($event)"
+      /></label>
+      <p>
+        Formats : PDF, PNG, JPEG, WebP ou MP4. Le serveur vérifie aussi la
+        taille et la signature du fichier.
+      </p>
+      @if (fileName) {
+      <p>Fichier sélectionné : {{ fileName }}</p>
+      } @else if (storagePath) {
+      <p>
+        Un fichier privé est déjà associé à ce cours. Choisissez un fichier pour
+        le remplacer.
+      </p>
+      } } } @else {<label
+        >Durée en minutes<input
+          name="duration"
+          type="number"
+          min="1"
+          max="240"
+          step="1"
+          [(ngModel)]="duration"
+          required /></label
+      >}
+    </fieldset>
+    @if (tab === 'quizzes') { @for (q of questions; track q; let i = $index) {
+    <fieldset [disabled]="busy()">
+      <legend>Question {{ i + 1 }}</legend>
+      <label
+        >Énoncé<textarea
+          [name]="'body' + i"
+          [(ngModel)]="q.body"
+          required
+          minlength="2"
+          maxlength="1000"
+          rows="3"
+        ></textarea>
+      </label>
+      <p>Choisissez la bonne réponse à l’aide du bouton rond.</p>
+      @for (option of q.options; track $index; let j = $index) {
+      <div class="option-row">
+        <input
+          type="radio"
+          [name]="'correct' + i"
+          [value]="j"
+          [(ngModel)]="q.correctIndex"
+          [attr.aria-label]="'Bonne réponse : choix ' + (j + 1) + ', question ' + (i + 1)"
+        />
+        <input
+          type="text"
+          [name]="'option' + i + '-' + j"
+          [(ngModel)]="q.options[j]"
+          [attr.aria-label]="'Choix ' + (j + 1) + ', question ' + (i + 1)"
+          required
+          maxlength="500"
+        />
+        <button
+          type="button"
+          class="btn ghost small"
+          [disabled]="q.options.length <= 2"
+          [attr.aria-label]="'Supprimer le choix ' + (j + 1)"
+          (click)="removeOption(q,j)"
+        >
+          Retirer
+        </button>
+      </div>
+      }
+      <button
+        type="button"
+        class="btn secondary small"
+        [disabled]="q.options.length >= 6"
+        (click)="q.options.push('')"
+      >
+        Ajouter un choix
+      </button>
+      <label
+        >Explication de la réponse<textarea
+          [name]="'explanation' + i"
+          [(ngModel)]="q.explanation"
+          maxlength="2000"
+          rows="2"
+        ></textarea>
+      </label>
+      <label
+        >Image de la question (lien HTTPS facultatif)<input
+          type="url"
+          [name]="'image' + i"
+          [(ngModel)]="q.imageUrl"
+          maxlength="500"
+      /></label>
+      <button
+        type="button"
+        class="btn ghost small"
+        (click)="questions.splice(i,1)"
+      >
+        Supprimer la question {{ i + 1 }}
+      </button>
+    </fieldset>
+    }
+    <button
+      type="button"
+      class="btn secondary"
+      [disabled]="busy() || questions.length >= 100"
+      (click)="addQuestion()"
+    >
+      Ajouter une question
+    </button>
+    <p>
+      Un quiz déjà passé doit être dupliqué pour changer ses questions et
+      préserver les résultats.
+    </p>
+    }
+    <div class="actions">
+      <button
+        type="button"
+        class="btn secondary"
+        [disabled]="busy()"
+        (click)="preview = !preview"
+      >
+        {{ preview ? 'Masquer l’aperçu' : 'Prévisualiser' }}
+      </button>
+      <button
+        type="submit"
+        class="btn secondary"
+        [disabled]="busy() || editor.invalid"
+      >
+        Enregistrer en brouillon
+      </button>
+      <button
+        type="button"
+        class="btn"
+        [disabled]="busy() || editor.invalid"
+        (click)="save(true)"
+      >
+        Enregistrer et publier
+      </button>
+      <button
+        type="button"
+        class="btn ghost"
+        [disabled]="busy()"
+        (click)="editing = false; preview = false"
+      >
+        Fermer sans enregistrer
+      </button>
+    </div>
+    @if (busy()) {
+    <p role="status">
+      Transfert ou enregistrement en cours… Gardez cette page ouverte.
+    </p>
+    }
+  </form>
+</section>
+@if (preview) {
+<section class="card preview" aria-label="Aperçu du contenu">
+  <span class="eyebrow">Aperçu administrateur — non enregistré</span>
+  <h2>{{ title || 'Titre à compléter' }}</h2>
+  <p>{{ categoryName(category) }}</p>
+  @if (tab === 'courses') {
+  <p>{{ description }}</p>
+  <button
+    class="btn secondary"
+    [disabled]="busy() || (!file && !id && kind !== 'link')"
+    (click)="openResource()"
+  >
+    Ouvrir le support</button
+  >} @else {
+  <p>Durée : {{ duration }} minutes</p>
+  @for (q of questions; track q; let i = $index) {
+  <h3>{{ i + 1 }}. {{ q.body }}</h3>
+  @if (q.imageUrl && q.imageUrl.startsWith('https://')) {<img
+    class="question-image"
+    [src]="q.imageUrl"
+    alt="Illustration de la question"
+  />}
+  <ol>
+    @for (option of q.options; track $index) {
+    <li>
+      {{ option }} @if ($index === q.correctIndex) {<strong>
+        — Bonne réponse</strong
+      >}
+    </li>
+    }
+  </ol>
+  <p>Explication : {{ q.explanation || 'Non renseignée' }}</p>
+  }}
+</section>
+} }

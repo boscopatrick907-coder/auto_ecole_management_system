@@ -96,6 +96,13 @@ export const routes: Routes = [
               import("./pages/reports").then((m) => m.ReportsComponent),
           },
           {
+            path: "contenus",
+            canActivate: [authGuard, roleGuard],
+            data: { role: "admin" },
+            loadComponent: () =>
+              import("./pages/content").then((m) => m.ContentComponent),
+          },
+          {
             path: "parametres",
             loadComponent: () =>
               import("./pages/settings").then((m) => m.SettingsComponent),

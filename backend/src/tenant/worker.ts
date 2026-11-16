@@ -2,18 +2,47 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
-import { S3Client, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  GetObjectCommand,
+  PutObjectCommand,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { SignJWT, importPKCS8, exportJWK, importSPKI } from "jose";
 import { createHash, createPublicKey, randomUUID } from "node:crypto";
 import type pg from "pg";
 import { poolFor, tenantTransaction, type TenantBindings } from "./context.js";
 import { createAuth } from "./auth.js";
+import {
+  materialStorage,
+  isUploadKey,
+  verifyMaterial,
+  MAX_MATERIAL_BYTES,
+} from "./material-storage.js";
 
 const app = new Hono<{ Bindings: TenantBindings }>();
 const uuid = z.string().uuid();
 const money = z.number().int().positive().max(1_000_000_000);
 const phone = z.string().regex(/^\+237[26][0-9]{8}$/);
+const questionInput = z
+  .object({
+    id: uuid.optional(),
+    body: z.string().trim().min(2).max(1000),
+    options: z.array(z.string().trim().min(1).max(500)).min(2).max(6),
+    correctIndex: z.number().int().min(0),
+    imageUrl: z
+      .string()
+      .url()
+      .max(500)
+      .refine((v) => v.startsWith("https://"))
+      .nullable()
+      .optional(),
+    explanation: z.string().max(2000).optional().default(""),
+  })
+  .superRefine((v, ctx) => {
+    if (v.correctIndex >= v.options.length)
+      ctx.addIssue({ code: "custom", message: "INVALID_QUESTION_OPTIONS" });
+  });
 const offlineReceiptRegex = /^RC-(?![0-9]{4}-)[A-Z0-9]{4,32}-[0-9]{1,12}$/;
 
 const fail = (code: string, status = 400) =>
@@ -47,7 +76,10 @@ app.use("*", bodyLimit({ maxSize: 1024 * 1024 }));
 app.use("*", async (c, next) =>
   cors({
     origin: (origin) =>
-      (c.env.TRUSTED_ORIGINS || "").split(",").map((x) => x.trim()).includes(origin)
+      (c.env.TRUSTED_ORIGINS || "")
+        .split(",")
+        .map((x) => x.trim())
+        .includes(origin)
         ? origin
         : "",
     credentials: true,
@@ -56,7 +88,9 @@ app.use("*", async (c, next) =>
 app.use("*", async (c, next) => {
   if (!["GET", "HEAD", "OPTIONS"].includes(c.req.method)) {
     const origin = c.req.header("Origin");
-    const trusted = (c.env.TRUSTED_ORIGINS || "").split(",").map((x) => x.trim());
+    const trusted = (c.env.TRUSTED_ORIGINS || "")
+      .split(",")
+      .map((x) => x.trim());
     if (!origin || !trusted.includes(origin))
       return c.json({ error: "ORIGIN_FORBIDDEN" }, 403);
   }
@@ -97,7 +131,7 @@ app.all("/api/auth/*", async (c) => {
       const tokenHash = createHash("sha256").update(token).digest("hex");
       const replayKey = "turnstile-replay:" + tokenHash;
       await pool.query(
-        'DELETE FROM identity.verification WHERE identifier LIKE \'turnstile-replay:%\' AND "expiresAt" < now()',
+        "DELETE FROM identity.verification WHERE identifier LIKE 'turnstile-replay:%' AND \"expiresAt\" < now()",
       );
       const existingReplay = await pool.query(
         "SELECT 1 FROM identity.verification WHERE identifier = $1",
@@ -122,7 +156,7 @@ app.all("/api/auth/*", async (c) => {
       if (!result.success) return c.json({ error: "TURNSTILE_FAILED" }, 403);
 
       await pool.query(
-        'INSERT INTO identity.verification(id, identifier, value, "expiresAt") VALUES ($1, $2, \'used\', now() + interval \'15 minutes\')',
+        "INSERT INTO identity.verification(id, identifier, value, \"expiresAt\") VALUES ($1, $2, 'used', now() + interval '15 minutes')",
         [randomUUID(), replayKey],
       );
     }
@@ -537,10 +571,9 @@ app.all("/api/schools/:slug/*", async (c) => {
         if (!g) throw fail("INVALID_GROUP", 400);
         if (
           (
-            await db.query(
-              "select 1 from school_app.students where phone=$1",
-              [b.phone],
-            )
+            await db.query("select 1 from school_app.students where phone=$1", [
+              b.phone,
+            ])
           ).rowCount
         ) {
           throw fail("PHONE_ALREADY_REGISTERED", 409);
@@ -751,7 +784,13 @@ app.all("/api/schools/:slug/*", async (c) => {
           insertedInstallments.push(inst);
         }
         return c.json(
-          { group: { ...g, confirmed_seats: 0, installments: insertedInstallments } },
+          {
+            group: {
+              ...g,
+              confirmed_seats: 0,
+              installments: insertedInstallments,
+            },
+          },
           201,
         );
       }
@@ -809,6 +848,33 @@ app.all("/api/schools/:slug/*", async (c) => {
         return c.json({ category: r.rows[0] });
       }
 
+      const previewFile = /^admin\/resources\/([0-9a-f-]+)\/url$/.exec(path);
+      if (previewFile && method === "GET") {
+        const r = (
+          await db.query("select * from school_app.resources where id=$1", [
+            uuid.parse(previewFile[1]),
+          ])
+        ).rows[0];
+        if (!r) throw fail("RESOURCE_NOT_FOUND", 404);
+        if (r.type === "link" && r.external_url?.startsWith("https://"))
+          return c.json({ url: r.external_url, expiresIn: null });
+        const s3 = materialStorage(c.env);
+        try {
+          return c.json({
+            url: await getSignedUrl(
+              s3,
+              new GetObjectCommand({
+                Bucket: c.env.R2_BUCKET_NAME,
+                Key: r.storage_path,
+              }),
+              { expiresIn: 120 },
+            ),
+            expiresIn: 120,
+          });
+        } finally {
+          s3.destroy();
+        }
+      }
       if (path === "admin/resources" && method === "GET") {
         return c.json({
           resources: (
@@ -825,6 +891,7 @@ app.all("/api/schools/:slug/*", async (c) => {
               .string()
               .trim()
               .regex(/^[a-zA-Z0-9._-]{1,120}$/),
+            size: z.number().int().min(1).max(MAX_MATERIAL_BYTES),
             contentType: z
               .enum([
                 "application/pdf",
@@ -836,31 +903,32 @@ app.all("/api/schools/:slug/*", async (c) => {
               .default("application/pdf"),
           })
           .parse(await c.req.json());
-        if (
-          !c.env.R2_ACCOUNT_ID ||
-          !c.env.R2_ACCESS_KEY_ID ||
-          !c.env.R2_SECRET_ACCESS_KEY
-        )
-          throw fail("STORAGE_UNCONFIGURED", 503);
         const storagePath = `${schoolId}/resources/${randomUUID()}-${b.fileName}`;
-        const s3 = new S3Client({
-          region: "auto",
-          endpoint: `https://${c.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-          credentials: {
-            accessKeyId: c.env.R2_ACCESS_KEY_ID,
-            secretAccessKey: c.env.R2_SECRET_ACCESS_KEY,
-          },
-        });
+        const s3 = materialStorage(c.env);
         const uploadUrl = await getSignedUrl(
           s3,
           new PutObjectCommand({
             Bucket: c.env.R2_BUCKET_NAME,
             Key: storagePath,
             ContentType: b.contentType,
+            ContentLength: b.size,
+            IfNoneMatch: "*",
           }),
-          { expiresIn: 300 },
+          {
+            expiresIn: 300,
+            signableHeaders: new Set(["content-type", "if-none-match"]),
+          },
         );
-        return c.json({ uploadUrl, storagePath, expiresIn: 300 }, 201);
+        s3.destroy();
+        return c.json(
+          {
+            uploadUrl,
+            storagePath,
+            expiresIn: 300,
+            maxSize: MAX_MATERIAL_BYTES,
+          },
+          201,
+        );
       }
       if (path === "admin/resources" && method === "POST") {
         const b = z
@@ -874,6 +942,18 @@ app.all("/api/schools/:slug/*", async (c) => {
             isPublished: z.boolean().optional().default(false),
           })
           .parse(await c.req.json());
+        if (b.type === "link") {
+          if (!b.externalUrl?.startsWith("https://") || b.storagePath)
+            throw fail("VALIDATION_ERROR");
+        } else {
+          if (
+            !b.storagePath ||
+            !isUploadKey(schoolId, b.storagePath) ||
+            b.externalUrl
+          )
+            throw fail("RESOURCE_FORBIDDEN", 403);
+          await verifyMaterial(c.env, b.storagePath, b.type);
+        }
         const r = await db.query(
           "select * from school_app.admin_save_resource(null,$1,$2,$3,$4,$5,$6,$7)",
           [
@@ -892,10 +972,9 @@ app.all("/api/schools/:slug/*", async (c) => {
       if (resourcePatch && method === "PATCH") {
         const resId = uuid.parse(resourcePatch[1]);
         const existing = (
-          await db.query(
-            "select * from school_app.resources where id=$1",
-            [resId],
-          )
+          await db.query("select * from school_app.resources where id=$1", [
+            resId,
+          ])
         ).rows[0];
         if (!existing) throw fail("RESOURCE_NOT_FOUND", 404);
         const b = z
@@ -909,6 +988,28 @@ app.all("/api/schools/:slug/*", async (c) => {
             isPublished: z.boolean().optional(),
           })
           .parse(await c.req.json());
+        const nextType = b.type ?? existing.type;
+        const nextPath =
+          b.storagePath !== undefined ? b.storagePath : existing.storage_path;
+        const nextUrl =
+          b.externalUrl !== undefined ? b.externalUrl : existing.external_url;
+        if (nextType === "link") {
+          if (!nextUrl?.startsWith("https://") || nextPath)
+            throw fail("VALIDATION_ERROR");
+        } else {
+          if (
+            !nextPath ||
+            nextUrl ||
+            (nextPath !== existing.storage_path &&
+              !isUploadKey(schoolId, nextPath))
+          )
+            throw fail("RESOURCE_FORBIDDEN", 403);
+          if (
+            nextPath !== existing.storage_path ||
+            (b.isPublished ?? existing.is_published)
+          )
+            await verifyMaterial(c.env, nextPath, nextType);
+        }
         const r = await db.query(
           "select * from school_app.admin_save_resource($1,$2,$3,$4,$5,$6,$7,$8)",
           [
@@ -927,9 +1028,7 @@ app.all("/api/schools/:slug/*", async (c) => {
 
       if (path === "admin/quizzes" && method === "GET") {
         const quizzes = (
-          await db.query(
-            "select * from school_app.quizzes order by title, id",
-          )
+          await db.query("select * from school_app.quizzes order by title, id")
         ).rows;
         const questions = (
           await db.query(
@@ -944,30 +1043,13 @@ app.all("/api/schools/:slug/*", async (c) => {
         });
       }
       if (path === "admin/quizzes" && method === "POST") {
-        const questionInput = z
-          .object({
-            body: z.string().trim().min(2).max(1000),
-            options: z.array(z.string().trim().min(1).max(500)).min(2).max(6),
-            correctIndex: z.number().int().min(0),
-            imageUrl: z.string().max(500).nullable().optional(),
-            explanation: z.string().max(2000).optional().default(""),
-            position: z.number().int().min(1).optional(),
-          })
-          .superRefine((val, ctx) => {
-            if (val.correctIndex >= val.options.length) {
-              ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                message: "INVALID_QUESTION_OPTIONS",
-              });
-            }
-          });
         const b = z
           .object({
             licenceCategoryId: uuid,
             title: z.string().trim().min(2).max(200),
             durationMinutes: z.number().int().min(1).max(240),
             isPublished: z.boolean().optional().default(false),
-            questions: z.array(questionInput).optional().default([]),
+            questions: z.array(questionInput).max(100).optional().default([]),
           })
           .parse(await c.req.json());
 
@@ -992,7 +1074,7 @@ app.all("/api/schools/:slug/*", async (c) => {
                 q.correctIndex,
                 q.imageUrl || null,
                 q.explanation || "",
-                q.position ?? idx + 1,
+                idx + 1,
               ],
             )
           ).rows[0].question;
@@ -1024,8 +1106,14 @@ app.all("/api/schools/:slug/*", async (c) => {
             title: z.string().trim().min(2).max(200).optional(),
             durationMinutes: z.number().int().min(1).max(240).optional(),
             isPublished: z.boolean().optional(),
+            questions: z.array(questionInput).max(100).optional(),
           })
           .parse(await c.req.json());
+        if (b.questions)
+          await db.query("select school_app.admin_replace_questions($1,$2)", [
+            qzId,
+            JSON.stringify(b.questions),
+          ]);
         const r = await db.query(
           "select * from school_app.admin_save_quiz($1,$2,$3,$4,$5)",
           [
@@ -1038,9 +1126,8 @@ app.all("/api/schools/:slug/*", async (c) => {
         );
         return c.json({ quiz: r.rows[0] });
       }
-      const quizQuestionsPost = /^admin\/quizzes\/([0-9a-f-]+)\/questions$/.exec(
-        path,
-      );
+      const quizQuestionsPost =
+        /^admin\/quizzes\/([0-9a-f-]+)\/questions$/.exec(path);
       if (quizQuestionsPost && method === "POST") {
         const qzId = uuid.parse(quizQuestionsPost[1]);
         const raw = await c.req.json();
@@ -1110,6 +1197,7 @@ app.all("/api/schools/:slug/*", async (c) => {
 });
 
 const statusByCode: Record<string, number> = {
+  QUIZ_HAS_ATTEMPTS: 409,
   AUTH_REQUIRED: 401,
   ORIGIN_FORBIDDEN: 403,
   TURNSTILE_REQUIRED: 403,
@@ -1141,6 +1229,10 @@ const statusByCode: Record<string, number> = {
   GROUP_FULL: 409,
   RATE_LIMITED: 429,
   STORAGE_UNCONFIGURED: 503,
+  STORAGE_UNAVAILABLE: 503,
+  INVALID_FILE_SIZE: 400,
+  INVALID_FILE_TYPE: 400,
+  UPLOAD_NOT_FOUND: 400,
   EMAIL_DELIVERY_UNAVAILABLE: 503,
   VALIDATION_ERROR: 400,
   INVALID_GROUP: 400,
@@ -1186,8 +1278,7 @@ app.onError((e, c) => {
   }
   const code = e.message in statusByCode ? e.message : undefined;
   const status =
-    (e as { status?: number }).status ||
-    (code ? statusByCode[code] : 500);
+    (e as { status?: number }).status || (code ? statusByCode[code] : 500);
   return c.json({ error: code || "REQUEST_FAILED" }, status as 400);
 });
 

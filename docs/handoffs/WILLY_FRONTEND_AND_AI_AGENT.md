@@ -1,3 +1,5 @@
+> **16 November update:** Patrick requested the admin content portal. See [portal delivery and remaining collaborator tasks](CONTENT_PORTAL_AND_REMAINING_TASKS.md) for the current additions, priorities and live-validation limits. Earlier findings below are historical; do not reopen items already fixed without checking current code.
+
 # Willy — frontend integration and quality handoff
 
 **Reviewed:** main `8ce436f`, 9 November 2026. Keep the existing Stitch/Clarté Routière design. This is a completion/integration assignment, not a new redesign.
