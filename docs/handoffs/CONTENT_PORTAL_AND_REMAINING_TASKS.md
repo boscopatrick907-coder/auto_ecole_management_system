@@ -26,7 +26,8 @@ No production data, provider account or external recipient is used. A real priva
 - [ ] **P0: Provide deployed-stack evidence.** Record commit/entry point, TLS, restricted application/identity roles, secure cookies, Turnstile, recovery email and negative school/student isolation. Existing scripts and connectivity commits do not replace end-to-end evidence.
 - [ ] **P0: Rehearse actual legacy import.** Reconcile identities, school membership, balances, historical receipt counters, trials and file references; preserve deferred staff/history and prove rollback. Resolve identity collisions through reviewed linking, not invented emails or blanket admin rights.
 - [ ] **P1: Complete backup/restore acceptance.** Verify successful scheduled private R2 backups, checksum-verified restore to a disposable cloud target, role reapplication, measured RPO/RTO and alerts. Inspect actual workflow results before claiming completion.
-- [ ] **P1: Make developer startup fail clearly.** Validate required bindings before `.replace` or database use; consolidate legacy versus tenant startup documentation. Never generate production credentials automatically.
+- [x] **Developer startup validation corrected locally.** Missing bindings now produce names and setup guidance; malformed signing keys/database URLs and partial R2 configuration are rejected without printing values. Process variables override local file defaults. Five regression tests cover these cases.
+- [ ] **P1: Emmanuel — verify the startup fix with your private staging configuration** and consolidate any remaining legacy/tenant instructions. Supply only redacted results, never credential values.
 - [ ] **P1: Set an object-retention policy.** Replaced files and successful uploads whose record save failed can remain unreferenced. Add a reviewed grace-period cleanup that proves a key is unused across all relevant records; never blindly delete old files. Configure per-school storage quotas and upload rate limits before broad rollout.
 - [ ] **P1: Review material security policy.** Magic-byte checks do not sanitize PDFs or deeply decode video/images. Decide on malware scanning/quarantine, supported media codecs, download headers and costs according to school needs. The 25 MiB initial limit intentionally excludes large videos.
 - [ ] **P1: Verify capacity and monitoring.** Measure staging latency, database connections, storage usage and cold starts under bounded load; configure error alerts and deployment rollback. Free-tier suitability must be measured.
@@ -58,3 +59,14 @@ No production data, provider account or external recipient is used. A real priva
 4. Run the complete pilot journey, backup restore and device acceptance; approve launch only after recording results.
 
 This file records work for collaborators; it does not claim they have received a message or completed these items.
+
+
+## Review follow-up — 16 November 2026
+
+Patrick requested correction of reproducibility problems rather than forwarding fixable defects to collaborators. The local missing-configuration crash was reproduced and corrected in `dev-config.ts`/`dev-server.ts`; five additional tests pass and backend compilation passes. This does not configure a real R2 bucket or establish deployed readiness.
+
+**Emmanuel's next handback:** migration result on a disposable staging branch; real private upload/download and CORS evidence; restricted-role/TLS evidence; backup restore result; exact deployed commit. Mark each item passed, failed or blocked with its prerequisite.
+
+**Willy's next handback:** authoring and student-use browser results against that staging origin, including access denial, interrupted upload, pending-payment recovery and real-phone behavior. Keep fixture results separate from real integration results.
+
+These are written assignments for review, not notifications sent to either collaborator. No merge or deployment was authorised by this follow-up.

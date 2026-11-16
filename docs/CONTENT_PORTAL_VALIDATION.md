@@ -47,3 +47,8 @@ The new backend tests use real Better Auth sessions and restricted PostgreSQL ru
 6. Already downloaded material cannot be remotely erased when unpublished; existing offline lease limitations still apply.
 
 GitHub's API returned `Forbidden` during the read-only repository capability check, so a pull request could not be created in this session. The implementation remains reviewable in the local checkout. See [collaborator tasks](handoffs/CONTENT_PORTAL_AND_REMAINING_TASKS.md) for assigned priorities and acceptance criteria.
+
+
+## Reproducibility follow-up
+
+The local server's missing-key crash was reproduced and fixed. `developmentBindings` reports required setting names, validates PostgreSQL URL schemes and Ed25519 private keys, normalizes escaped PEM newlines, and detects partial R2 configuration. Explicit process variables override `.dev.vars` defaults. Five new targeted tests and backend compilation pass. The original 71-test suite and frontend/browser results above are the portal delivery results; they were not all rerun for this startup-only change.
