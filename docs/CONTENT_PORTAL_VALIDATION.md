@@ -52,3 +52,9 @@ GitHub's API returned `Forbidden` during the read-only repository capability che
 ## Reproducibility follow-up
 
 The local server's missing-key crash was reproduced and fixed. `developmentBindings` reports required setting names, validates PostgreSQL URL schemes and Ed25519 private keys, normalizes escaped PEM newlines, and detects partial R2 configuration. Explicit process variables override `.dev.vars` defaults. Five new targeted tests and backend compilation pass. The original 71-test suite and frontend/browser results above are the portal delivery results; they were not all rerun for this startup-only change.
+
+## Merge validation — 16 November 2026
+
+Patrick subsequently authorised merging. Remote main's `b5cbc1b` session/request-header fixes were incorporated without conflict. On the combined code: backend compilation and Worker dry-run passed, all 76 backend tests passed with exit status 0, frontend strict TypeScript/build and all 19 unit tests passed, and all 11 Chromium fixture scenarios passed. A flaky legacy-import test cleanup was corrected to close pools and drop its disposable database normally instead of forcibly terminating connections during shutdown; no assertions or error detection were disabled.
+
+The detailed coding briefs EM-C1–EM-C3 and WI-C1–WI-C4 are in the individual collaborator handoffs. Production deployment, real storage acceptance and backup restoration remain separate gates. Native Git access can be used for the authorised main update even though the earlier GitHub API/PR capability check was forbidden.
