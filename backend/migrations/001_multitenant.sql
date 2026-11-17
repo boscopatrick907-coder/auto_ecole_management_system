@@ -31,7 +31,8 @@ create table if not exists school_app.enrollments (id uuid primary key default g
 create table if not exists school_app.invites (id uuid primary key default gen_random_uuid(), school_id uuid not null references school_app.schools(id), student_id uuid not null, code_hash text not null, expires_at timestamptz not null, used_at timestamptz, created_by text not null references identity."user"(id), unique(school_id,id), foreign key(school_id,student_id) references school_app.students(school_id,id));
 create index if not exists invites_lookup on school_app.invites(school_id,code_hash);
 create table if not exists school_app.receipt_counters (school_id uuid not null references school_app.schools(id), year integer not null, last_value integer not null default 0, primary key(school_id,year));
-create table if not exists school_app.payments (id uuid primary key default gen_random_uuid(), school_id uuid not null references school_app.schools(id), enrollment_id uuid not null, amount bigint not null check(amount>0), method text not null check(method in ('cash','mtn_momo','orange_money','bank')), reference text, receipt_number text not null, paid_at timestamptz not null default now(), recorded_by text not null references identity."user"(id), client_id uuid not null, cancelled_at timestamptz, cancelled_by text references identity."user"(id), cancel_reason text, unique(school_id,id), unique(school_id,receipt_number), unique(school_id,client_id), foreign key(school_id,enrollment_id) references school_app.enrollments(school_id,id), check((cancelled_at is null and cancelled_by is null and cancel_reason is null) or (cancelled_at is not null and cancelled_by is not null and length(trim(cancel_reason))>=1)));
+create table if not exists school_app.payments (id uuid primary key default gen_random_uuid(), school_id uuid not null references school_app.schools(id), enrollment_id uuid not null, amount bigint not null check(amount>0), method text not null check(method in ('cash','mtn_momo','orange_money','bank')), reference text, receipt_number text not null, paid_at timestamptz not null default now(), recorded_by text not null references identity."user"(id), client_id uuid not null, cancelled_at timestamptz, cancelled_by text references identity."user"(id), cancel_reason text, issuance_snapshot jsonb, unique(school_id,id), unique(school_id,receipt_number), unique(school_id,client_id), foreign key(school_id,enrollment_id) references school_app.enrollments(school_id,id), check((cancelled_at is null and cancelled_by is null and cancel_reason is null) or (cancelled_at is not null and cancelled_by is not null and length(trim(cancel_reason))>=1)));
+alter table school_app.payments add column if not exists issuance_snapshot jsonb;
 create index if not exists payments_enrollment on school_app.payments(school_id,enrollment_id) where cancelled_at is null;
 create table if not exists school_app.audit_log (id bigint generated always as identity primary key, school_id uuid not null references school_app.schools(id), actor text, action text not null, row_id uuid, details jsonb not null, at timestamptz not null default now());
 create table if not exists school_app.resources (id uuid primary key default gen_random_uuid(), school_id uuid not null references school_app.schools(id), licence_category_id uuid not null, title text not null, description text not null default '', type text not null default 'pdf', storage_path text, external_url text, is_published boolean not null default false, unique(school_id,id), foreign key(school_id,licence_category_id) references school_app.licence_categories(school_id,id));
@@ -83,7 +84,7 @@ create or replace view school_app.enrollment_balances with(security_invoker=true
 create or replace view school_app.installment_status with(security_invoker=true) as with x as(select b.school_id,b.enrollment_id,i.id,i.position,i.label,i.amount,i.due_date,b.paid,sum(i.amount) over(partition by b.school_id,b.enrollment_id order by i.position) as cumulative_due from school_app.enrollment_balances b join school_app.installments i on i.school_id=b.school_id and i.group_id=b.group_id) select *,greatest(0,least(amount,paid-(cumulative_due-amount)))::bigint as paid_amount,case when paid>=cumulative_due then 'paid' when due_date<(now() at time zone 'Africa/Douala')::date then 'overdue' when paid>cumulative_due-amount then 'partial' else 'upcoming' end as status from x;
 grant select on school_app.enrollment_balances,school_app.installment_status to aem_tenant_runtime;
 create or replace function school_app.record_payment(p_enrollment uuid,p_amount bigint,p_method text,p_reference text,p_client uuid,p_paid_at timestamptz default now(),p_receipt text default null) returns school_app.payments language plpgsql security definer set search_path=pg_catalog,school_app as $$
-declare e school_app.enrollments;g school_app.groups;r school_app.payments;n integer;y integer;v_balance bigint;begin
+declare e school_app.enrollments;g school_app.groups;r school_app.payments;sc school_app.schools;st school_app.students;lc school_app.licence_categories;n integer;y integer;v_balance bigint;v_snapshot jsonb;begin
  if not school_app.is_admin() then raise exception 'ADMIN_REQUIRED';end if;
  if p_client is null or p_amount<=0 or p_amount>1000000000 then raise exception 'INVALID_PAYMENT';end if;
  perform pg_advisory_xact_lock(hashtextextended(school_app.school_id()::text||p_client::text,0));
@@ -96,8 +97,21 @@ declare e school_app.enrollments;g school_app.groups;r school_app.payments;n int
  select g.total_fee-coalesce(sum(amount),0) into v_balance from school_app.payments where school_id=e.school_id and enrollment_id=e.id and cancelled_at is null;
  if p_amount>v_balance then raise exception 'EXCEEDS_BALANCE';end if;
  if not exists(select 1 from school_app.payments where school_id=e.school_id and enrollment_id=e.id and cancelled_at is null) and (select count(distinct en.id) from school_app.enrollments en join school_app.payments p on p.school_id=en.school_id and p.enrollment_id=en.id and p.cancelled_at is null where en.school_id=e.school_id and en.group_id=e.group_id and en.status<>'cancelled')>=g.capacity then raise exception 'GROUP_FULL';end if;
- if p_receipt is null then y=extract(year from now() at time zone 'Africa/Douala');insert into school_app.receipt_counters values(e.school_id,y,1) on conflict(school_id,year) do update set last_value=school_app.receipt_counters.last_value+1 returning last_value into n;p_receipt=(select receipt_prefix from school_app.schools where id=e.school_id)||'-'||y||'-'||lpad(n::text,6,'0');end if;
- insert into school_app.payments(school_id,enrollment_id,amount,method,reference,receipt_number,paid_at,recorded_by,client_id) values(e.school_id,e.id,p_amount,p_method,p_reference,p_receipt,p_paid_at,school_app.user_id(),p_client) returning * into r;return r;
+ select * into sc from school_app.schools where id=e.school_id;
+ select * into st from school_app.students where school_id=e.school_id and id=e.student_id;
+ select * into lc from school_app.licence_categories where school_id=e.school_id and id=g.licence_category_id;
+ if p_receipt is null then y=extract(year from now() at time zone 'Africa/Douala');insert into school_app.receipt_counters values(e.school_id,y,1) on conflict(school_id,year) do update set last_value=school_app.receipt_counters.last_value+1 returning last_value into n;p_receipt=sc.receipt_prefix||'-'||y||'-'||lpad(n::text,6,'0');end if;
+ v_snapshot=jsonb_build_object(
+   'snapshotVersion','2026-11-17.v1',
+   'snapshotSource','recorded_at_issuance',
+   'receiptNumber',p_receipt,
+   'issuedAt',p_paid_at,
+   'balanceAtIssuance',v_balance-p_amount,
+   'school',jsonb_build_object('name',sc.name,'address',sc.address,'phone',sc.phone,'whatsapp',sc.whatsapp,'agrementNumber',sc.agrement_number,'receiptPrefix',sc.receipt_prefix),
+   'student',jsonb_build_object('id',st.id,'name',st.name,'phone',st.phone),
+   'enrollment',jsonb_build_object('id',e.id,'groupName',g.name,'licenceCode',lc.code,'licenceName',lc.name,'totalFee',g.total_fee)
+ );
+ insert into school_app.payments(school_id,enrollment_id,amount,method,reference,receipt_number,paid_at,recorded_by,client_id,issuance_snapshot) values(e.school_id,e.id,p_amount,p_method,p_reference,p_receipt,p_paid_at,school_app.user_id(),p_client,v_snapshot) returning * into r;return r;
 end $$;
 create or replace function school_app.guard_payment() returns trigger language plpgsql as $$ begin
  if tg_op='DELETE' then raise exception 'APPEND_ONLY';end if;

@@ -68,7 +68,12 @@ function enrichPaymentSql(alias = "p") {
       )::bigint
     end as balance_at_issuance,
     case when ${alias}.cancelled_at is not null then 'cancelled' else 'confirmed' end as receipt_status,
-    (${alias}.receipt_number ~ '^RC-[A-Z0-9]{4,32}-[0-9]{1,12}$' and ${alias}.receipt_number !~ '^RC-[0-9]{4}-[0-9]+$') as is_offline_provisional_number
+    (${alias}.receipt_number ~ '^RC-[A-Z0-9]{4,32}-[0-9]{1,12}$' and ${alias}.receipt_number !~ '^RC-[0-9]{4}-[0-9]+$') as is_offline_provisional_number,
+    ${alias}.issuance_snapshot,
+    case when ${alias}.issuance_snapshot is not null then 'recorded_at_issuance' else 'missing_legacy_snapshot' end as snapshot_provenance,
+    b.balance::bigint as current_balance,
+    'Solde à l''émission'::text as balance_label,
+    'Solde actuel'::text as current_balance_label
   `;
 }
 
