@@ -47,7 +47,7 @@ grant select,insert,update on school_app.storage_uploads to aem_tenant_runtime;
 create or replace function school_app.user_id() returns text language sql stable as $$ select nullif(current_setting('app.user_id',true),'') $$;
 create or replace function school_app.school_id() returns uuid language sql stable as $$ select nullif(current_setting('app.school_id',true),'')::uuid $$;
 drop policy if exists storage_uploads_tenant on school_app.storage_uploads;
-create policy storage_uploads_tenant on school_app.storage_uploads using(school_id=school_app.school_id()) with check(school_id=school_app.school_id());
+create policy storage_uploads_tenant on school_app.storage_uploads using(school_id=school_app.school_id() and school_app.is_admin()) with check(school_id=school_app.school_id() and school_app.is_admin());
 create or replace function school_app.member_role() returns text language sql stable security definer set search_path=pg_catalog,school_app as $$ select role from school_app.school_members where school_id=school_app.school_id() and user_id=school_app.user_id() $$;
 create or replace function school_app.is_admin() returns boolean language sql stable as $$ select coalesce(school_app.member_role()='admin',false) $$;
 create or replace function school_app.owns_student(p_id uuid) returns boolean language sql stable security definer set search_path=pg_catalog,school_app as $$ select exists(select 1 from school_app.students where school_id=school_app.school_id() and id=p_id and user_id=school_app.user_id()) $$;
@@ -221,7 +221,7 @@ create or replace function school_app.actor_display_name(p_user_id text) returns
 $$;
 
 create or replace function school_app.record_payment(p_enrollment uuid,p_amount bigint,p_method text,p_reference text,p_client uuid,p_paid_at timestamptz default now(),p_receipt text default null) returns school_app.payments language plpgsql security definer set search_path=pg_catalog,school_app as $$
-declare e school_app.enrollments;g school_app.groups;r school_app.payments;n integer;y integer;v_balance bigint;begin
+declare e school_app.enrollments;g school_app.groups;r school_app.payments;sc school_app.schools;st school_app.students;lc school_app.licence_categories;n integer;y integer;v_balance bigint;v_snapshot jsonb;begin
  if not school_app.is_admin() then raise exception 'ADMIN_REQUIRED';end if;
  if p_client is null or p_amount<=0 or p_amount>1000000000 then raise exception 'INVALID_PAYMENT';end if;
  if p_receipt is not null and (p_receipt !~ '^RC-[A-Z0-9]{4,32}-[0-9]{1,12}$' or p_receipt ~ '^RC-[0-9]{4}-[0-9]+$') then raise exception 'INVALID_RECEIPT_NUMBER';end if;
@@ -235,12 +235,25 @@ declare e school_app.enrollments;g school_app.groups;r school_app.payments;n int
  select g.total_fee-coalesce(sum(amount),0) into v_balance from school_app.payments where school_id=e.school_id and enrollment_id=e.id and cancelled_at is null;
  if p_amount>v_balance then raise exception 'EXCEEDS_BALANCE';end if;
  if not exists(select 1 from school_app.payments where school_id=e.school_id and enrollment_id=e.id and cancelled_at is null) and (select count(distinct en.id) from school_app.enrollments en join school_app.payments p on p.school_id=en.school_id and p.enrollment_id=en.id and p.cancelled_at is null where en.school_id=e.school_id and en.group_id=e.group_id and en.status<>'cancelled')>=g.capacity then raise exception 'GROUP_FULL';end if;
+ select * into sc from school_app.schools where id=e.school_id;
+ select * into st from school_app.students where school_id=e.school_id and id=e.student_id;
+ select * into lc from school_app.licence_categories where school_id=e.school_id and id=g.licence_category_id;
  if p_receipt is not null then
   if exists(select 1 from school_app.payments where school_id=e.school_id and receipt_number=p_receipt) then raise exception 'RECEIPT_NUMBER_CONFLICT';end if;
  else
-  y=extract(year from now() at time zone 'Africa/Douala');insert into school_app.receipt_counters values(e.school_id,y,1) on conflict(school_id,year) do update set last_value=school_app.receipt_counters.last_value+1 returning last_value into n;p_receipt=(select receipt_prefix from school_app.schools where id=e.school_id)||'-'||y||'-'||lpad(n::text,6,'0');
+  y=extract(year from now() at time zone 'Africa/Douala');insert into school_app.receipt_counters values(e.school_id,y,1) on conflict(school_id,year) do update set last_value=school_app.receipt_counters.last_value+1 returning last_value into n;p_receipt=sc.receipt_prefix||'-'||y||'-'||lpad(n::text,6,'0');
  end if;
- insert into school_app.payments(school_id,enrollment_id,amount,method,reference,receipt_number,paid_at,recorded_by,client_id) values(e.school_id,e.id,p_amount,p_method,p_reference,p_receipt,p_paid_at,school_app.user_id(),p_client) returning * into r;return r;
+ v_snapshot=jsonb_build_object(
+   'snapshotVersion','2026-11-17.v1',
+   'snapshotSource','recorded_at_issuance',
+   'receiptNumber',p_receipt,
+   'issuedAt',p_paid_at,
+   'balanceAtIssuance',v_balance-p_amount,
+   'school',jsonb_build_object('name',sc.name,'address',sc.address,'phone',sc.phone,'whatsapp',sc.whatsapp,'agrementNumber',sc.agrement_number,'receiptPrefix',sc.receipt_prefix),
+   'student',jsonb_build_object('id',st.id,'name',st.full_name,'phone',st.phone),
+   'enrollment',jsonb_build_object('id',e.id,'groupName',g.name,'licenceCode',lc.code,'licenceName',lc.name,'totalFee',g.total_fee)
+ );
+ insert into school_app.payments(school_id,enrollment_id,amount,method,reference,receipt_number,paid_at,recorded_by,client_id,issuance_snapshot) values(e.school_id,e.id,p_amount,p_method,p_reference,p_receipt,p_paid_at,school_app.user_id(),p_client,v_snapshot) returning * into r;return r;
 end $$;
 
 create or replace function school_app.audit_payment() returns trigger language plpgsql security definer set search_path=pg_catalog,school_app as $$ begin insert into school_app.audit_log(school_id,actor,action,row_id,details) values(new.school_id,school_app.user_id(),tg_op,new.id,to_jsonb(new)||jsonb_build_object('school_snapshot',(select jsonb_build_object('name',s.name,'address',s.address,'phone',s.phone,'whatsapp',s.whatsapp,'agrement_number',s.agrement_number,'receipt_prefix',s.receipt_prefix) from school_app.schools s where s.id=new.school_id),'balance_snapshot',(select b.balance from school_app.enrollment_balances b where b.school_id=new.school_id and b.enrollment_id=new.enrollment_id)));return new;end $$;

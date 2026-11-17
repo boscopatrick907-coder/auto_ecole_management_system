@@ -56,6 +56,7 @@ function enrichPaymentSql(alias = "p") {
     b.balance::bigint as current_balance,
     case
       when ${alias}.cancelled_at is not null then null
+      when ${alias}.issuance_snapshot is not null and ${alias}.issuance_snapshot ? 'balanceAtIssuance' then (${alias}.issuance_snapshot->>'balanceAtIssuance')::bigint
       else (
         b.total_fee - coalesce((
           select sum(p2.amount)
@@ -920,6 +921,10 @@ app.all("/api/schools/:slug/*", async (c) => {
               .default("application/pdf"),
           })
           .parse(await c.req.json());
+        await db.query(
+          "select storage_quota_bytes from school_app.schools where id = $1 for update",
+          [schoolId],
+        );
         const quotaRes = await db.query(
           `select s.storage_quota_bytes::bigint as quota_bytes,
                   coalesce(sum(u.size_bytes) filter (where u.status = 'finalized'), 0)::bigint as used_bytes,
@@ -1005,6 +1010,14 @@ app.all("/api/schools/:slug/*", async (c) => {
             b.isPublished,
           ],
         );
+        if (b.storagePath) {
+          await db.query(
+            `update school_app.storage_uploads
+             set status = 'finalized', finalized_at = coalesce(finalized_at, now())
+             where school_id = $1 and storage_path = $2`,
+            [schoolId, b.storagePath],
+          );
+        }
         return c.json({ resource: r.rows[0] }, 201);
       }
       const resourcePatch = /^admin\/resources\/([0-9a-f-]+)$/.exec(path);
