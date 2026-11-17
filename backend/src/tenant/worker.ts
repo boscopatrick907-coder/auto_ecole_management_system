@@ -920,7 +920,29 @@ app.all("/api/schools/:slug/*", async (c) => {
               .default("application/pdf"),
           })
           .parse(await c.req.json());
+        const quotaRes = await db.query(
+          `select s.storage_quota_bytes::bigint as quota_bytes,
+                  coalesce(sum(u.size_bytes) filter (where u.status = 'finalized'), 0)::bigint as used_bytes,
+                  coalesce(sum(u.size_bytes) filter (where u.status = 'pending' and u.created_at > now() - interval '1 hour'), 0)::bigint as pending_bytes
+           from school_app.schools s
+           left join school_app.storage_uploads u on u.school_id = s.id
+           where s.id = $1
+           group by s.id, s.storage_quota_bytes`,
+          [schoolId],
+        );
+        const quota = quotaRes.rows[0];
+        if (quota) {
+          const totalCommitted = Number(quota.used_bytes) + Number(quota.pending_bytes) + b.size;
+          if (totalCommitted > Number(quota.quota_bytes)) {
+            throw fail("STORAGE_QUOTA_EXCEEDED", 409);
+          }
+        }
         const storagePath = `${schoolId}/resources/${randomUUID()}-${b.fileName}`;
+        await db.query(
+          `insert into school_app.storage_uploads (school_id, storage_path, size_bytes, content_type, status)
+           values ($1, $2, $3, $4, 'pending')`,
+          [schoolId, storagePath, b.size, b.contentType],
+        );
         const s3 = materialStorage(c.env);
         const uploadUrl = await getSignedUrl(
           s3,
