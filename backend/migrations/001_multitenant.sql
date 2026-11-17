@@ -42,11 +42,12 @@ create table if not exists school_app.quiz_attempts (id uuid primary key default
 alter table school_app.schools add column if not exists storage_quota_bytes bigint not null default 5368709120 check(storage_quota_bytes>0);
 create table if not exists school_app.storage_uploads (id uuid primary key default gen_random_uuid(), school_id uuid not null references school_app.schools(id), storage_path text not null, size_bytes bigint not null check(size_bytes>0 and size_bytes<=26214400), content_type text not null, status text not null default 'pending' check(status in ('pending','finalized','orphaned','deleted')), created_at timestamptz not null default now(), finalized_at timestamptz, deleted_at timestamptz, unique(school_id,storage_path));
 alter table school_app.storage_uploads enable row level security;
-drop policy if exists storage_uploads_tenant on school_app.storage_uploads;
-create policy storage_uploads_tenant on school_app.storage_uploads using(school_id=school_app.school_id()) with check(school_id=school_app.school_id());
+
 grant select,insert,update on school_app.storage_uploads to aem_tenant_runtime;
 create or replace function school_app.user_id() returns text language sql stable as $$ select nullif(current_setting('app.user_id',true),'') $$;
 create or replace function school_app.school_id() returns uuid language sql stable as $$ select nullif(current_setting('app.school_id',true),'')::uuid $$;
+drop policy if exists storage_uploads_tenant on school_app.storage_uploads;
+create policy storage_uploads_tenant on school_app.storage_uploads using(school_id=school_app.school_id()) with check(school_id=school_app.school_id());
 create or replace function school_app.member_role() returns text language sql stable security definer set search_path=pg_catalog,school_app as $$ select role from school_app.school_members where school_id=school_app.school_id() and user_id=school_app.user_id() $$;
 create or replace function school_app.is_admin() returns boolean language sql stable as $$ select coalesce(school_app.member_role()='admin',false) $$;
 create or replace function school_app.owns_student(p_id uuid) returns boolean language sql stable security definer set search_path=pg_catalog,school_app as $$ select exists(select 1 from school_app.students where school_id=school_app.school_id() and id=p_id and user_id=school_app.user_id()) $$;

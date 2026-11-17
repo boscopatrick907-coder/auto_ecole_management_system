@@ -1,3 +1,5 @@
+> **17 November implementation review:** EM-C1/EM-C2 are partially implemented. The fresh-migration ordering regression is corrected; receipt snapshots and persistent quota accounting still fail targeted checks. See [ER-1/ER-2 and reproductions](EMMANUEL_REVIEW_20261117.md) before claiming completion. Patrick supplied a staging URL, but this environment’s outbound policy blocks inspection of that hostname.
+
 > **16 November update:** Patrick requested the admin content portal. See [portal delivery and remaining collaborator tasks](CONTENT_PORTAL_AND_REMAINING_TASKS.md) for the current additions, priorities and live-validation limits. Earlier findings below are historical; do not reopen items already fixed without checking current code.
 
 # Emmanuel — backend, Neon and deployment handoff

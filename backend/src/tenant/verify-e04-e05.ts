@@ -561,7 +561,7 @@ async function main() {
     };
     const r2PutRes = await fetch(uploadUrl, {
       method: "PUT",
-      headers: { "Content-Type": "application/pdf" },
+      headers: { "Content-Type": "application/pdf", "If-None-Match": "*" },
       body: lessonPdfContent,
     });
     if (!r2PutRes.ok) {
