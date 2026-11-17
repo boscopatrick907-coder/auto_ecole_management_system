@@ -937,7 +937,8 @@ app.all("/api/schools/:slug/*", async (c) => {
         );
         const quota = quotaRes.rows[0];
         if (quota) {
-          const totalCommitted = Number(quota.used_bytes) + Number(quota.pending_bytes) + b.size;
+          const totalCommitted =
+            Number(quota.used_bytes) + Number(quota.pending_bytes) + b.size;
           if (totalCommitted > Number(quota.quota_bytes)) {
             throw fail("STORAGE_QUOTA_EXCEEDED", 409);
           }
@@ -1075,6 +1076,14 @@ app.all("/api/schools/:slug/*", async (c) => {
             b.isPublished ?? existing.is_published,
           ],
         );
+        if (nextPath) {
+          await db.query(
+            `update school_app.storage_uploads
+             set status = 'finalized', finalized_at = coalesce(finalized_at, now())
+             where school_id = $1 and storage_path = $2`,
+            [schoolId, nextPath],
+          );
+        }
         return c.json({ resource: r.rows[0] });
       }
 
@@ -1286,6 +1295,7 @@ const statusByCode: Record<string, number> = {
   GROUP_FULL: 409,
   RATE_LIMITED: 429,
   STORAGE_UNCONFIGURED: 503,
+  STORAGE_QUOTA_EXCEEDED: 409,
   STORAGE_UNAVAILABLE: 503,
   INVALID_FILE_SIZE: 400,
   INVALID_FILE_TYPE: 400,

@@ -467,6 +467,8 @@ export class ContentComponent implements OnInit, OnDestroy {
     if (this.destroyed) return;
     const code = error instanceof RequestError ? error.code : "";
     const messages: Record<string, string> = {
+      STORAGE_QUOTA_EXCEEDED:
+        "L’espace de stockage de cette école est insuffisant. Contactez la direction avant de réessayer.",
       STORAGE_UNCONFIGURED:
         "Le stockage privé n’est pas configuré. Contactez le responsable technique.",
       STORAGE_UNAVAILABLE:

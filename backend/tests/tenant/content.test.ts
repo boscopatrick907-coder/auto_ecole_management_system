@@ -9,7 +9,11 @@ import {
 } from "@aws-sdk/client-s3";
 import app from "../../src/tenant/worker.js";
 import { createAuth } from "../../src/tenant/auth.js";
-import { poolFor, type TenantBindings } from "../../src/tenant/context.js";
+import {
+  poolFor,
+  tenantTransaction,
+  type TenantBindings,
+} from "../../src/tenant/context.js";
 import { MAX_MATERIAL_BYTES } from "../../src/tenant/material-storage.js";
 const url =
   process.env.TENANT_TEST_DATABASE_URL ||
@@ -584,4 +588,170 @@ it("rejects stale quiz versions while preserving identical submitted retries", a
   const retry = await req("quiz-attempts", "POST", acceptedBody, studentCookie);
   expect(retry.status).toBe(201);
   expect((await retry.json()).attempt.id).toBe(attempt.id);
+});
+
+async function storageSchool(quota: number) {
+  const id = randomUUID(),
+    category = randomUUID(),
+    schoolSlug = "storage-review-" + id;
+  await owner.query(
+    "insert into school_app.schools(id,name,slug,storage_quota_bytes) values($1,'Synthetic storage school',$2,$3)",
+    [id, schoolSlug, quota],
+  );
+  await owner.query(
+    "insert into school_app.school_members values($1,$2,'admin')",
+    [id, adminId],
+  );
+  await owner.query(
+    "insert into school_app.licence_categories(id,school_id,code,name) values($1,$2,'B','Permis B')",
+    [category, id],
+  );
+  return {
+    id,
+    category,
+    request: (path: string, method = "GET", body?: unknown) =>
+      req(path, method, body, adminCookie, schoolSlug),
+  };
+}
+it("stores immutable issuance snapshots and preserves them through retries and later edits", async () => {
+  const s = await storageSchool(100),
+    group = randomUUID();
+  await owner.query(
+    "insert into school_app.groups(id,school_id,licence_category_id,name,capacity,total_fee) values($1,$2,$3,'Receipt review',20,10000)",
+    [group, s.id, s.category],
+  );
+  const created = await s.request("admin/students", "POST", {
+    fullName: "Original student",
+    phone: "+237699987654",
+    groupId: group,
+  });
+  expect(created.status).toBe(201);
+  const d = await created.json();
+  const body = {
+    enrollmentId: d.enrollment.id,
+    amount: 1000,
+    method: "cash",
+    clientId: randomUUID(),
+    paidAt: new Date().toISOString(),
+  };
+  const response = await s.request("admin/payments", "POST", body);
+  expect(response.status).toBe(201);
+  const p = (await response.json()).payment;
+  expect(p.snapshot_provenance).toBe("recorded_at_issuance");
+  expect(p.issuance_snapshot.student.name).toBe("Original student");
+  expect(p.issuance_snapshot.balanceAtIssuance).toBe(9000);
+  await owner.query(
+    "update school_app.students set full_name='Renamed student' where id=$1",
+    [d.student.id],
+  );
+  await owner.query(
+    "update school_app.schools set name='Renamed school' where id=$1",
+    [s.id],
+  );
+  const retry = await s.request("admin/payments", "POST", body);
+  expect(retry.status).toBe(201);
+  const repeated = (await retry.json()).payment;
+  expect(repeated.id).toBe(p.id);
+  expect(repeated.issuance_snapshot).toEqual(p.issuance_snapshot);
+  const dossier = await s.request("admin/students/" + d.student.id);
+  expect((await dossier.json()).payments[0].issuance_snapshot).toEqual(
+    p.issuance_snapshot,
+  );
+  await expect(
+    owner.query(
+      "update school_app.payments set issuance_snapshot='{}'::jsonb where id=$1",
+      [p.id],
+    ),
+  ).rejects.toThrow("APPEND_ONLY");
+});
+it("keeps saved and replacement files counted after reservation expiry", async () => {
+  const s = await storageSchool(40);
+  storage();
+  const sign = async (name: string) => {
+    const r = await s.request("admin/resources/upload-url", "POST", {
+      fileName: name,
+      contentType: "application/pdf",
+      size: 20,
+    });
+    expect(r.status).toBe(201);
+    return (await r.json()).storagePath as string;
+  };
+  const first = await sign("original.pdf");
+  const saved = await s.request("admin/resources", "POST", {
+    licenceCategoryId: s.category,
+    title: "Original material",
+    type: "pdf",
+    storagePath: first,
+  });
+  expect(saved.status).toBe(201);
+  const resource = (await saved.json()).resource;
+  const second = await sign("replacement.pdf");
+  expect(
+    (
+      await s.request("admin/resources/" + resource.id, "PATCH", {
+        storagePath: second,
+      })
+    ).status,
+  ).toBe(200);
+  await owner.query(
+    "update school_app.storage_uploads set created_at=now()-interval '2 hours' where school_id=$1",
+    [s.id],
+  );
+  const tracking = (
+    await owner.query(
+      "select status from school_app.storage_uploads where school_id=$1",
+      [s.id],
+    )
+  ).rows;
+  expect(tracking).toHaveLength(2);
+  expect(tracking.every((r) => r.status === "finalized")).toBe(true);
+  const excess = await s.request("admin/resources/upload-url", "POST", {
+    fileName: "over.pdf",
+    contentType: "application/pdf",
+    size: 1,
+  });
+  expect(excess.status).toBe(409);
+  expect((await excess.json()).error).toBe("STORAGE_QUOTA_EXCEEDED");
+});
+it("serializes competing upload reservations at the school quota", async () => {
+  const s = await storageSchool(20);
+  const results = await Promise.all(
+    ["a.pdf", "b.pdf"].map((fileName) =>
+      s.request("admin/resources/upload-url", "POST", {
+        fileName,
+        contentType: "application/pdf",
+        size: 20,
+      }),
+    ),
+  );
+  expect(results.map((r) => r.status).sort()).toEqual([201, 409]);
+  expect(
+    Number(
+      (
+        await owner.query(
+          "select sum(size_bytes) as total from school_app.storage_uploads where school_id=$1",
+          [s.id],
+        )
+      ).rows[0].total,
+    ),
+  ).toBe(20);
+});
+it("does not let a student read or create internal upload-tracking rows", async () => {
+  const pool = poolFor(env);
+  try {
+    const rows = await tenantTransaction(pool, school, studentId, (c) =>
+      c.query("select * from school_app.storage_uploads"),
+    );
+    expect(rows.rows).toEqual([]);
+    await expect(
+      tenantTransaction(pool, school, studentId, (c) =>
+        c.query(
+          "insert into school_app.storage_uploads(school_id,storage_path,size_bytes,content_type) values($1,$2,20,'application/pdf')",
+          [school, school + "/resources/" + randomUUID() + "-denied.pdf"],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+  } finally {
+    await pool.end();
+  }
 });

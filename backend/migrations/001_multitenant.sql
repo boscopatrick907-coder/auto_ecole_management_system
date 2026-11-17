@@ -46,10 +46,11 @@ alter table school_app.storage_uploads enable row level security;
 grant select,insert,update on school_app.storage_uploads to aem_tenant_runtime;
 create or replace function school_app.user_id() returns text language sql stable as $$ select nullif(current_setting('app.user_id',true),'') $$;
 create or replace function school_app.school_id() returns uuid language sql stable as $$ select nullif(current_setting('app.school_id',true),'')::uuid $$;
-drop policy if exists storage_uploads_tenant on school_app.storage_uploads;
-create policy storage_uploads_tenant on school_app.storage_uploads using(school_id=school_app.school_id() and school_app.is_admin()) with check(school_id=school_app.school_id() and school_app.is_admin());
+
 create or replace function school_app.member_role() returns text language sql stable security definer set search_path=pg_catalog,school_app as $$ select role from school_app.school_members where school_id=school_app.school_id() and user_id=school_app.user_id() $$;
 create or replace function school_app.is_admin() returns boolean language sql stable as $$ select coalesce(school_app.member_role()='admin',false) $$;
+drop policy if exists storage_uploads_tenant on school_app.storage_uploads;
+create policy storage_uploads_tenant on school_app.storage_uploads using(school_id=school_app.school_id() and school_app.is_admin()) with check(school_id=school_app.school_id() and school_app.is_admin());
 create or replace function school_app.owns_student(p_id uuid) returns boolean language sql stable security definer set search_path=pg_catalog,school_app as $$ select exists(select 1 from school_app.students where school_id=school_app.school_id() and id=p_id and user_id=school_app.user_id()) $$;
 create or replace function school_app.owns_enrollment(p_id uuid) returns boolean language sql stable security definer set search_path=pg_catalog,school_app as $$ select exists(select 1 from school_app.enrollments e join school_app.students s on s.school_id=e.school_id and s.id=e.student_id where e.school_id=school_app.school_id() and e.id=p_id and s.user_id=school_app.user_id()) $$;
 create or replace function school_app.student_has_paid(p_id uuid) returns boolean language sql stable security definer set search_path=pg_catalog,school_app as $$ select exists(select 1 from school_app.payments p join school_app.enrollments e on e.school_id=p.school_id and e.id=p.enrollment_id where e.school_id=school_app.school_id() and e.student_id=p_id and p.cancelled_at is null) $$;

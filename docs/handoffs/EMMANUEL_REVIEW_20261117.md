@@ -1,3 +1,5 @@
+> **Recheck after `b453feb` — 17 November:** Emmanuel corrected the effective receipt writer and new-resource upload finalisation. Codex then corrected policy creation order after the added `is_admin()` dependency and finalised replacement uploads in the PATCH path. Permanent regressions now verify snapshots/retries/later edits, created/replacement quota usage after ageing, competing reservations and student tracking restrictions. The backend suite passes **81 tests / 13 files**; backend/Worker dry-run and frontend build/type checks pass. The findings below describe the earlier reviewed state; core receipt creation and saved-file quota regressions are no longer open. Reference-safe orphan cleanup, pre-existing storage reconciliation and live/device acceptance still need evidence. The staging URL remains blocked by this execution environment's outbound policy, so no live availability claim is made.
+
 # Review of Emmanuel's EM-C1 / EM-C2 delivery
 
 Reviewed main: `ae587e78e3664aeb6f816c5e332688347d9d31e0` (EM-C1), `cbff31e` (EM-C2) and verification-script correction `2537fa7`. These changes are already on main; the review does not assert that they were deployed.

@@ -1,3 +1,5 @@
+> **Backend update, 17 November:** new payments now have populated immutable `issuance_snapshot` data, `snapshot_provenance`, issuance/current balance labels and snapshot-based issuance balance enrichment. Core creation, retry and later-name-change cases have regression coverage. Review the actual response fields with Emmanuel and use them in WI-N1; do not fabricate missing historical snapshots. Live staging and physical-device acceptance are still unverified here.
+
 # Willy — next assignment: receipt quality and phone acceptance
 
 17 November 2026. Patrick requested that Codex take on unfinished work and give you a new non-overlapping assignment. No newer Willy commit was present on shared `main` when checked; this does not assess unpublished local work.

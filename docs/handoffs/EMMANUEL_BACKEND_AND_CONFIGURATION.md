@@ -1,3 +1,5 @@
+> **Latest 17 November recheck:** the core ER-1/ER-2 regressions now pass after Emmanuel's `b453feb` and the accompanying policy-order/replacement-upload corrections. See the [updated review](EMMANUEL_REVIEW_20261117.md). There are now 81 passing backend tests. Cleanup/migration-to-real-staging evidence and verification of the supplied public URL remain distinct from local acceptance.
+
 > **17 November implementation review:** EM-C1/EM-C2 are partially implemented. The fresh-migration ordering regression is corrected; receipt snapshots and persistent quota accounting still fail targeted checks. See [ER-1/ER-2 and reproductions](EMMANUEL_REVIEW_20261117.md) before claiming completion. Patrick supplied a staging URL, but this environment’s outbound policy blocks inspection of that hostname.
 
 > **16 November update:** Patrick requested the admin content portal. See [portal delivery and remaining collaborator tasks](CONTENT_PORTAL_AND_REMAINING_TASKS.md) for the current additions, priorities and live-validation limits. Earlier findings below are historical; do not reopen items already fixed without checking current code.
