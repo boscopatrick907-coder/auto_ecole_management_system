@@ -358,7 +358,7 @@ test("offline admin payment stays provisional and visible in the queue", async (
 
 test("admin authors private courses, previews drafts, edits and changes publication", async ({
   page,
-}) => {
+}, testInfo) => {
   await fixtures(page, "admin");
   await page.goto("/s/horizon/admin/contenus");
   await expect(
@@ -435,7 +435,7 @@ test("admin authors private courses, previews drafts, edits and changes publicat
   await page.getByRole("button", { name: "Dépublier", exact: true }).click();
   await expect(page.locator("article")).toContainText("Brouillon");
   await page.screenshot({
-    path: "/workspace/.onboarding/content-admin-mobile.png",
+    path: testInfo.outputPath("content-admin-mobile.png"),
     fullPage: true,
   });
 });
