@@ -136,3 +136,10 @@ Patrick authorised merging the admin content portal and asked for concrete remai
 - Share a staging origin and limited test-account invitation with Willy securely. Never send database-owner credentials or production accounts as the integration workaround.
 
 **Handback for each assignment:** commit/PR, changed API/schema, migration/rollback notes, exact test commands/results, and remaining external prerequisites. The live migration, private R2 and restore gates in the shared task list remain outstanding until evidence is recorded.
+
+
+### EM-D1 — Publish the requested staging deployment (current blocker)
+
+Patrick requested a phone-accessible deployment and confirmed the Cloudflare account is yours, but he cannot access it. The current Codex environment has no authenticated Cloudflare account or hosted database/R2 bindings. See [the tested staging deployment package](../STAGING_DEPLOYMENT.md): `backend/wrangler.staging.toml` serves static Angular assets and `/api/*` on one origin; `bash scripts/build-staging.sh` builds it.
+
+Either deploy it from your authorised account or grant the owner/deployment environment appropriately scoped access securely. Never paste API tokens, database URLs or private keys into chat or Git. Configure disposable Neon, restricted runtime roles, private R2 and auth/host bindings as documented. Return the actual HTTPS URL, deployed commit and redacted catalogue/login/upload smoke results. A successful dry run alone is not a live deployment.
