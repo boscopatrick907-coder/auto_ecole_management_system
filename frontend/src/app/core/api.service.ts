@@ -16,6 +16,36 @@ export class RequestError extends Error {
     super(code);
   }
 }
+
+const identityDenialCodes = new Set([
+  "AUTH_REQUIRED",
+  "MEMBERSHIP_REQUIRED",
+  "SESSION_IDENTITY_CHANGED",
+  "ADMIN_REQUIRED",
+  "STUDENT_REQUIRED",
+]);
+
+const entitlementDenialCodes = new Set([
+  "ACCESS_EXPIRED",
+  "RESOURCE_FORBIDDEN",
+  "QUIZ_FORBIDDEN",
+]);
+
+export function authorizationDenial(
+  error: unknown,
+): "identity" | "entitlement" | null {
+  if (!(error instanceof RequestError)) return null;
+
+  if (error.status === 401 || identityDenialCodes.has(error.code)) {
+    return "identity";
+  }
+
+  if (error.status === 403 && entitlementDenialCodes.has(error.code)) {
+    return "entitlement";
+  }
+
+  return null;
+}
 @Injectable({ providedIn: "root" })
 export class ApiService {
   readonly base =
@@ -24,6 +54,17 @@ export class ApiService {
   readonly online = signal(navigator.onLine);
   slug = "";
   expectedUserId = "";
+  private authorizationErrorHandler?: (
+    error: RequestError,
+    path: string,
+  ) => Promise<void>;
+
+  setAuthorizationErrorHandler(
+    handler: (error: RequestError, path: string) => Promise<void>,
+  ) {
+    this.authorizationErrorHandler = handler;
+  }
+
   constructor() {
     window.addEventListener("online", () => this.online.set(true));
     window.addEventListener("offline", () => this.online.set(false));
@@ -45,8 +86,24 @@ export class ApiService {
         signal: abort.signal,
       });
       const data = await r.json().catch(() => ({}));
-      if (!r.ok)
-        throw new RequestError(r.status, data.error || "REQUEST_FAILED");
+      if (!r.ok) {
+        const error = new RequestError(r.status, data.error || "REQUEST_FAILED");
+        const tenantPrefix = `/schools/${encodeURIComponent(this.slug)}/`;
+
+        if (
+          (r.status === 401 || r.status === 403) &&
+          path.startsWith(tenantPrefix) &&
+          this.authorizationErrorHandler
+        ) {
+          try {
+            await this.authorizationErrorHandler(error, path);
+          } catch (invalidationError) {
+            console.error("Authorization cache invalidation failed", invalidationError);
+          }
+        }
+
+        throw error;
+      }
       return data as T;
     } finally {
       clearTimeout(timer);
@@ -72,12 +129,24 @@ export class ApiService {
   dashboard() {
     return this.tenant<Dashboard>("admin/dashboard");
   }
-  students(search = "") {
+  students(search = "", offset = 0, limit = 50) {
     return this.tenant<{
       students: Array<
         Dossier["student"] & { balance: number; group_name: string }
       >;
-    }>("admin/students?search=" + encodeURIComponent(search));
+      count: number;
+      limit: number;
+      offset: number;
+      hasMore: boolean;
+      nextOffset: number;
+    }>(
+      "admin/students?search=" +
+        encodeURIComponent(search) +
+        "&limit=" +
+        limit +
+        "&offset=" +
+        offset,
+    );
   }
   groups() {
     return this.tenant<{ groups: Group[] }>("admin/groups");

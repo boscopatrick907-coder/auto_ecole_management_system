@@ -60,6 +60,20 @@ import type { Dossier, Student, Group, Payment } from "../core/models";
       } @empty {
         <app-empty />
       }
+      @if (count()) {
+        <p class="muted">{{ students().length }} / {{ count() }}</p>
+      }
+      @if (hasMore()) {
+        <div class="actions">
+          <button
+            class="btn secondary"
+            [disabled]="loading() || loadingMore()"
+            (click)="loadMore()"
+          >
+            {{ loading() || loadingMore() ? t.loading : t.next }}
+          </button>
+        </div>
+      }
     </section>`,
 })
 export class StudentListComponent implements OnInit {
@@ -70,7 +84,14 @@ export class StudentListComponent implements OnInit {
   students = signal<Array<Student & { balance: number; group_name: string }>>(
     [],
   );
+  count = signal(0);
+  hasMore = signal(false);
+  loading = signal(false);
+  loadingMore = signal(false);
   error = signal(false);
+  private nextOffset = 0;
+  private queryVersion = 0;
+  private loadedQuery = "";
   get base() {
     return "/s/" + this.api.slug + "/admin/eleves";
   }
@@ -82,14 +103,74 @@ export class StudentListComponent implements OnInit {
     void this.load();
   }
   async load() {
+    const query = this.query.trim();
+    const version = ++this.queryVersion;
+    this.error.set(false);
+    this.loading.set(true);
+    this.loadingMore.set(false);
+
+    if (query !== this.loadedQuery) {
+      this.students.set([]);
+      this.count.set(0);
+      this.hasMore.set(false);
+      this.nextOffset = 0;
+    }
+
     try {
-      const r = await this.store.read("students:" + this.query, () =>
-        this.api.students(this.query),
+      const r = await this.store.read("students:" + query, () =>
+        this.api.students(query),
       );
+
+      if (version !== this.queryVersion) return;
+
+      this.loadedQuery = query;
       this.students.set(r?.students || []);
+      this.count.set(r?.count || 0);
+      this.hasMore.set(r?.hasMore || false);
+      this.nextOffset = r?.nextOffset || 0;
       this.error.set(false);
     } catch {
-      this.error.set(true);
+      if (version === this.queryVersion) this.error.set(true);
+    } finally {
+      if (version === this.queryVersion) this.loading.set(false);
+    }
+  }
+
+  async loadMore() {
+    if (!this.hasMore() || this.loading() || this.loadingMore()) return;
+
+    const query = this.loadedQuery;
+    const offset = this.nextOffset;
+    const version = this.queryVersion;
+    this.loadingMore.set(true);
+    this.error.set(false);
+
+    try {
+      const r = await this.store.read(
+        `students:${query}:offset:${offset}`,
+        () => this.api.students(query, offset),
+      );
+
+      if (version !== this.queryVersion || query !== this.loadedQuery) return;
+      if (!r) {
+        this.error.set(true);
+        return;
+      }
+
+      this.students.update((current) => {
+        const seen = new Set(current.map((student) => student.id));
+        return [
+          ...current,
+          ...r.students.filter((student) => !seen.has(student.id)),
+        ];
+      });
+      this.count.set(r.count);
+      this.hasMore.set(r.hasMore);
+      this.nextOffset = r.nextOffset;
+    } catch {
+      if (version === this.queryVersion) this.error.set(true);
+    } finally {
+      if (version === this.queryVersion) this.loadingMore.set(false);
     }
   }
 }

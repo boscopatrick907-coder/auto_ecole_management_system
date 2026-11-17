@@ -14,11 +14,13 @@ import {
 } from "../src/app/core/outbox.service";
 import { ApiService, RequestError } from "../src/app/core/api.service";
 import { AuthService } from "../src/app/core/auth.service";
+import { DataService } from "../src/app/core/data.service";
 import {
   createEnvironmentInjector,
   runInInjectionContext,
   signal,
 } from "@angular/core";
+import { Router } from "@angular/router";
 import { SignJWT, exportJWK, generateKeyPair } from "jose";
 
 const storage = new Map<string, string>();
@@ -176,7 +178,10 @@ describe("signed offline access", () => {
     const api = { online: signal(false) };
 
     const injector = createEnvironmentInjector(
-      [{ provide: ApiService, useValue: api }],
+      [
+        { provide: ApiService, useValue: api },
+        { provide: Router, useValue: { navigate: vi.fn() } },
+      ],
       null as never,
     );
 
@@ -195,12 +200,16 @@ describe("signed offline access", () => {
       max: number,
       highWater = now,
       signedRole: "admin" | "student" = "student",
+      hasAccess = true,
+      hasPaid = true,
+      trialEndsAt?: string,
     ) => {
       const token = await new SignJWT({
         role: signedRole,
         schoolId,
-        hasAccess: true,
-        hasPaid: true,
+        hasAccess,
+        hasPaid,
+        ...(trialEndsAt ? { trialEndsAt } : {}),
         maxOfflineUntilMs: max,
       })
         .setProtectedHeader({ alg: "EdDSA" })
@@ -221,8 +230,14 @@ describe("signed offline access", () => {
     await save("a", now + 60000);
     expect(await auth.offlineAllowed()).toBe(true);
 
-    await save("a", now + 60000, now, "admin");
+    auth.role.set("admin");
+    await save("a", now + 60000, now, "admin", true, false);
+    expect(await auth.offlineAllowed()).toBe(true);
+
+    await save("a", now + 60000, now, "admin", false, false);
     expect(await auth.offlineAllowed()).toBe(false);
+
+    auth.role.set("student");
 
     await save("b", now + 60000);
     expect(await auth.offlineAllowed()).toBe(false);
@@ -234,6 +249,210 @@ describe("signed offline access", () => {
     expect(await auth.offlineAllowed()).toBe(false);
 
     injector.destroy();
+  });
+});
+
+describe("authorization cache invalidation", () => {
+  const setup = () => {
+    const api = {
+      online: signal(true),
+      slug: "horizon",
+      expectedUserId: "user-a",
+      setAuthorizationErrorHandler: vi.fn(),
+    };
+    const router = { navigate: vi.fn().mockResolvedValue(true) };
+    const authInjector = createEnvironmentInjector(
+      [
+        { provide: ApiService, useValue: api },
+        { provide: Router, useValue: router },
+      ],
+      null as never,
+    );
+    const auth = runInInjectionContext(authInjector, () => new AuthService());
+    auth.school.set({ id: "school-a" } as never);
+    auth.user.set({ id: "user-a" } as never);
+    auth.role.set("admin");
+    const injector = createEnvironmentInjector(
+      [
+        { provide: ApiService, useValue: api },
+        { provide: AuthService, useValue: auth },
+        { provide: Router, useValue: router },
+      ],
+      null as never,
+    );
+    const data = runInInjectionContext(injector, () => new DataService());
+    const scope = auth.scope;
+
+    return {
+      api,
+      auth,
+      data,
+      dispose: () => {
+        injector.destroy();
+        authInjector.destroy();
+      },
+      router,
+      scope,
+    };
+  };
+
+  const seedProtectedRecords = async (scope: string) => {
+    await database.snapshots.bulkPut([
+      {
+        key: scope + ":dashboard",
+        scope,
+        data: { students: 4 },
+        updatedAt: Date.now(),
+      },
+      {
+        key: scope + ":resources",
+        scope,
+        data: { resources: [] },
+        updatedAt: Date.now(),
+      },
+      {
+        key: scope + ":quizzes",
+        scope,
+        data: { quizzes: [] },
+        updatedAt: Date.now(),
+      },
+      {
+        key: "identity:horizon",
+        scope: "identity:horizon",
+        data: { user: { id: "user-a" }, role: "admin" },
+        updatedAt: Date.now(),
+      },
+    ]);
+    await database.files.put({
+      key: scope + ":resource-a",
+      scope,
+      blob: new Blob(["lesson"]),
+    });
+    await database.outbox.add({
+      id: "queued-payment",
+      scope,
+      kind: "payment",
+      body: { enrollmentId: "enrollment-a", clientId: "queued-payment" },
+      createdAt: Date.now(),
+      attempts: 0,
+      nextAt: 0,
+      state: "pending",
+    });
+  };
+
+  it.each([
+    { status: 401, code: "AUTH_REQUIRED" },
+    { status: 403, code: "MEMBERSHIP_REQUIRED" },
+    { status: 403, code: "SESSION_IDENTITY_CHANGED" },
+  ])("clears account data on identity denial $status $code", async ({
+    status,
+    code,
+  }) => {
+    const { auth, data, dispose, router, scope } = setup();
+    await seedProtectedRecords(scope);
+
+    await expect(
+      data.read("dashboard", () =>
+        Promise.reject(new RequestError(status, code)),
+      ),
+    ).rejects.toThrow(code);
+
+    expect(await database.snapshots.where("scope").equals(scope).count()).toBe(
+      0,
+    );
+    expect(await database.snapshots.get("identity:horizon")).toBeUndefined();
+    expect(await database.files.where("scope").equals(scope).count()).toBe(0);
+    expect(await database.outbox.get("queued-payment")).toBeDefined();
+    expect(auth.user()).toBeNull();
+    expect(auth.role()).toBeNull();
+    expect(router.navigate).toHaveBeenCalledWith(
+      ["/s", "horizon", "connexion"],
+      { replaceUrl: true },
+    );
+
+    dispose();
+  });
+
+  it("clears learning caches after entitlement denial and preserves admin data and queue", async () => {
+    const { auth, data, dispose, scope } = setup();
+    await seedProtectedRecords(scope);
+
+    await expect(
+      data.read("resources", () =>
+        Promise.reject(new RequestError(403, "ACCESS_EXPIRED")),
+      ),
+    ).rejects.toThrow("ACCESS_EXPIRED");
+
+    expect(await database.snapshots.get(scope + ":resources")).toBeUndefined();
+    expect(await database.snapshots.get(scope + ":quizzes")).toBeUndefined();
+    expect(await database.snapshots.get(scope + ":dashboard")).toBeDefined();
+    expect(await database.files.where("scope").equals(scope).count()).toBe(0);
+    expect(await database.outbox.get("queued-payment")).toBeDefined();
+    expect(auth.user()?.id).toBe("user-a");
+    expect(auth.role()).toBe("admin");
+
+    dispose();
+  });
+});
+
+describe("student list pagination contract", () => {
+  it("requests the requested search and offset with the API page size", async () => {
+    const api = new ApiService();
+    api.slug = "horizon";
+    const result = {
+      students: [],
+      count: 100,
+      limit: 50,
+      offset: 50,
+      hasMore: true,
+      nextOffset: 100,
+    };
+    const fetchStub = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => result,
+    });
+    vi.stubGlobal("fetch", fetchStub);
+
+    try {
+      await expect(api.students("Jean Mbarga", 50)).resolves.toEqual(result);
+      expect(fetchStub.mock.calls[0][0]).toBe(
+        "/api/schools/horizon/admin/students?search=Jean%20Mbarga&limit=50&offset=50",
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("awaits cache invalidation before rejecting a tenant authorization error", async () => {
+    const api = new ApiService();
+    api.slug = "horizon";
+    let invalidated = false;
+    const handler = vi.fn(async () => {
+      await Promise.resolve();
+      invalidated = true;
+    });
+    api.setAuthorizationErrorHandler(handler);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 403,
+        json: async () => ({ error: "MEMBERSHIP_REQUIRED" }),
+      }),
+    );
+
+    try {
+      await expect(api.tenant("admin/groups")).rejects.toThrow(
+        "MEMBERSHIP_REQUIRED",
+      );
+      expect(invalidated).toBe(true);
+      expect(handler).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 403, code: "MEMBERSHIP_REQUIRED" }),
+        "/schools/horizon/admin/groups",
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 

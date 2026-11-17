@@ -2,6 +2,7 @@ import { Component, inject, computed } from "@angular/core";
 import { Router, RouterOutlet, RouterLink } from "@angular/router";
 import { AuthService } from "../core/auth.service";
 import { ApiService } from "../core/api.service";
+import { DataService } from "../core/data.service";
 import { OutboxService } from "../core/outbox.service";
 import { FR } from "../core/fr";
 import { BottomNavComponent, IconComponent } from "../shared/ui";
@@ -75,6 +76,7 @@ export class ShellComponent {
   t = FR;
   auth = inject(AuthService);
   api = inject(ApiService);
+  data = inject(DataService);
   outbox = inject(OutboxService);
   router = inject(Router);
   initials = computed(

@@ -1,5 +1,9 @@
 import { Injectable, inject, signal } from "@angular/core";
-import { ApiService, RequestError } from "./api.service";
+import {
+  ApiService,
+  RequestError,
+  authorizationDenial,
+} from "./api.service";
 import { AuthService } from "./auth.service";
 import { database } from "./database";
 
@@ -11,6 +15,9 @@ export class DataService {
   readonly revision = signal(0);
 
   constructor() {
+    this.api.setAuthorizationErrorHandler((error, path) =>
+      this.handleApiDenial(error, path),
+    );
     window.addEventListener("school:sync", () =>
       this.revision.update((x) => x + 1),
     );
@@ -44,6 +51,10 @@ export class DataService {
 
         return data;
       } catch (e) {
+        if (e instanceof RequestError && (e.status === 401 || e.status === 403)) {
+          await this.invalidateDeniedData(e, key, scope);
+        }
+
         // Never use cached data after an authorization
         // or other client error from the server.
         if (e instanceof RequestError && e.status >= 400 && e.status < 500) {
@@ -82,14 +93,23 @@ export class DataService {
   }
 
   async file(id: string, download = false): Promise<string> {
-    if (this.api.online()) await this.auth.refreshLease();
+    const scope = this.auth.scope;
+    if (!scope) throw new Error("AUTH_REQUIRED");
+
+    if (this.api.online()) {
+      try {
+        await this.auth.refreshLease();
+      } catch (e) {
+        if (e instanceof RequestError && (e.status === 401 || e.status === 403)) {
+          await this.invalidateDeniedData(e, "resource-file:" + id, scope, id);
+        }
+        throw e;
+      }
+    }
 
     if (!(await this.auth.offlineAllowed())) {
       throw new Error("ACCESS_EXPIRED");
     }
-
-    const scope = this.auth.scope;
-    if (!scope) throw new Error("AUTH_REQUIRED");
 
     const key = scope + ":" + id;
     const cached = await database.files.get(key);
@@ -100,9 +120,17 @@ export class DataService {
       throw new Error("OFFLINE_FILE_UNAVAILABLE");
     }
 
-    const { url } = await this.api.tenant<{ url: string }>(
-      "resources/" + encodeURIComponent(id) + "/url",
-    );
+    let url: string;
+    try {
+      ({ url } = await this.api.tenant<{ url: string }>(
+        "resources/" + encodeURIComponent(id) + "/url",
+      ));
+    } catch (e) {
+      if (e instanceof RequestError && (e.status === 401 || e.status === 403)) {
+        await this.invalidateDeniedData(e, "resource-file:" + id, scope, id);
+      }
+      throw e;
+    }
 
     const r = await fetch(url);
 
@@ -129,5 +157,94 @@ export class DataService {
     if (!scope) return;
 
     await database.files.delete(scope + ":" + id);
+  }
+
+  private async invalidateDeniedData(
+    error: RequestError,
+    key: string,
+    scope: string,
+    fileId?: string,
+  ) {
+    if (this.auth.scope !== scope) return;
+
+    if (authorizationDenial(error) === "identity") {
+      const slug = this.api.slug;
+      await this.auth.invalidateAccountData(scope, slug, true);
+      return;
+    }
+
+    const keys = new Set([scope + ":" + key]);
+    if (error.code === "ACCESS_EXPIRED") {
+      keys.add(scope + ":resources");
+      keys.add(scope + ":quizzes");
+    } else if (error.code === "RESOURCE_FORBIDDEN") {
+      keys.add(scope + ":resources");
+    } else if (error.code === "QUIZ_FORBIDDEN") {
+      keys.add(scope + ":quizzes");
+    }
+
+    const clearFiles =
+      error.code === "ACCESS_EXPIRED" ||
+      error.code === "RESOURCE_FORBIDDEN";
+
+    await database.transaction(
+      "rw",
+      database.snapshots,
+      database.files,
+      async () => {
+        if (this.auth.scope !== scope) return;
+
+        await database.snapshots.bulkDelete([...keys]);
+
+        if (fileId) await database.files.delete(scope + ":" + fileId);
+        if (clearFiles) {
+          await database.files.where("scope").equals(scope).delete();
+        }
+      },
+    );
+  }
+
+  private handleApiDenial(error: RequestError, path: string) {
+    const scope = this.auth.scope;
+    if (!scope) return Promise.resolve();
+
+    const url = new URL(path, "https://school.invalid");
+    const tenantPath = url.pathname.replace(/^\/schools\/[^/]+\/?/, "");
+    const segments = tenantPath.split("/").filter(Boolean);
+    let key = "api:" + tenantPath;
+    let fileId: string | undefined;
+
+    if (tenantPath === "admin/dashboard") {
+      key = "dashboard";
+    } else if (
+      tenantPath === "admin/groups" ||
+      tenantPath.startsWith("admin/groups/")
+    ) {
+      key = "groups";
+    } else if (tenantPath === "admin/students") {
+      const search = url.searchParams.get("search") || "";
+      const offset = Number(url.searchParams.get("offset") || 0);
+      key =
+        offset > 0
+          ? `students:${search}:offset:${offset}`
+          : `students:${search}`;
+    } else if (segments[0] === "admin" && segments[1] === "students") {
+      key = "dossier:" + (segments[2] || "");
+    } else if (tenantPath === "me") {
+      key = "me";
+    } else if (tenantPath === "resources") {
+      key = "resources";
+    } else if (tenantPath === "quizzes") {
+      key = "quizzes";
+    } else if (
+      segments[0] === "resources" &&
+      segments[2] === "url" &&
+      segments[1]
+    ) {
+      fileId = segments[1];
+      key = "resource-file:" + fileId;
+    }
+
+    return this.invalidateDeniedData(error, key, scope, fileId);
   }
 }

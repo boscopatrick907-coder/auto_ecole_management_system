@@ -62,8 +62,10 @@ async function fixtures(
     schoolId: school.id,
     role,
     hasAccess: true,
-    hasPaid: false,
-    trialEndsAt: dossier.student.trial_ends_at,
+    hasPaid: role === "student" ? dossier.student.has_paid : false,
+    ...(role === "student"
+      ? { trialEndsAt: dossier.student.trial_ends_at }
+      : {}),
     maxOfflineUntilMs: Date.now() + 72 * 3600000,
   })
     .setProtectedHeader({ alg: "EdDSA" })
@@ -100,15 +102,33 @@ async function fixtures(
                     recentPayments: [],
                   }
                 : path.endsWith("/students")
-                  ? {
-                      students: [
-                        {
+                  ? (() => {
+                      const offset = Number(
+                        new URL(route.request().url()).searchParams.get(
+                          "offset",
+                        ) || 0,
+                      );
+                      const row = (id: string, name: string, number: number) =>
+                        ({
                           ...dossier.student,
+                          id,
+                          full_name: name,
+                          student_number: number,
                           balance: 150000,
                           group_name: "Session matin",
-                        },
-                      ],
-                    }
+                        }) as const;
+                      return {
+                        students:
+                          offset === 0
+                            ? [row("student-a", "Alice Test", 1000)]
+                            : [row("student-b", "Benoit Test", 1001)],
+                        count: 2,
+                        limit: 50,
+                        offset,
+                        hasMore: offset === 0,
+                        nextOffset: offset === 0 ? 1 : 2,
+                      };
+                    })()
                   : path.endsWith("/resources")
                     ? { resources: [] }
                     : path.endsWith("/quizzes")
@@ -240,6 +260,42 @@ test("admin payment and receipt screens use actual dossier, no demo name", async
     page.getByRole("button", { name: "Télécharger le PDF" }),
   ).toBeVisible();
 });
+
+test("admin lease opens cached dashboard offline without student entitlements", async ({
+  page,
+  context,
+}) => {
+  await fixtures(page, "admin");
+  await page.goto("/s/horizon/admin");
+  await expect(page.locator(".kpi-grid .card strong").first()).toHaveText("1");
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.reload();
+  await expect(page.locator(".kpi-grid .card strong").first()).toHaveText("1");
+
+  await context.setOffline(true);
+  await page.reload();
+
+  await expect(
+    page.getByRole("heading", { name: "Tableau de bord" }),
+  ).toBeVisible();
+  await expect(page.locator(".kpi-grid .card strong").first()).toHaveText("1");
+});
+
+test("admin student list loads subsequent API pages", async ({ page }) => {
+  await fixtures(page, "admin");
+  await page.goto("/s/horizon/admin/eleves");
+  await expect(page.getByText("Alice Test", { exact: true })).toBeVisible();
+  await expect(page.getByText("1 / 2", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Continuer", exact: true }).click();
+
+  await expect(page.getByText("Benoit Test", { exact: true })).toBeVisible();
+  await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Continuer", exact: true }),
+  ).toHaveCount(0);
+});
+
 test("downloaded school shell and cached profile reopen offline", async ({
   page,
   context,

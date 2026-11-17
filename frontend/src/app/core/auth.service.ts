@@ -1,5 +1,10 @@
 import { Injectable, inject, signal } from "@angular/core";
-import { ApiService, RequestError } from "./api.service";
+import { Router } from "@angular/router";
+import {
+  ApiService,
+  RequestError,
+  authorizationDenial,
+} from "./api.service";
 import { database, accountScope } from "./database";
 import type { School, User, Role, Catalogue } from "./models";
 import { importJWK, jwtVerify, type JWK } from "jose";
@@ -17,6 +22,7 @@ interface CachedIdentity {
 @Injectable({ providedIn: "root" })
 export class AuthService {
   readonly api = inject(ApiService);
+  private router = inject(Router);
   readonly school = signal<School | null>(null);
   readonly user = signal<User | null>(null);
   readonly role = signal<Role | null>(null);
@@ -39,6 +45,37 @@ export class AuthService {
     this.user.set(null);
     this.role.set(null);
     this.api.expectedUserId = "";
+  }
+
+  async invalidateAccountData(
+    scope: string,
+    slug = this.api.slug,
+    redirect = false,
+  ) {
+    if (!scope || this.scope !== scope) return false;
+
+    await database.transaction(
+      "rw",
+      database.snapshots,
+      database.files,
+      async () => {
+        if (this.scope !== scope) return;
+
+        await database.snapshots.where("scope").equals(scope).delete();
+        await database.files.where("scope").equals(scope).delete();
+        await database.snapshots.delete("identity:" + slug);
+      },
+    );
+
+    if (this.scope !== scope) return false;
+
+    this.clearIdentity();
+    if (redirect) {
+      await this.router.navigate(["/s", slug, "connexion"], {
+        replaceUrl: true,
+      });
+    }
+    return true;
   }
 
   private readPendingSignout(): PendingSignout | null {
@@ -135,13 +172,15 @@ export class AuthService {
             }
 
             this.role.set(membership.role);
-            await this.refreshLease();
+            await this.refreshLease(false);
           } catch (e) {
-            if (!(e instanceof RequestError && e.status === 403)) {
+            if (authorizationDenial(e) === "identity") {
+              await this.invalidateAccountData(this.scope, slug);
+            } else if (e instanceof RequestError && e.status === 403) {
+              this.role.set(null);
+            } else {
               throw e;
             }
-
-            this.role.set(null);
           }
         }
 
@@ -255,15 +294,26 @@ export class AuthService {
     );
   }
 
-  async refreshLease() {
+  async refreshLease(redirectOnIdentityDenial = true) {
     if (!this.scope || !this.role()) {
       throw new Error("INVALID_LEASE_IDENTITY");
     }
 
-    const lease = await this.api.tenant<{
-      token: string;
-      publicKey: JWK;
-    }>("lease");
+    const scope = this.scope;
+    const slug = this.api.slug;
+    let lease: { token: string; publicKey: JWK };
+
+    try {
+      lease = await this.api.tenant<{
+        token: string;
+        publicKey: JWK;
+      }>("lease");
+    } catch (e) {
+      if (authorizationDenial(e) === "identity") {
+        await this.invalidateAccountData(scope, slug, redirectOnIdentityDenial);
+      }
+      throw e;
+    }
 
     if (!lease.token || !lease.publicKey) {
       throw new Error("INVALID_OFFLINE_LEASE");
@@ -335,6 +385,11 @@ export class AuthService {
       });
 
       if (!learning) return true;
+
+      // Admin leases authorize school administration independently of a
+      // student's payment or trial state. The signed access claim is still
+      // required; only the student-specific entitlement checks are skipped.
+      if (this.role() === "admin") return payload["hasAccess"] === true;
 
       return (
         payload["hasAccess"] === true &&
