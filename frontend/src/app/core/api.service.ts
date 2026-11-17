@@ -41,7 +41,10 @@ export class ApiService {
       const r = await fetch(this.base + path, {
         method,
         credentials: "include",
-        headers: { ...(body !== undefined ? { "Content-Type": "application/json" } : {}), ...headers },
+        headers: {
+          ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+          ...headers,
+        },
         body: body === undefined ? undefined : JSON.stringify(body),
         signal: abort.signal,
       });
@@ -73,12 +76,22 @@ export class ApiService {
   dashboard() {
     return this.tenant<Dashboard>("admin/dashboard");
   }
-  students(search = "") {
+  students(search = "", offset = 0, limit = 50) {
     return this.tenant<{
       students: Array<
         Dossier["student"] & { balance: number; group_name: string }
       >;
-    }>("admin/students?search=" + encodeURIComponent(search));
+      count: number;
+      hasMore: boolean;
+      nextOffset: number;
+    }>(
+      "admin/students?search=" +
+        encodeURIComponent(search) +
+        "&offset=" +
+        offset +
+        "&limit=" +
+        limit,
+    );
   }
   groups() {
     return this.tenant<{ groups: Group[] }>("admin/groups");

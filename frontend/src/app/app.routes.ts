@@ -37,6 +37,14 @@ export const routes: Routes = [
           import("./pages/student").then((m) => m.StudentPageComponent),
       })),
       {
+        path: "synchronisation",
+        canActivate: [authGuard],
+        loadComponent: () =>
+          import("./pages/synchronisation").then(
+            (m) => m.SynchronisationComponent,
+          ),
+      },
+      {
         path: "cours",
         canActivate: [authGuard, roleGuard],
         data: { role: "student" },

@@ -16,6 +16,7 @@ export interface QueueAction {
   state: "pending" | "blocked";
   error?: string;
   result?: unknown;
+  context?: { title?: string; studentId?: string; studentName?: string };
 }
 export interface OfflineFile {
   key: string;
@@ -45,7 +46,8 @@ export async function nextOfflineReceipt(schoolId: string): Promise<string> {
   return database.transaction("rw", database.snapshots, async () => {
     const key = "receipt-device:" + schoolId;
     const old = (await database.snapshots.get(key))?.data as
-      { device: string; seq: number } | undefined;
+      | { device: string; seq: number }
+      | undefined;
     const device =
       old?.device ||
       crypto.randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase();

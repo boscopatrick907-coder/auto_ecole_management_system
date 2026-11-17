@@ -425,7 +425,7 @@ app.all("/api/schools/:slug/*", async (c) => {
       if (path === "quizzes" && method === "GET") {
         const quizzes = (
           await db.query(
-            "select id,licence_category_id,title,duration_minutes,is_published from school_app.quizzes where is_published order by title,id",
+            "select id,licence_category_id,title,duration_minutes,is_published,content_version from school_app.quizzes where is_published order by title,id",
           )
         ).rows;
         const questions = (
@@ -444,14 +444,23 @@ app.all("/api/schools/:slug/*", async (c) => {
         const b = z
           .object({
             quizId: uuid,
+            quizVersion: z.number().int().positive().max(2147483647).optional(),
             clientId: uuid,
             answers: z.record(uuid, z.string().regex(/^\d+$/)),
             takenAt: z.string().datetime(),
           })
           .parse(await c.req.json());
         const r = await db.query(
-          "select * from school_app.submit_quiz($1,$2,$3,$4)",
-          [b.quizId, JSON.stringify(b.answers), b.clientId, b.takenAt],
+          b.quizVersion === undefined
+            ? "select * from school_app.submit_quiz($1,$2,$3,$4)"
+            : "select * from school_app.submit_quiz_versioned($1,$2,$3,$4,$5)",
+          [
+            b.quizId,
+            JSON.stringify(b.answers),
+            b.clientId,
+            b.takenAt,
+            ...(b.quizVersion === undefined ? [] : [b.quizVersion]),
+          ],
         );
         const expRows = (
           await db.query(
@@ -1090,7 +1099,11 @@ app.all("/api/schools/:slug/*", async (c) => {
                 [qz.id, b.licenceCategoryId, b.title, b.durationMinutes],
               )
             ).rows[0]
-          : qz;
+          : (
+              await db.query("select * from school_app.quizzes where id=$1", [
+                qz.id,
+              ])
+            ).rows[0];
         return c.json(
           { quiz: { ...finalQuiz, questions: savedQuestions } },
           201,
@@ -1201,6 +1214,7 @@ app.all("/api/schools/:slug/*", async (c) => {
 
 const statusByCode: Record<string, number> = {
   QUIZ_HAS_ATTEMPTS: 409,
+  QUIZ_VERSION_CHANGED: 409,
   AUTH_REQUIRED: 401,
   ORIGIN_FORBIDDEN: 403,
   TURNSTILE_REQUIRED: 403,

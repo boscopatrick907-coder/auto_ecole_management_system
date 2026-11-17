@@ -448,3 +448,12 @@ UI: `/s/:school/admin/contenus`, restricted to school admins. All routes below a
 - New errors: `400 INVALID_FILE_SIZE`, `INVALID_FILE_TYPE`, `UPLOAD_NOT_FOUND`; `503 STORAGE_UNAVAILABLE`; `409 QUIZ_HAS_ATTEMPTS`. Existing `STORAGE_UNCONFIGURED`, auth, origin, validation and isolation errors remain.
 
 Presigned URLs are short-lived bearer capabilities: do not log them. Private files already downloaded cannot be remotely erased. Replaced or orphaned objects need a reviewed retention/cleanup process; no automatic deletion is performed by this change. File magic checks are not antivirus scanning. Live R2, CORS and deployed Worker behavior require staging verification; automated local storage checks use an SDK mock.
+
+
+## Quiz recovery and version binding — 17 November 2026
+
+Published quiz responses include integer `content_version`. It increases when quiz metadata/publication or questions change. New clients submit optional `quizVersion` with the existing attempt body; when supplied, the API invokes the version-aware function in the updated tenant migration. A stale version for a new attempt returns `409 QUIZ_VERSION_CHANGED`; an identical already-accepted attempt keeps its original result on retry. Omitted `quizVersion` preserves compatibility with older offline clients and uses the original endpoint behavior. No correct answer index is exposed to learners.
+
+Client drafts persist only within their original school/account. Draft removal, submission history and queue insertion are atomic locally; enqueue/transport retries keep the same client ID and body/timestamp. Server grading remains authoritative. The client deadline/high-water guard supports interruption recovery and clock-error detection; it is not a server-enforced proctoring guarantee. Logout clears active drafts/caches; already queued entries remain scoped for the same identity to resume later.
+
+`/s/:school/synchronisation` shows local pending/rejected entries and confirmed quiz results. A per-entry retry preserves payload/ID. It does not edit, delete or authoritatively reconcile a rejected financial operation. Student pagination consumes the existing `count`, `hasMore` and `nextOffset` contract.

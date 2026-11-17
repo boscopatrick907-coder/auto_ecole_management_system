@@ -99,6 +99,7 @@ export interface Question {
   image_url: string | null;
 }
 export interface Quiz {
+  content_version: number;
   id: string;
   title: string;
   duration_minutes: number;

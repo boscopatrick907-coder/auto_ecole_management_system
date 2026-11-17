@@ -143,3 +143,8 @@ Patrick authorised merging the admin content portal and asked for concrete remai
 Patrick requested a phone-accessible deployment and confirmed the Cloudflare account is yours, but he cannot access it. The current Codex environment has no authenticated Cloudflare account or hosted database/R2 bindings. See [the tested staging deployment package](../STAGING_DEPLOYMENT.md): `backend/wrangler.staging.toml` serves static Angular assets and `/api/*` on one origin; `bash scripts/build-staging.sh` builds it.
 
 Either deploy it from your authorised account or grant the owner/deployment environment appropriately scoped access securely. Never paste API tokens, database URLs or private keys into chat or Git. Configure disposable Neon, restricted runtime roles, private R2 and auth/host bindings as documented. Return the actual HTTPS URL, deployed commit and redacted catalogue/login/upload smoke results. A successful dry run alone is not a live deployment.
+
+
+### 17 November integration note — quiz content versions
+
+Apply the updated tenant migration before deploying the new frontend: it adds `quizzes.content_version`, metadata/question version triggers and `submit_quiz_versioned`. New submissions include `quizVersion`; incompatible new submissions return `409 QUIZ_VERSION_CHANGED`, while identical prior accepted attempts retain their result on retry. Unversioned older clients keep the original grading API behavior for compatibility. Refresh old offline quiz caches; they cannot start new version-bound drafts until updated. Rehearse upgrades and verify existing attempts/roles on the disposable staging branch. The release does not add a server-enforced exam/proctoring timer.

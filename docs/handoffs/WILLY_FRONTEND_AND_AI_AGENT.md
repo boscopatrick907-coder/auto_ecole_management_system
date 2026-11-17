@@ -1,3 +1,5 @@
+> **17 November replacement assignment:** quiz recovery, pending-operation review and learner pagination are implemented in the current delivery. Start [WI-N1: receipt quality and phone acceptance](WILLY_NEXT_TASK_20261117.md). Earlier WI-C1/WI-C2/WI-C4 descriptions below are historical; retain the completed code and tests. Audited payment correction and live-device acceptance remain outstanding.
+
 > **16 November update:** Patrick requested the admin content portal. See [portal delivery and remaining collaborator tasks](CONTENT_PORTAL_AND_REMAINING_TASKS.md) for the current additions, priorities and live-validation limits. Earlier findings below are historical; do not reopen items already fixed without checking current code.
 
 # Willy — frontend integration and quality handoff

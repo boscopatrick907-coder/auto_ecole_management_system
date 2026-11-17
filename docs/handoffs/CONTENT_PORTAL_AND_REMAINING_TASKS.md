@@ -79,3 +79,10 @@ Patrick authorised merging the tested portal on 16 November. The latest remote s
 - Willy: **WI-C1** durable quiz drafts/results; **WI-C2** payment reconciliation; **WI-C3** receipt rendering; **WI-C4** learner pagination and phone/upload usability.
 
 Finish WI-C1 and WI-C2 first while Emmanuel establishes the receipt contract and live storage evidence. These are documented assignments, not messages sent to collaborators. Merge authorisation does not constitute production deployment or acceptance of unverified live services.
+
+
+## 17 November frontend follow-up
+
+Codex took on WI-C1 (durable drafts, stable queued submissions and delayed results), the safe review/retry portion of WI-C2, and the pagination portion of WI-C4. The new synchronization page preserves rejected operations; an audited correction API remains an Emmanuel dependency. The updated quiz-version migration must precede frontend rollout. Logout still clears active local drafts/caches under the existing privacy policy; queued operations remain bound to their original identity.
+
+Willy's next coding brief is [WI-N1: receipt quality and phone acceptance](WILLY_NEXT_TASK_20261117.md). Keep original/live provider and physical-device checks distinct from automated fixtures. No newer Willy work was found on shared main at inspection; unpublished work was not inspected.

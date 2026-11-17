@@ -31,8 +31,10 @@ export class OutboxService {
       ? await database.outbox.where("scope").equals(scope).toArray()
       : [];
 
+    if (this.auth.scope !== scope) return;
     this.count.set(items.length);
     this.blocked.set(items.filter((item) => item.state === "blocked").length);
+    window.dispatchEvent(new CustomEvent("school:queue"));
   }
 
   async enqueue(
@@ -85,6 +87,7 @@ export class OutboxService {
     enrollmentId: string,
     body: Record<string, unknown>,
     id: string = crypto.randomUUID(),
+    context?: QueueAction["context"],
   ) {
     const scope = this.auth.scope;
 
@@ -150,6 +153,7 @@ export class OutboxService {
             id,
             scope,
             kind: "payment",
+            context,
             body: paymentBody,
             createdAt: Date.now(),
             attempts: 0,
@@ -383,6 +387,17 @@ export class OutboxService {
           const status = error instanceof RequestError ? error.status : 0;
 
           if (status === 401 || status === 403) {
+            const code =
+              error instanceof RequestError ? error.code : "AUTH_REQUIRED";
+            await database.outbox.update(item.id, {
+              attempts: item.attempts + 1,
+              error: code,
+              nextAt: Date.now() + retryDelay(item.attempts + 1),
+              state:
+                code === "QUIZ_FORBIDDEN" || code === "RESOURCE_FORBIDDEN"
+                  ? "blocked"
+                  : "pending",
+            });
             break;
           }
 
@@ -414,6 +429,18 @@ export class OutboxService {
       this.syncing.set(false);
       await this.refresh();
     }
+  }
+
+  async retry(id: string) {
+    const scope = this.auth.scope;
+    if (!scope) throw new Error("AUTH_REQUIRED");
+    await database.transaction("rw", database.outbox, async () => {
+      if (this.auth.scope !== scope) throw new Error("AUTH_CHANGED");
+      const item = await database.outbox.get(id);
+      if (item?.scope !== scope) throw new Error("AUTH_CHANGED");
+      await database.outbox.update(id, { state: "pending", nextAt: 0 });
+    });
+    await this.flush();
   }
 
   async retryBlocked() {

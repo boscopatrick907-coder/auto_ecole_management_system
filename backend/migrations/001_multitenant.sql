@@ -388,3 +388,32 @@ begin
 end $$;
 revoke all on function school_app.admin_replace_questions(uuid,jsonb) from public;
 grant execute on function school_app.admin_replace_questions(uuid,jsonb) to aem_tenant_runtime;
+
+-- Drafts/queued attempts bind to a content version, so edited questions are never
+-- silently used to grade a new client submission prepared from an older quiz.
+alter table school_app.quizzes add column if not exists content_version integer not null default 1;
+create or replace function school_app.quiz_metadata_version() returns trigger language plpgsql set search_path=pg_catalog,school_app as $$
+begin
+ if (new.title,new.licence_category_id,new.duration_minutes,new.is_published) is distinct from (old.title,old.licence_category_id,old.duration_minutes,old.is_published) then new.content_version:=old.content_version+1;end if;
+ return new;
+end $$;
+drop trigger if exists quiz_metadata_version on school_app.quizzes;
+create trigger quiz_metadata_version before update on school_app.quizzes for each row execute function school_app.quiz_metadata_version();
+create or replace function school_app.quiz_question_version() returns trigger language plpgsql security definer set search_path=pg_catalog,school_app as $$
+begin
+ if tg_op='DELETE' then update school_app.quizzes set content_version=content_version+1 where school_id=old.school_id and id=old.quiz_id;
+ else update school_app.quizzes set content_version=content_version+1 where school_id=new.school_id and id=new.quiz_id;end if;
+ return null;
+end $$;
+drop trigger if exists quiz_question_version on school_app.questions;
+create trigger quiz_question_version after insert or update or delete on school_app.questions for each row execute function school_app.quiz_question_version();
+create or replace function school_app.submit_quiz_versioned(p_quiz uuid,p_answers jsonb,p_client uuid,p_taken timestamptz,p_version integer) returns school_app.quiz_attempts language plpgsql security definer set search_path=pg_catalog,school_app as $$
+declare v_version integer;
+begin
+ select content_version into v_version from school_app.quizzes where school_id=school_app.school_id() and id=p_quiz for share;
+ if not found then raise exception 'QUIZ_FORBIDDEN';end if;
+ if p_version<>v_version and not exists(select 1 from school_app.quiz_attempts a join school_app.students s on s.school_id=a.school_id and s.id=a.student_id where a.school_id=school_app.school_id() and a.client_id=p_client and a.quiz_id=p_quiz and s.user_id=school_app.user_id()) then raise exception 'QUIZ_VERSION_CHANGED';end if;
+ return school_app.submit_quiz(p_quiz,p_answers,p_client,p_taken);
+end $$;
+revoke all on function school_app.quiz_metadata_version(),school_app.quiz_question_version(),school_app.submit_quiz_versioned(uuid,jsonb,uuid,timestamptz,integer) from public;
+grant execute on function school_app.submit_quiz_versioned(uuid,jsonb,uuid,timestamptz,integer) to aem_tenant_runtime;

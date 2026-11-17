@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit } from "@angular/core";
+import { Component, inject, signal, OnInit, OnDestroy } from "@angular/core";
 import {
   FormsModule,
   ReactiveFormsModule,
@@ -8,7 +8,7 @@ import {
 import { RouterLink, ActivatedRoute, Router } from "@angular/router";
 import { DatePipe } from "@angular/common";
 import { AuthService } from "../core/auth.service";
-import { ApiService } from "../core/api.service";
+import { ApiService, RequestError } from "../core/api.service";
 import { DataService } from "../core/data.service";
 import { WhatsAppService } from "../core/whatsapp.service";
 import { ReceiptService } from "../core/receipt.service";
@@ -24,45 +24,66 @@ import type { Dossier, Student, Group, Payment } from "../core/models";
 @Component({
   standalone: true,
   imports: [RouterLink, FormsModule, MoneyPipe, EmptyComponent, IconComponent],
-  template: `<div class="page-heading">
-      <div>
-        <span class="eyebrow">{{ t.admin }}</span>
-        <h1>{{ t.students }}</h1>
+  template: `@if (sameIdentity()) {
+      <div class="page-heading">
+        <div>
+          <span class="eyebrow">{{ t.admin }}</span>
+          <h1>{{ t.students }}</h1>
+        </div>
+        <a class="btn" [routerLink]="base + '/nouveau'"
+          ><app-icon name="person_add" />{{ t.newStudent }}</a
+        >
       </div>
-      <a class="btn" [routerLink]="base + '/nouveau'"
-        ><app-icon name="person_add" />{{ t.newStudent }}</a
-      >
-    </div>
-    <section class="card">
-      <form class="search" (submit)="search($event)">
-        <app-icon name="search" /><input
-          [(ngModel)]="query"
-          name="query"
-          [placeholder]="t.search"
-          [attr.aria-label]="t.search"
-        /><button class="btn small">{{ t.search }}</button>
-      </form>
-      @if (error()) {
-        <p class="error-box" role="alert">{{ t.error }}</p>
-      }
-      @for (s of students(); track s.id) {
-        <a class="list-row student-row" [routerLink]="base + '/' + s.id"
-          ><span class="avatar">{{ s.full_name.charAt(0) }}</span>
-          <div class="grow">
-            <strong>{{ s.full_name }}</strong>
-            <p>#LM-{{ s.student_number }} · {{ s.phone }}</p>
-            <span class="muted">{{ s.group_name }}</span>
-          </div>
-          <div class="align-right">
-            <strong>{{ s.balance | fcfa }}</strong
-            ><app-icon name="chevron_right" /></div
-        ></a>
-      } @empty {
-        <app-empty />
-      }
-    </section>`,
+      <section class="card">
+        <form class="search" (submit)="search($event)">
+          <app-icon name="search" /><input
+            [(ngModel)]="query"
+            name="query"
+            [placeholder]="t.search"
+            [attr.aria-label]="t.search"
+          /><button class="btn small">{{ t.search }}</button>
+        </form>
+        @if (error()) {
+          <p class="error-box" role="alert">{{ t.error }}</p>
+        }
+        @if (loading()) {
+          <p role="status">Chargement des élèves…</p>
+        }
+        <p>{{ students().length }} élève(s) affiché(s) sur {{ total() }}</p>
+        @for (s of students(); track s.id) {
+          <a class="list-row student-row" [routerLink]="base + '/' + s.id"
+            ><span class="avatar">{{ s.full_name.charAt(0) }}</span>
+            <div class="grow">
+              <strong>{{ s.full_name }}</strong>
+              <p>#LM-{{ s.student_number }} · {{ s.phone }}</p>
+              <span class="muted">{{ s.group_name }}</span>
+            </div>
+            <div class="align-right">
+              <strong>{{ s.balance | fcfa }}</strong
+              ><app-icon name="chevron_right" /></div
+          ></a>
+        } @empty {
+          @if (!loading()) {
+            <app-empty />
+          }
+        }
+        @if (hasMore()) {
+          <button
+            class="btn secondary full"
+            [disabled]="loading() || !api.online()"
+            (click)="load(false)"
+          >
+            Afficher les élèves suivants
+          </button>
+        }
+      </section>
+    } @else {
+      <p role="alert">
+        Actualisez cette page après avoir changé d’école ou de compte.
+      </p>
+    }`,
 })
-export class StudentListComponent implements OnInit {
+export class StudentListComponent implements OnInit, OnDestroy {
   t = FR;
   api = inject(ApiService);
   store = inject(DataService);
@@ -70,26 +91,80 @@ export class StudentListComponent implements OnInit {
   students = signal<Array<Student & { balance: number; group_name: string }>>(
     [],
   );
+  private readonly identity = `${this.api.slug}:${this.api.expectedUserId}`;
+  sameIdentity() {
+    return this.identity === `${this.api.slug}:${this.api.expectedUserId}`;
+  }
   error = signal(false);
+  loading = signal(false);
+  total = signal(0);
+  hasMore = signal(false);
+  private nextOffset = 0;
+  private activeQuery = "";
+  private requestId = 0;
   get base() {
     return "/s/" + this.api.slug + "/admin/eleves";
   }
   ngOnInit() {
     void this.load();
   }
+  ngOnDestroy() {
+    this.requestId++;
+  }
   search(e: Event) {
     e.preventDefault();
     void this.load();
   }
-  async load() {
+  async load(reset = true) {
+    if (!reset && this.loading()) return;
+    const request = ++this.requestId;
+    const identity = `${this.api.slug}:${this.api.expectedUserId}`;
+    if (reset) {
+      this.activeQuery = this.query.trim();
+      this.nextOffset = 0;
+      this.students.set([]);
+      this.hasMore.set(false);
+      this.total.set(0);
+    }
+    const query = this.activeQuery,
+      offset = this.nextOffset;
+    this.loading.set(true);
+    this.error.set(false);
     try {
-      const r = await this.store.read("students:" + this.query, () =>
-        this.api.students(this.query),
+      const r = await this.store.read(`students:${query}:page:${offset}`, () =>
+        this.api.students(query, offset),
       );
-      this.students.set(r?.students || []);
-      this.error.set(false);
-    } catch {
+      if (
+        request !== this.requestId ||
+        identity !== `${this.api.slug}:${this.api.expectedUserId}`
+      )
+        return;
+      const rows = r?.students || [];
+      this.students.set(
+        reset
+          ? rows
+          : [
+              ...new Map(
+                [...this.students(), ...rows].map((s) => [s.id, s]),
+              ).values(),
+            ],
+      );
+      this.total.set(r?.count ?? this.students().length);
+      this.nextOffset = r?.nextOffset ?? offset + rows.length;
+      this.hasMore.set(!!r?.hasMore && this.nextOffset > offset);
+    } catch (e) {
+      if (
+        request !== this.requestId ||
+        identity !== `${this.api.slug}:${this.api.expectedUserId}`
+      )
+        return;
       this.error.set(true);
+      if (e instanceof RequestError && [401, 403].includes(e.status)) {
+        this.students.set([]);
+        this.hasMore.set(false);
+      }
+    } finally {
+      if (request === this.requestId) this.loading.set(false);
     }
   }
 }

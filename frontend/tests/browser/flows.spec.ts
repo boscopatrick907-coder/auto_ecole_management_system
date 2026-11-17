@@ -187,6 +187,7 @@ async function fixtures(
                           quizzes: [
                             {
                               id: "quiz-a",
+                              content_version: 1,
                               title: "Priorités",
                               duration_minutes: 5,
                               questions: [
@@ -543,4 +544,288 @@ test("student cannot open admin content authoring", async ({ page }) => {
   await expect(
     page.getByRole("button", { name: "Nouveau cours", exact: true }),
   ).toHaveCount(0);
+});
+
+test("quiz draft survives reload with its answers, flags and original deadline", async ({
+  page,
+}) => {
+  await fixtures(page);
+  await page.goto("/s/horizon/quiz");
+  await page.getByRole("button", { name: "Commencer", exact: true }).click();
+  await page.getByRole("button", { name: "A Le piéton" }).click();
+  await expect(page.getByRole("button", { name: "A Le piéton" })).toHaveClass(
+    /selected/,
+  );
+  await page.getByRole("button", { name: /À revoir/ }).click();
+  await expect(page.getByRole("button", { name: /À revoir/ })).toHaveClass(
+    /flagged/,
+  );
+  // Read stored state through IndexedDB rather than relying on component memory.
+  const draft = await page.evaluate(
+    () =>
+      new Promise<any>((resolve, reject) => {
+        const r = indexedDB.open("school-pwa-v2");
+        r.onerror = () => reject(r.error);
+        r.onsuccess = () => {
+          const db = r.result;
+          const q = db
+            .transaction("snapshots")
+            .objectStore("snapshots")
+            .get("school-a:user-a:quiz-draft");
+          q.onsuccess = () => {
+            resolve(q.result.data);
+            db.close();
+          };
+        };
+      }),
+  );
+  expect(draft.answers).toEqual({ "question-a": "0" });
+  await page.reload();
+  await expect(page.getByRole("button", { name: "A Le piéton" })).toHaveClass(
+    /selected/,
+  );
+  await expect(page.getByRole("button", { name: /À revoir/ })).toHaveClass(
+    /flagged/,
+  );
+  await expect(page.getByRole("status")).toContainText("Brouillon restauré");
+  const request = page.waitForRequest((r) =>
+    r.url().endsWith("/quiz-attempts"),
+  );
+  await page.getByRole("button", { name: "Terminer", exact: true }).click();
+  const body = (await request).postDataJSON();
+  expect(body.clientId).toBe(draft.attemptId);
+  expect(body.quizVersion).toBe(1);
+  await expect(page.getByText("1 / 1", { exact: true }).first()).toBeVisible();
+});
+
+test("offline quiz submission survives reopening and shows the delayed server result", async ({
+  page,
+}) => {
+  await fixtures(page);
+  await page.goto("/s/horizon/quiz");
+  await page.getByRole("button", { name: "Commencer", exact: true }).click();
+  await page.getByRole("button", { name: "A Le piéton" }).click();
+  await expect(page.getByRole("button", { name: "A Le piéton" })).toHaveClass(
+    /selected/,
+  );
+  await page.context().setOffline(true);
+  await page.evaluate(() => window.dispatchEvent(new Event("offline")));
+  await page.getByRole("button", { name: "Terminer", exact: true }).click();
+  await expect(
+    page.getByRole("heading", {
+      name: "Enregistré sur cet appareil. Résultat après synchronisation.",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Retour", exact: true }).click();
+  await expect(
+    page.getByText("En attente de synchronisation", { exact: true }),
+  ).toBeVisible();
+  const request = page.waitForRequest((r) =>
+    r.url().endsWith("/quiz-attempts"),
+  );
+  await page.context().setOffline(false);
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await request;
+  await expect(
+    page.getByText("Corrigé par le serveur", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("1 / 1", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(
+    page.getByText("Corrigé par le serveur", { exact: true }),
+  ).toBeVisible();
+});
+
+test("changed quiz content blocks a recovered draft without losing its answers", async ({
+  page,
+}) => {
+  await fixtures(page);
+  await page.goto("/s/horizon/quiz");
+  await page.getByRole("button", { name: "Commencer", exact: true }).click();
+  await page.getByRole("button", { name: "A Le piéton" }).click();
+  await expect(page.getByRole("button", { name: "A Le piéton" })).toHaveClass(
+    /selected/,
+  );
+  await page
+    .context()
+    .route("**/quizzes", (r) =>
+      r.fulfill({
+        json: {
+          quizzes: [
+            {
+              id: "quiz-a",
+              content_version: 2,
+              title: "Priorités",
+              duration_minutes: 5,
+              questions: [
+                {
+                  id: "question-a",
+                  body: "Question modifiée",
+                  options: ["Autre réponse", "Non"],
+                  image_url: null,
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Brouillon à vérifier" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Supprimer ce brouillon et revenir aux quiz" })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Commencer", exact: true }),
+  ).toBeEnabled();
+});
+
+test("admin pagination reaches learner 201 and resets correctly for a new search", async ({
+  page,
+}) => {
+  await fixtures(page, "admin");
+  await page.context().route("**/admin/students?**", (route) => {
+    const url = new URL(route.request().url());
+    const offset = Number(url.searchParams.get("offset"));
+    const search = url.searchParams.get("search");
+    const rows = search
+      ? [
+          {
+            ...dossier.student,
+            id: "search-result",
+            full_name: "Résultat unique",
+            balance: 0,
+            group_name: "Matin",
+          },
+        ]
+      : Array.from({ length: Math.min(50, 201 - offset) }, (_, i) => ({
+          ...dossier.student,
+          id: `student-${offset + i + 1}`,
+          full_name: `Élève ${offset + i + 1}`,
+          balance: 0,
+          group_name: "Matin",
+        }));
+    return route.fulfill({
+      json: {
+        students: rows,
+        count: search ? 1 : 201,
+        hasMore: !search && offset + rows.length < 201,
+        nextOffset: offset + rows.length,
+      },
+    });
+  });
+  await page.goto("/s/horizon/admin/eleves");
+  for (let i = 0; i < 4; i++)
+    await page
+      .getByRole("button", { name: "Afficher les élèves suivants" })
+      .click();
+  await expect(page.getByText("Élève 201", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Afficher les élèves suivants" }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("textbox", { name: "Rechercher un élève" })
+    .fill("unique");
+  await page.getByRole("button", { name: "Rechercher un élève" }).click();
+  await expect(
+    page.getByText("Résultat unique", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Élève 201", { exact: true })).toHaveCount(0);
+});
+
+test("pending payment review preserves rejected evidence and excludes other schools", async ({
+  page,
+}) => {
+  await fixtures(page, "admin");
+  await page.goto("/s/horizon/admin");
+  await expect(
+    page.getByRole("heading", { name: "Tableau de bord" }),
+  ).toBeVisible();
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const request = indexedDB.open("school-pwa-v2");
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const db = request.result,
+            tx = db.transaction("outbox", "readwrite"),
+            store = tx.objectStore("outbox");
+          const body = {
+            clientId: "stable-payment-id",
+            enrollmentId: "enrollment-a",
+            amount: 50000,
+            method: "cash",
+            paidAt: new Date().toISOString(),
+            receiptNumber: "RC-LOCALTEST-000001",
+          };
+          store.put({
+            id: "stable-payment-id",
+            scope: "school-a:user-a",
+            kind: "payment",
+            body,
+            context: { studentId: "student-a", studentName: "Alice Test" },
+            state: "blocked",
+            attempts: 1,
+            createdAt: Date.now(),
+            nextAt: 0,
+            error: "EXCEEDS_BALANCE",
+          });
+          store.put({
+            id: "foreign-payment-id",
+            scope: "school-b:user-other",
+            kind: "payment",
+            body: { ...body, clientId: "foreign-payment-id" },
+            context: { studentName: "Foreign private learner" },
+            state: "blocked",
+            attempts: 0,
+            createdAt: Date.now(),
+            nextAt: 0,
+          });
+          tx.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+          tx.onerror = () => reject(tx.error);
+        };
+      }),
+  );
+  await page.goto("/s/horizon/synchronisation");
+  await expect(
+    page.getByText("Montant supérieur au solde.", { exact: false }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Foreign private learner", { exact: true }),
+  ).toHaveCount(0);
+  await page
+    .context()
+    .route("**/admin/payments", (r) =>
+      r.fulfill({ status: 409, json: { error: "IDEMPOTENCY_CONFLICT" } }),
+    );
+  const sent = page.waitForRequest(
+    (r) => r.url().endsWith("/admin/payments") && r.method() === "POST",
+  );
+  await page
+    .getByRole("button", { name: "Réessayer cet envoi", exact: true })
+    .click();
+  const body = (await sent).postDataJSON();
+  expect(body.clientId).toBe("stable-payment-id");
+  expect(body.amount).toBe(50000);
+  await expect(
+    page.getByText("Cette référence correspond à une autre opération.", {
+      exact: false,
+    }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(
+    page.getByText("RC-LOCALTEST-000001", { exact: false }),
+  ).toBeVisible();
+  await page
+    .getByRole("link", { name: "Ouvrir le dossier et le reçu", exact: true })
+    .click();
+  await expect(
+    page.getByText("RC-LOCALTEST-000001", { exact: true }),
+  ).toBeVisible();
 });

@@ -521,3 +521,67 @@ it("denies expired unpaid students published materials and new quiz submissions"
     );
   }
 });
+
+it("rejects stale quiz versions while preserving identical submitted retries", async () => {
+  const draftResponse = await req("admin/quizzes", "POST", {
+    licenceCategoryId: cat,
+    title: "Version de brouillon",
+    durationMinutes: 10,
+    questions: [question()],
+  });
+  expect(draftResponse.status).toBe(201);
+  const draft = (await draftResponse.json()).quiz;
+  const listed = (await (await req("admin/quizzes")).json()).quizzes.find(
+    (q: any) => q.id === draft.id,
+  );
+  expect(draft.content_version).toBe(listed.content_version);
+
+  const created = await req("admin/quizzes", "POST", {
+    licenceCategoryId: cat,
+    title: "Version de référence",
+    durationMinutes: 10,
+    questions: [question()],
+    isPublished: true,
+  });
+  expect(created.status).toBe(201);
+  const quiz = (await created.json()).quiz;
+  const old = (
+    await (await req("quizzes", "GET", undefined, studentCookie)).json()
+  ).quizzes.find((q: any) => q.id === quiz.id);
+  expect(old.content_version).toBeGreaterThan(0);
+  expect(
+    (
+      await req(`admin/quizzes/${quiz.id}`, "PATCH", {
+        questions: [
+          { ...question("Question révisée"), id: quiz.questions[0].id },
+        ],
+      })
+    ).status,
+  ).toBe(200);
+  const body = {
+    quizId: quiz.id,
+    quizVersion: old.content_version,
+    clientId: randomUUID(),
+    takenAt: new Date().toISOString(),
+    answers: { [quiz.questions[0].id]: "0" },
+  };
+  const rejected = await req("quiz-attempts", "POST", body, studentCookie);
+  expect(rejected.status).toBe(409);
+  expect((await rejected.json()).error).toBe("QUIZ_VERSION_CHANGED");
+  const current = (
+    await (await req("quizzes", "GET", undefined, studentCookie)).json()
+  ).quizzes.find((q: any) => q.id === quiz.id);
+  const acceptedBody = { ...body, quizVersion: current.content_version };
+  const accepted = await req(
+    "quiz-attempts",
+    "POST",
+    acceptedBody,
+    studentCookie,
+  );
+  expect(accepted.status).toBe(201);
+  const attempt = (await accepted.json()).attempt;
+  await req(`admin/quizzes/${quiz.id}`, "PATCH", { title: "Titre mis à jour" });
+  const retry = await req("quiz-attempts", "POST", acceptedBody, studentCookie);
+  expect(retry.status).toBe(201);
+  expect((await retry.json()).attempt.id).toBe(attempt.id);
+});

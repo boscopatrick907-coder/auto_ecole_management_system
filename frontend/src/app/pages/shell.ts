@@ -52,10 +52,20 @@ import { BottomNavComponent, IconComponent } from "../shared/ui";
     @if (outbox.blocked()) {
       <aside class="error-box">
         {{ outbox.blocked() }} {{ t.blocked
-        }}<button class="btn small" (click)="outbox.retryBlocked()">
-          {{ t.retryQueue }}
-        </button>
+        }}<a
+          class="btn small"
+          [routerLink]="'/s/' + api.slug + '/synchronisation'"
+          >Vérifier ces opérations</a
+        >
       </aside>
+    }
+    @if (auth.user()) {
+      <a
+        class="text-link"
+        style="display:block;text-align:center;padding:8px"
+        [routerLink]="'/s/' + api.slug + '/synchronisation'"
+        >Voir mes envois et les opérations à vérifier</a
+      >
     }
     <main id="main" class="page">
       @if (auth.error()) {
