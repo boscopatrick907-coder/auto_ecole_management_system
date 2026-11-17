@@ -17,6 +17,11 @@ export class RequestError extends Error {
   }
 }
 
+export interface TenantRequestContext {
+  readonly schoolSlug: string;
+  readonly expectedUserId: string;
+}
+
 const identityDenialCodes = new Set([
   "AUTH_REQUIRED",
   "MEMBERSHIP_REQUIRED",
@@ -57,10 +62,15 @@ export class ApiService {
   private authorizationErrorHandler?: (
     error: RequestError,
     path: string,
+    context: TenantRequestContext,
   ) => Promise<void>;
 
   setAuthorizationErrorHandler(
-    handler: (error: RequestError, path: string) => Promise<void>,
+    handler: (
+      error: RequestError,
+      path: string,
+      context: TenantRequestContext,
+    ) => Promise<void>,
   ) {
     this.authorizationErrorHandler = handler;
   }
@@ -74,7 +84,15 @@ export class ApiService {
     method = "GET",
     body?: unknown,
     headers: Record<string, string> = {},
+    context?: TenantRequestContext,
   ): Promise<T> {
+    const requestContext = Object.freeze({
+      schoolSlug: context?.schoolSlug ?? this.slug,
+      expectedUserId:
+        context?.expectedUserId ??
+        headers["X-Expected-User"] ??
+        this.expectedUserId,
+    });
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), 30000);
     try {
@@ -88,15 +106,16 @@ export class ApiService {
       const data = await r.json().catch(() => ({}));
       if (!r.ok) {
         const error = new RequestError(r.status, data.error || "REQUEST_FAILED");
-        const tenantPrefix = `/schools/${encodeURIComponent(this.slug)}/`;
+        const tenantPrefix = `/schools/${encodeURIComponent(requestContext.schoolSlug)}/`;
 
         if (
           (r.status === 401 || r.status === 403) &&
           path.startsWith(tenantPrefix) &&
+          this.isCurrentTenantContext(requestContext) &&
           this.authorizationErrorHandler
         ) {
           try {
-            await this.authorizationErrorHandler(error, path);
+            await this.authorizationErrorHandler(error, path, requestContext);
           } catch (invalidationError) {
             console.error("Authorization cache invalidation failed", invalidationError);
           }
@@ -110,11 +129,21 @@ export class ApiService {
     }
   }
   tenant<T>(path: string, method = "GET", body?: unknown): Promise<T> {
+    const schoolSlug = this.slug;
+    const expectedUserId = this.expectedUserId;
     return this.request<T>(
-      `/schools/${encodeURIComponent(this.slug)}/${path}`,
+      `/schools/${encodeURIComponent(schoolSlug)}/${path}`,
       method,
       body,
-      this.expectedUserId ? { "X-Expected-User": this.expectedUserId } : {},
+      expectedUserId ? { "X-Expected-User": expectedUserId } : {},
+      Object.freeze({ schoolSlug, expectedUserId }),
+    );
+  }
+
+  private isCurrentTenantContext(context: TenantRequestContext) {
+    return (
+      this.slug === context.schoolSlug &&
+      this.expectedUserId === context.expectedUserId
     );
   }
   catalogue() {

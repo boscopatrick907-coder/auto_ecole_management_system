@@ -426,6 +426,7 @@ describe("student list pagination contract", () => {
   it("awaits cache invalidation before rejecting a tenant authorization error", async () => {
     const api = new ApiService();
     api.slug = "horizon";
+    api.expectedUserId = "user-a";
     let invalidated = false;
     const handler = vi.fn(async () => {
       await Promise.resolve();
@@ -449,10 +450,275 @@ describe("student list pagination contract", () => {
       expect(handler).toHaveBeenCalledWith(
         expect.objectContaining({ status: 403, code: "MEMBERSHIP_REQUIRED" }),
         "/schools/horizon/admin/groups",
+        { schoolSlug: "horizon", expectedUserId: "user-a" },
       );
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+});
+
+describe("account-switch race protection", () => {
+  it("does not invalidate the replacement account after a late denial", async () => {
+    const api = new ApiService();
+    api.slug = "horizon";
+    api.expectedUserId = "user-a";
+
+    const router = { navigate: vi.fn().mockResolvedValue(true) };
+    const authInjector = createEnvironmentInjector(
+      [
+        { provide: ApiService, useValue: api },
+        { provide: Router, useValue: router },
+      ],
+      null as never,
+    );
+    const auth = runInInjectionContext(
+      authInjector,
+      () => new AuthService(),
+    );
+    auth.school.set({ id: "school-a", slug: "horizon" } as never);
+    auth.user.set({ id: "user-a" } as never);
+    auth.role.set("admin");
+
+    const dataInjector = createEnvironmentInjector(
+      [
+        { provide: ApiService, useValue: api },
+        { provide: AuthService, useValue: auth },
+      ],
+      null as never,
+    );
+    runInInjectionContext(dataInjector, () => new DataService());
+
+    const replacementScope = accountScope("school-a", "user-b");
+    await database.snapshots.put({
+      key: replacementScope + ":dashboard",
+      scope: replacementScope,
+      data: { marker: "user-b-dashboard" },
+      updatedAt: Date.now(),
+    });
+    await database.snapshots.put({
+      key: "identity:horizon",
+      scope: "identity:horizon",
+      data: { user: { id: "user-b" }, role: "admin" },
+      updatedAt: Date.now(),
+    });
+    await database.outbox.add({
+      id: "user-b-queued-payment",
+      scope: replacementScope,
+      kind: "payment",
+      body: { enrollmentId: "enrollment-b", clientId: "user-b-queued-payment" },
+      createdAt: Date.now(),
+      attempts: 0,
+      nextAt: 0,
+      state: "pending",
+    });
+
+    let finish!: (response: Response) => void;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            finish = resolve;
+          }),
+      ),
+    );
+
+    const request = api.me();
+    auth.user.set({ id: "user-b" } as never);
+    api.expectedUserId = "user-b";
+    finish(
+      new Response(JSON.stringify({ error: "AUTH_REQUIRED" }), {
+        status: 401,
+      }),
+    );
+
+    await expect(request).rejects.toMatchObject({
+      status: 401,
+      code: "AUTH_REQUIRED",
+    });
+    expect(auth.user()?.id).toBe("user-b");
+    expect(
+      await database.snapshots.get(replacementScope + ":dashboard"),
+    ).toMatchObject({ data: { marker: "user-b-dashboard" } });
+    expect(await database.snapshots.get("identity:horizon")).toMatchObject({
+      data: { user: { id: "user-b" } },
+    });
+    expect(await database.outbox.get("user-b-queued-payment")).toBeDefined();
+    expect(router.navigate).not.toHaveBeenCalled();
+
+    vi.unstubAllGlobals();
+    dataInjector.destroy();
+    authInjector.destroy();
+  });
+
+  it("rejects a cached file when identity changes during lease refresh", async () => {
+    let userId = "user-a";
+    let finishRefresh!: () => void;
+    const auth = {
+      scope: accountScope("school-a", userId),
+      user: () => ({ id: userId }),
+      refreshLease: vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            finishRefresh = resolve;
+          }),
+      ),
+      offlineAllowed: vi.fn().mockResolvedValue(true),
+    };
+    const api = {
+      online: signal(true),
+      slug: "horizon",
+      expectedUserId: userId,
+      setAuthorizationErrorHandler: vi.fn(),
+    };
+    const injector = createEnvironmentInjector(
+      [
+        { provide: ApiService, useValue: api },
+        { provide: AuthService, useValue: auth },
+      ],
+      null as never,
+    );
+    const data = runInInjectionContext(injector, () => new DataService());
+    const oldScope = accountScope("school-a", "user-a");
+    await database.files.put({
+      key: oldScope + ":resource-a",
+      scope: oldScope,
+      blob: new Blob(["synthetic private material"]),
+    });
+
+    const file = data.file("resource-a");
+    userId = "user-b";
+    auth.scope = accountScope("school-a", userId);
+    api.expectedUserId = userId;
+    finishRefresh();
+
+    await expect(file).rejects.toThrow("AUTH_CHANGED");
+    expect(auth.offlineAllowed).not.toHaveBeenCalled();
+    expect(
+      await database.files.get(oldScope + ":resource-a"),
+    ).toBeDefined();
+    expect(
+      await database.files.get(accountScope("school-a", "user-b") + ":resource-a"),
+    ).toBeUndefined();
+    injector.destroy();
+  });
+
+  it("does not persist a successful late lease under the replacement account", async () => {
+    let finishLease!: (lease: { token: string; publicKey: never }) => void;
+    const api = {
+      slug: "horizon",
+      expectedUserId: "user-a",
+      tenant: vi.fn(
+        () =>
+          new Promise<{ token: string; publicKey: never }>((resolve) => {
+            finishLease = resolve;
+          }),
+      ),
+    };
+    const injector = createEnvironmentInjector(
+      [
+        { provide: ApiService, useValue: api },
+        { provide: Router, useValue: { navigate: vi.fn() } },
+      ],
+      null as never,
+    );
+    const auth = runInInjectionContext(
+      injector,
+      () => new AuthService(),
+    );
+    auth.school.set({ id: "school-a", slug: "horizon" } as never);
+    auth.user.set({ id: "user-a" } as never);
+    auth.role.set("student");
+
+    const oldScope = auth.scope;
+    const replacementScope = accountScope("school-a", "user-b");
+    await database.snapshots.put({
+      key: replacementScope + ":lease",
+      scope: replacementScope,
+      data: { token: "existing-user-b-lease", publicKey: {} },
+      updatedAt: Date.now(),
+    });
+
+    const refresh = auth.refreshLease();
+    auth.user.set({ id: "user-b" } as never);
+    api.expectedUserId = "user-b";
+    finishLease({ token: "synthetic-user-a-lease", publicKey: {} as never });
+
+    await expect(refresh).rejects.toThrow("AUTH_CHANGED");
+    expect(await database.snapshots.get(oldScope + ":lease")).toBeUndefined();
+    expect(await database.snapshots.get(replacementScope + ":lease")).toMatchObject({
+      data: { token: "existing-user-b-lease" },
+    });
+    injector.destroy();
+  });
+
+  it("does not invalidate a replacement account after a late lease denial", async () => {
+    let rejectLease!: (error: RequestError) => void;
+    const api = {
+      slug: "horizon",
+      expectedUserId: "user-a",
+      tenant: vi.fn(
+        () =>
+          new Promise<never>((_resolve, reject) => {
+            rejectLease = reject;
+          }),
+      ),
+    };
+    const router = { navigate: vi.fn() };
+    const injector = createEnvironmentInjector(
+      [
+        { provide: ApiService, useValue: api },
+        { provide: Router, useValue: router },
+      ],
+      null as never,
+    );
+    const auth = runInInjectionContext(
+      injector,
+      () => new AuthService(),
+    );
+    auth.school.set({ id: "school-a", slug: "horizon" } as never);
+    auth.user.set({ id: "user-a" } as never);
+    auth.role.set("admin");
+    const invalidate = vi.spyOn(auth, "invalidateAccountData");
+
+    const replacementScope = accountScope("school-a", "user-b");
+    await database.snapshots.put({
+      key: replacementScope + ":dashboard",
+      scope: replacementScope,
+      data: { marker: "user-b-dashboard" },
+      updatedAt: Date.now(),
+    });
+    await database.outbox.add({
+      id: "user-b-payment-after-late-denial",
+      scope: replacementScope,
+      kind: "payment",
+      body: { enrollmentId: "enrollment-b", clientId: "user-b-payment-after-late-denial" },
+      createdAt: Date.now(),
+      attempts: 0,
+      nextAt: 0,
+      state: "pending",
+    });
+
+    const refresh = auth.refreshLease();
+    auth.user.set({ id: "user-b" } as never);
+    api.expectedUserId = "user-b";
+    rejectLease(new RequestError(401, "AUTH_REQUIRED"));
+
+    await expect(refresh).rejects.toMatchObject({
+      status: 401,
+      code: "AUTH_REQUIRED",
+    });
+    expect(invalidate).not.toHaveBeenCalled();
+    expect(auth.user()?.id).toBe("user-b");
+    expect(
+      await database.snapshots.get(replacementScope + ":dashboard"),
+    ).toMatchObject({ data: { marker: "user-b-dashboard" } });
+    expect(
+      await database.outbox.get("user-b-payment-after-late-denial"),
+    ).toBeDefined();
+    expect(router.navigate).not.toHaveBeenCalled();
+    injector.destroy();
   });
 });
 

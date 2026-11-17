@@ -3,9 +3,16 @@ import {
   ApiService,
   RequestError,
   authorizationDenial,
+  type TenantRequestContext,
 } from "./api.service";
 import { AuthService } from "./auth.service";
 import { database } from "./database";
+
+interface ScopedAccountContext {
+  scope: string;
+  userId: string;
+  request: TenantRequestContext;
+}
 
 @Injectable({ providedIn: "root" })
 export class DataService {
@@ -15,8 +22,8 @@ export class DataService {
   readonly revision = signal(0);
 
   constructor() {
-    this.api.setAuthorizationErrorHandler((error, path) =>
-      this.handleApiDenial(error, path),
+    this.api.setAuthorizationErrorHandler((error, path, context) =>
+      this.handleApiDenial(error, path, context),
     );
     window.addEventListener("school:sync", () =>
       this.revision.update((x) => x + 1),
@@ -93,26 +100,46 @@ export class DataService {
   }
 
   async file(id: string, download = false): Promise<string> {
-    const scope = this.auth.scope;
-    if (!scope) throw new Error("AUTH_REQUIRED");
+    const context = this.captureAccountContext();
+    const { scope, request } = context;
 
     if (this.api.online()) {
       try {
         await this.auth.refreshLease();
       } catch (e) {
         if (e instanceof RequestError && (e.status === 401 || e.status === 403)) {
-          await this.invalidateDeniedData(e, "resource-file:" + id, scope, id);
+          await this.invalidateDeniedData(
+            e,
+            "resource-file:" + id,
+            scope,
+            id,
+            request,
+          );
+        }
+        if (!this.isCurrentAccountContext(context) && this.auth.scope) {
+          throw new Error("AUTH_CHANGED");
         }
         throw e;
       }
+      this.assertCurrentAccountContext(context);
     }
 
-    if (!(await this.auth.offlineAllowed())) {
+    let allowed: boolean;
+    try {
+      allowed = await this.auth.offlineAllowed();
+    } catch (e) {
+      this.assertCurrentAccountContext(context);
+      throw e;
+    }
+    this.assertCurrentAccountContext(context);
+
+    if (!allowed) {
       throw new Error("ACCESS_EXPIRED");
     }
 
     const key = scope + ":" + id;
     const cached = await database.files.get(key);
+    this.assertCurrentAccountContext(context);
 
     if (cached) return URL.createObjectURL(cached.blob);
 
@@ -127,19 +154,32 @@ export class DataService {
       ));
     } catch (e) {
       if (e instanceof RequestError && (e.status === 401 || e.status === 403)) {
-        await this.invalidateDeniedData(e, "resource-file:" + id, scope, id);
+        await this.invalidateDeniedData(
+          e,
+          "resource-file:" + id,
+          scope,
+          id,
+          request,
+        );
+      }
+      if (!this.isCurrentAccountContext(context) && this.auth.scope) {
+        throw new Error("AUTH_CHANGED");
       }
       throw e;
     }
+    this.assertCurrentAccountContext(context);
 
     const r = await fetch(url);
+    this.assertCurrentAccountContext(context);
 
     if (!r.ok) throw new Error("DOWNLOAD_FAILED");
 
     const blob = await r.blob();
+    this.assertCurrentAccountContext(context);
 
-    if (download && this.auth.scope === scope) {
+    if (download) {
       await database.files.put({ key, scope, blob });
+      this.assertCurrentAccountContext(context);
     }
 
     return URL.createObjectURL(blob);
@@ -164,11 +204,16 @@ export class DataService {
     key: string,
     scope: string,
     fileId?: string,
+    request?: TenantRequestContext,
   ) {
-    if (this.auth.scope !== scope) return;
+    const isCurrent = () =>
+      this.auth.scope === scope &&
+      (!request || this.isCurrentTenantRequest(request));
+
+    if (!isCurrent()) return;
 
     if (authorizationDenial(error) === "identity") {
-      const slug = this.api.slug;
+      const slug = request?.schoolSlug ?? this.api.slug;
       await this.auth.invalidateAccountData(scope, slug, true);
       return;
     }
@@ -192,19 +237,26 @@ export class DataService {
       database.snapshots,
       database.files,
       async () => {
-        if (this.auth.scope !== scope) return;
+        if (!isCurrent()) return;
 
         await database.snapshots.bulkDelete([...keys]);
 
+        if (!isCurrent()) return;
         if (fileId) await database.files.delete(scope + ":" + fileId);
-        if (clearFiles) {
+        if (clearFiles && isCurrent()) {
           await database.files.where("scope").equals(scope).delete();
         }
       },
     );
   }
 
-  private handleApiDenial(error: RequestError, path: string) {
+  private handleApiDenial(
+    error: RequestError,
+    path: string,
+    request: TenantRequestContext,
+  ) {
+    if (!this.isCurrentTenantRequest(request)) return Promise.resolve();
+
     const scope = this.auth.scope;
     if (!scope) return Promise.resolve();
 
@@ -245,6 +297,47 @@ export class DataService {
       key = "resource-file:" + fileId;
     }
 
-    return this.invalidateDeniedData(error, key, scope, fileId);
+    return this.invalidateDeniedData(error, key, scope, fileId, request);
+  }
+
+  private isCurrentTenantRequest(request: TenantRequestContext) {
+    return (
+      this.api.slug === request.schoolSlug &&
+      this.api.expectedUserId === request.expectedUserId &&
+      (this.auth.user()?.id ?? "") === request.expectedUserId
+    );
+  }
+
+  private captureAccountContext(): ScopedAccountContext {
+    const scope = this.auth.scope;
+    const userId = this.auth.user()?.id ?? "";
+
+    if (!scope || !userId) throw new Error("AUTH_REQUIRED");
+
+    const context: ScopedAccountContext = {
+      scope,
+      userId,
+      request: {
+        schoolSlug: this.api.slug,
+        expectedUserId: userId,
+      },
+    };
+    this.assertCurrentAccountContext(context);
+    return context;
+  }
+
+  private isCurrentAccountContext(context: ScopedAccountContext) {
+    return (
+      this.auth.scope === context.scope &&
+      this.auth.user()?.id === context.userId &&
+      this.api.slug === context.request.schoolSlug &&
+      this.api.expectedUserId === context.request.expectedUserId
+    );
+  }
+
+  private assertCurrentAccountContext(context: ScopedAccountContext) {
+    if (!this.isCurrentAccountContext(context)) {
+      throw new Error("AUTH_CHANGED");
+    }
   }
 }

@@ -295,12 +295,26 @@ export class AuthService {
   }
 
   async refreshLease(redirectOnIdentityDenial = true) {
-    if (!this.scope || !this.role()) {
+    const school = this.school();
+    const user = this.user();
+    const role = this.role();
+    if (!this.scope || !school?.id || !user?.id || !role) {
       throw new Error("INVALID_LEASE_IDENTITY");
     }
 
     const scope = this.scope;
     const slug = this.api.slug;
+    const schoolId = school.id;
+    const userId = user.id;
+    const expectedUserId = this.api.expectedUserId;
+    const isOriginalIdentityCurrent = () =>
+      this.scope === scope &&
+      this.api.slug === slug &&
+      this.api.expectedUserId === expectedUserId &&
+      this.school()?.id === schoolId &&
+      this.user()?.id === userId &&
+      this.role() === role;
+
     let lease: { token: string; publicKey: JWK };
 
     try {
@@ -309,10 +323,17 @@ export class AuthService {
         publicKey: JWK;
       }>("lease");
     } catch (e) {
-      if (authorizationDenial(e) === "identity") {
+      if (
+        authorizationDenial(e) === "identity" &&
+        isOriginalIdentityCurrent()
+      ) {
         await this.invalidateAccountData(scope, slug, redirectOnIdentityDenial);
       }
       throw e;
+    }
+
+    if (!isOriginalIdentityCurrent()) {
+      throw new Error("AUTH_CHANGED");
     }
 
     if (!lease.token || !lease.publicKey) {
@@ -321,15 +342,23 @@ export class AuthService {
 
     const now = Date.now();
 
+    if (!isOriginalIdentityCurrent()) {
+      throw new Error("AUTH_CHANGED");
+    }
+
     await database.snapshots.put({
-      key: this.scope + ":lease",
-      scope: this.scope,
+      key: scope + ":lease",
+      scope,
       data: {
         ...lease,
         highWater: now,
       },
       updatedAt: now,
     });
+
+    if (!isOriginalIdentityCurrent()) {
+      throw new Error("AUTH_CHANGED");
+    }
   }
 
   async offlineAllowed(learning = true): Promise<boolean> {
