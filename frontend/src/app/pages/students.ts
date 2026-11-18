@@ -12,6 +12,7 @@ import { ApiService } from "../core/api.service";
 import { DataService } from "../core/data.service";
 import { WhatsAppService } from "../core/whatsapp.service";
 import { ReceiptService } from "../core/receipt.service";
+import { learnerNumberLabel } from "../core/learner-number";
 import { FR } from "../core/fr";
 import { MoneyPipe } from "../shared/money.pipe";
 import {
@@ -50,7 +51,16 @@ import type { Dossier, Student, Group, Payment } from "../core/models";
           ><span class="avatar">{{ s.full_name.charAt(0) }}</span>
           <div class="grow">
             <strong>{{ s.full_name }}</strong>
-            <p>#LM-{{ s.student_number }} · {{ s.phone }}</p>
+            <p>
+              {{
+                learnerNumber(
+                  auth.school()?.slug || api.slug,
+                  s.student_number,
+                  auth.school()?.learner_number_prefix
+                )
+              }}
+              · {{ s.phone }}
+            </p>
             <span class="muted">{{ s.group_name }}</span>
           </div>
           <div class="align-right">
@@ -79,7 +89,9 @@ import type { Dossier, Student, Group, Payment } from "../core/models";
 export class StudentListComponent implements OnInit {
   t = FR;
   api = inject(ApiService);
+  auth = inject(AuthService);
   store = inject(DataService);
+  learnerNumber = learnerNumberLabel;
   query = "";
   students = signal<Array<Student & { balance: number; group_name: string }>>(
     [],
@@ -305,7 +317,15 @@ export class NewStudentComponent implements OnInit {
   template: `@if (dossier(); as d) {
       <div class="page-heading">
         <div>
-          <span class="eyebrow">#LM-{{ d.student.student_number }}</span>
+          <span class="eyebrow">
+            {{
+              learnerNumber(
+                auth.school()?.slug || api.slug,
+                d.student.student_number,
+                auth.school()?.learner_number_prefix
+              )
+            }}
+          </span>
           <h1>{{ d.student.full_name }}</h1>
           <p>{{ d.student.phone }}</p>
         </div>
@@ -379,23 +399,32 @@ export class NewStudentComponent implements OnInit {
               <p>
                 {{ p.amount | fcfa }} · {{ p.paid_at | date: "dd/MM/yyyy" }}
               </p>
-              @if (p.cancelled_at) {
-                <app-badge kind="overdue" [label]="t.cancel" />
+              <p class="muted">{{ receipt.statusLabel(p) }}</p>
+              @if (p.cancelled_at || p.receipt_status === "cancelled") {
                 <p>{{ p.cancel_reason }}</p>
               }
             </div>
+            @if (receipt.generationStatusFor(p) === "generating") {
+              <p role="status">{{ t.receiptPreparingPdf }}</p>
+            } @else if (receipt.generationStatusFor(p) === "success") {
+              <p role="status">{{ t.receiptPdfReady }}</p>
+            } @else if (receipt.generationStatusFor(p) === "error") {
+              <p class="error-box" role="alert">{{ t.receiptPdfError }}</p>
+            }
             <button
               class="btn small secondary"
+              [disabled]="receipt.generationStatus() === 'generating'"
               (click)="receipt.generate(p, d)"
             >
-              {{ t.pdf }}</button
+              {{ t.receiptPdfLabel }}</button
             ><button
               class="btn small ghost"
+              [disabled]="receipt.generationStatus() === 'generating'"
               (click)="receipt.generate(p, d, true)"
             >
               {{ t.ticket }}
             </button>
-            @if (!p.cancelled_at) {
+            @if (!p.cancelled_at && p.receipt_status !== "cancelled") {
               <button class="btn small danger" (click)="cancelling.set(p.id)">
                 {{ t.cancel }}
               </button>
@@ -443,7 +472,9 @@ export class DossierComponent implements OnInit {
   busy = signal(false);
   reason = "";
   statusLabel = installmentLabel;
+  learnerNumber = learnerNumberLabel;
   ngOnInit() {
+    this.receipt.resetGenerationStatus();
     void this.load();
   }
   async load() {

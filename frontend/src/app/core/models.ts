@@ -7,6 +7,8 @@ export interface School {
   colors: { primary: string; accent: string };
   trial_days: number;
   receipt_prefix: string;
+  /** Optional consumer-side prefix when supplied by a future school API contract. */
+  learner_number_prefix?: string;
   address: string;
   phone: string;
   whatsapp: string;
@@ -63,11 +65,52 @@ export interface Enrollment {
   paid: number;
   balance: number;
 }
+
+export type PaymentMethod =
+  | "cash"
+  | "mtn_momo"
+  | "orange_money"
+  | "bank";
+
+export type ReceiptStatus = "confirmed" | "cancelled" | "provisional";
+
+export type SnapshotProvenance =
+  | "recorded_at_issuance"
+  | "missing_legacy_snapshot";
+
+export interface ReceiptIssuanceSnapshot {
+  snapshotVersion: string;
+  snapshotSource: "recorded_at_issuance" | string;
+  receiptNumber: string;
+  issuedAt: string;
+  balanceAtIssuance: number | string;
+  school: {
+    name: string;
+    address: string;
+    phone: string;
+    whatsapp: string;
+    agrementNumber: string;
+    receiptPrefix: string;
+  };
+  student: {
+    id: string;
+    name: string;
+    phone: string;
+  };
+  enrollment: {
+    id: string;
+    groupName: string;
+    licenceCode: string;
+    licenceName: string;
+    totalFee: number | string;
+  };
+}
+
 export interface Payment {
   id: string;
   enrollment_id: string;
   amount: number;
-  method: string;
+  method: PaymentMethod | (string & {});
   reference: string | null;
   receipt_number: string;
   paid_at: string;
@@ -76,6 +119,15 @@ export interface Payment {
   student_name?: string;
   phone?: string;
   recorded_by_name?: string;
+  enrollment_total_fee?: number | string | null;
+  balance_at_issuance?: number | string | null;
+  current_balance?: number | string | null;
+  receipt_status?: ReceiptStatus;
+  is_offline_provisional_number?: boolean;
+  issuance_snapshot?: ReceiptIssuanceSnapshot | null;
+  snapshot_provenance?: SnapshotProvenance;
+  balance_label?: string;
+  current_balance_label?: string;
   pending?: boolean;
 }
 export interface Dossier {

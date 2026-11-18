@@ -6,6 +6,7 @@ import { ApiService } from "../core/api.service";
 import { DataService } from "../core/data.service";
 import { OutboxService } from "../core/outbox.service";
 import { ReceiptService } from "../core/receipt.service";
+import { learnerNumberLabel } from "../core/learner-number";
 import { WhatsAppService } from "../core/whatsapp.service";
 import { FR } from "../core/fr";
 import { MoneyPipe, formatMoney } from "../shared/money.pipe";
@@ -31,7 +32,13 @@ import { nextOfflineReceipt } from "../core/database";
             <div>
               <h2>{{ d.student.full_name }}</h2>
               <p>
-                #LM-{{ d.student.student_number }} ·
+                {{
+                  learnerNumber(
+                    auth.school()?.slug || api.slug,
+                    d.student.student_number,
+                    auth.school()?.learner_number_prefix
+                  )
+                }} ·
                 {{ d.enrollment?.group_name }}
               </p>
             </div>
@@ -118,26 +125,29 @@ import { nextOfflineReceipt } from "../core/database";
           </div>
 
           <hr />
-          <h3>{{ t.receiptHeader }}</h3>
+          <h3>{{ t.receiptTitle }}</h3>
 
           @if (payment(); as p) {
             <strong>{{ p.receipt_number }}</strong>
 
-            @if (p.pending) {
-              <p class="error-box">{{ t.pendingReceipt }}</p>
-            }
+            <p class="receipt-status" role="status">{{ receipt.statusLabel(p) }}</p>
 
             <p>{{ d.student.full_name }}</p>
             <div class="receipt-amount">{{ p.amount | fcfa }}</div>
             <p>{{ t.manual }}</p>
 
             <div class="actions">
-              <button class="btn full" (click)="receipt.generate(p, d)">
-                {{ t.pdf }}
+              <button
+                class="btn full"
+                [disabled]="receipt.generationStatus() === 'generating'"
+                (click)="receipt.generate(p, d)"
+              >
+                {{ t.receiptPdfLabel }}
               </button>
 
               <button
                 class="btn secondary"
+                [disabled]="receipt.generationStatus() === 'generating'"
                 (click)="receipt.generate(p, d, true)"
               >
                 {{ t.ticket }}
@@ -157,6 +167,13 @@ import { nextOfflineReceipt } from "../core/database";
                 </button>
               }
             </div>
+            @if (receipt.generationStatusFor(p) === "generating") {
+              <p role="status">{{ t.receiptPreparingPdf }}</p>
+            } @else if (receipt.generationStatusFor(p) === "success") {
+              <p role="status">{{ t.receiptPdfReady }}</p>
+            } @else if (receipt.generationStatusFor(p) === "error") {
+              <p class="error-box" role="alert">{{ t.receiptPdfError }}</p>
+            }
           } @else {
             <p>{{ d.student.full_name }}</p>
             <div class="receipt-amount">
@@ -188,6 +205,7 @@ export class PaymentComponent implements OnInit, OnDestroy {
 
   id = this.route.snapshot.paramMap.get("id")!;
   number = Number;
+  learnerNumber = learnerNumberLabel;
 
   private destroyed = false;
 
@@ -210,6 +228,7 @@ export class PaymentComponent implements OnInit, OnDestroy {
   });
 
   async ngOnInit() {
+    this.receipt.resetGenerationStatus();
     window.addEventListener("school:sync", this.syncListener);
 
     try {
@@ -444,6 +463,7 @@ export class PaymentComponent implements OnInit, OnDestroy {
       if (this.auth.scope !== scope) return;
 
       this.payment.set(null);
+      this.receipt.resetGenerationStatus();
       this.recoveryBlocked.set(false);
 
       this.form.reset({

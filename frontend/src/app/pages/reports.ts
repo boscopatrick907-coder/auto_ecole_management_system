@@ -5,6 +5,7 @@ import { FormsModule } from "@angular/forms";
 import { AuthService } from "../core/auth.service";
 import { ApiService } from "../core/api.service";
 import { DataService } from "../core/data.service";
+import { ReceiptService } from "../core/receipt.service";
 import { FR } from "../core/fr";
 import { MoneyPipe } from "../shared/money.pipe";
 import { IconComponent, EmptyComponent } from "../shared/ui";
@@ -63,9 +64,9 @@ import type { Dashboard, Payment } from "../core/models";
                 <td>{{ p.receipt_number }}</td>
                 <td>{{ p.student_name }}</td>
                 <td>{{ p.paid_at | date: "dd/MM/yyyy HH:mm" }}</td>
-                <td>{{ p.method }}</td>
+                <td>{{ receipt.methodLabel(p.method) }}</td>
                 <td class="tabular">{{ p.amount | fcfa }}</td>
-                <td>{{ p.cancelled_at ? t.cancel : t.paid }}</td>
+                <td>{{ receipt.statusLabel(p) }}</td>
               </tr>
             }
           </tbody>
@@ -85,6 +86,7 @@ export class ReportsComponent implements OnInit {
   t = FR;
   api = inject(ApiService);
   store = inject(DataService);
+  receipt = inject(ReceiptService);
   monthly = location.pathname.endsWith("/rapport");
   date = new Intl.DateTimeFormat("sv-SE", {
     timeZone: "Africa/Douala",
@@ -156,8 +158,8 @@ export class ReportsComponent implements OnInit {
         p.student_name,
         p.paid_at,
         p.amount,
-        p.method,
-        p.cancelled_at ? this.t.cancel : this.t.paid,
+        this.receipt.methodLabel(p.method),
+        this.receipt.statusLabel(p),
       ]),
     ];
     const url = URL.createObjectURL(

@@ -327,6 +327,22 @@ test("offline admin payment stays provisional and visible in the queue", async (
   await fixtures(page, "admin");
   await page.goto("/s/horizon/admin/paiement/student-a");
   await expect(page.getByRole("heading", { name: "Alice Test" })).toBeVisible();
+
+  // Load the student dossier route while online so the same client-side route
+  // can be exercised after the payment is queued offline.
+  await page.evaluate(() => {
+    history.pushState({}, "", "/s/horizon/admin/eleves/student-a");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  });
+  await expect(
+    page.getByRole("link", { name: "Enregistrer un paiement" }),
+  ).toBeVisible();
+  await page.evaluate(() => {
+    history.pushState({}, "", "/s/horizon/admin/paiement/student-a");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  });
+  await expect(page.getByRole("button", { name: "Confirmer", exact: true })).toBeVisible();
+
   await context.setOffline(true);
   await page.getByRole("button", { name: "Confirmer", exact: true }).click();
   await expect(
@@ -339,4 +355,22 @@ test("offline admin payment stays provisional and visible in the queue", async (
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Télécharger le PDF" }).click();
   expect((await download).suggestedFilename()).toMatch(/^RC-.*\.pdf$/);
+  await expect(page.getByText(/PDF g\u00e9n\u00e9r\u00e9/)).toBeVisible();
+
+  await page.evaluate(() => {
+    history.pushState({}, "", "/s/horizon/admin/eleves/student-a");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  });
+  await expect(page.getByRole("heading", { name: "Alice Test" })).toBeVisible();
+  await expect(page.getByText(/PDF g\u00e9n\u00e9r\u00e9/)).toHaveCount(0);
+
+  await page.evaluate(() => {
+    history.pushState({}, "", "/s/horizon/admin/paiement/student-a");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  });
+  await expect(page.getByText(/^RC-[A-F0-9]{12}-000001$/)).toBeVisible();
+  await expect(page.getByText(/PDF g\u00e9n\u00e9r\u00e9/)).toHaveCount(0);
+  await expect(
+    page.getByText("1 modifications en attente", { exact: true }),
+  ).toBeVisible();
 });

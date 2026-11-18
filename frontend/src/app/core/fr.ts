@@ -152,5 +152,29 @@ export const FR = {
   overdueStudents: "Échéances en retard",
   admin: "Administration",
   student: "Élève",
+  receiptConfirmed: "Re\u00e7u confirm\u00e9",
+  receiptCancelled: "Re\u00e7u annul\u00e9",
+  receiptProvisional:
+    "Provisoire \u2014 paiement en attente de synchronisation",
+  receiptPendingAmount: "Montant en attente (FCFA)",
+  receiptBalanceAtIssuance: "Solde \u00e0 l'\u00e9mission",
+  receiptCurrentBalance: "Solde actuel",
+  receiptCurrentInformation: "Coordonn\u00e9es actuelles",
+  receiptHistoricalBalanceUnavailable:
+    "Solde \u00e0 l'\u00e9mission indisponible (instantan\u00e9 historique absent).",
+  receiptLegacyNotice:
+    "Informations actuelles affich\u00e9es ; instantan\u00e9 historique indisponible.",
+  receiptTotalAtIssuance: "Frais \u00e0 l'\u00e9mission",
+  receiptCurrentTotal: "Frais actuels",
+  receiptOfflineNumber: "Num\u00e9ro attribu\u00e9 hors ligne",
+  receiptPdfLabel: "T\u00e9l\u00e9charger le PDF",
+  receiptTitle: "Re\u00e7u de paiement",
+  receiptAgreement: "Num\u00e9ro d'agr\u00e9ment",
+  receiptNotice: "Conservez ce re\u00e7u.",
+  receiptPreparingPdf: "Pr\u00e9paration du PDF…",
+  receiptPdfReady:
+    "PDF g\u00e9n\u00e9r\u00e9. Ouvrez-le pour l'enregistrer, le partager ou l'imprimer.",
+  receiptPdfError: "Impossible de g\u00e9n\u00e9rer le PDF. R\u00e9essayez.",
+  methodUnknown: "Mode de paiement non renseign\u00e9",
 } as const;
 export type FrenchKey = keyof typeof FR;

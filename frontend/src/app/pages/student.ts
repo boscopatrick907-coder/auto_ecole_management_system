@@ -6,6 +6,7 @@ import { ApiService } from "../core/api.service";
 import { DataService } from "../core/data.service";
 import { WhatsAppService } from "../core/whatsapp.service";
 import { ReceiptService } from "../core/receipt.service";
+import { learnerNumberLabel } from "../core/learner-number";
 import { FR } from "../core/fr";
 import { MoneyPipe } from "../shared/money.pipe";
 import {
@@ -65,7 +66,15 @@ import type { Dossier, Payment } from "../core/models";
             />
           </div>
           <p>{{ d.enrollment?.group_name }}</p>
-          <span class="muted">#LM-{{ d.student.student_number }}</span>
+          <span class="muted">
+            {{
+              learnerNumber(
+                auth.school()?.slug || api.slug,
+                d.student.student_number,
+                auth.school()?.learner_number_prefix
+              )
+            }}
+          </span>
         </section>
         <div class="grid-two">
           <a class="card feature" [routerLink]="base + '/cours'"
@@ -167,18 +176,25 @@ import type { Dossier, Payment } from "../core/models";
                 <p>
                   {{ p.paid_at | date: "dd/MM/yyyy" }} · {{ p.amount | fcfa }}
                 </p>
-                @if (p.cancelled_at) {
-                  <app-badge kind="overdue" [label]="t.cancel" />
-                }
+                <p class="muted">{{ receipt.statusLabel(p) }}</p>
               </div>
+              @if (receipt.generationStatusFor(p) === "generating") {
+                <p role="status">{{ t.receiptPreparingPdf }}</p>
+              } @else if (receipt.generationStatusFor(p) === "success") {
+                <p role="status">{{ t.receiptPdfReady }}</p>
+              } @else if (receipt.generationStatusFor(p) === "error") {
+                <p class="error-box" role="alert">{{ t.receiptPdfError }}</p>
+              }
               <div class="actions">
                 <button
                   class="btn small secondary"
+                  [disabled]="receipt.generationStatus() === 'generating'"
                   (click)="receipt.generate(p, d)"
                 >
-                  {{ t.pdf }}</button
+                  {{ t.receiptPdfLabel }}</button
                 ><button
                   class="btn small ghost"
+                  [disabled]="receipt.generationStatus() === 'generating'"
                   (click)="receipt.generate(p, d, true)"
                 >
                   {{ t.ticket }}
@@ -206,11 +222,13 @@ export class StudentPageComponent implements OnInit, OnDestroy {
   error = signal(false);
   view = this.route.snapshot.data["view"] as string;
   statusLabel = installmentLabel;
+  learnerNumber = learnerNumberLabel;
   get base() {
     return "/s/" + this.api.slug;
   }
   listener = () => void this.load();
   ngOnInit() {
+    this.receipt.resetGenerationStatus();
     void this.load();
     window.addEventListener("school:sync", this.listener);
   }
