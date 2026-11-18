@@ -35,26 +35,42 @@ export class ApiService {
     body?: unknown,
     headers: Record<string, string> = {},
   ): Promise<T> {
-    const abort = new AbortController();
-    const timer = setTimeout(() => abort.abort(), 30000);
-    try {
-      const r = await fetch(this.base + path, {
-        method,
-        credentials: "include",
-        headers: {
-          ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
-          ...headers,
-        },
-        body: body === undefined ? undefined : JSON.stringify(body),
-        signal: abort.signal,
-      });
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok)
-        throw new RequestError(r.status, data.error || "REQUEST_FAILED");
-      return data as T;
-    } finally {
-      clearTimeout(timer);
+    const maxAttempts = method === "GET" ? 2 : 1;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const abort = new AbortController();
+      const timer = setTimeout(() => abort.abort(), 45000);
+      try {
+        const r = await fetch(this.base + path, {
+          method,
+          credentials: "include",
+          headers: {
+            ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+            ...headers,
+          },
+          body: body === undefined ? undefined : JSON.stringify(body),
+          signal: abort.signal,
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          if (attempt < maxAttempts && (r.status === 502 || r.status === 503 || r.status === 504)) {
+            await new Promise((res) => setTimeout(res, 600));
+            continue;
+          }
+          throw new RequestError(r.status, data.error || "REQUEST_FAILED");
+        }
+        return data as T;
+      } catch (e) {
+        if (e instanceof RequestError) throw e;
+        if (attempt < maxAttempts) {
+          await new Promise((res) => setTimeout(res, 600));
+          continue;
+        }
+        throw e;
+      } finally {
+        clearTimeout(timer);
+      }
     }
+    throw new Error("REQUEST_FAILED");
   }
   tenant<T>(path: string, method = "GET", body?: unknown): Promise<T> {
     return this.request<T>(

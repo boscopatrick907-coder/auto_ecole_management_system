@@ -76,109 +76,148 @@ export class AuthService {
     this.api.slug = slug;
 
     try {
-      let cat: Catalogue;
+      let cat: Catalogue | null = null;
+      let onlineCatalogueFailed = false;
 
       if (this.api.online()) {
-        cat = await this.api.catalogue();
-
-        await database.snapshots.put({
-          key: "school:" + slug,
-          scope: "public",
-          data: cat,
-          updatedAt: Date.now(),
-        });
+        try {
+          cat = await this.api.catalogue();
+          try {
+            await database.snapshots.put({
+              key: "school:" + slug,
+              scope: "public",
+              data: cat,
+              updatedAt: Date.now(),
+            });
+          } catch (storageErr) {
+            console.warn("Unable to persist school snapshot", storageErr);
+          }
+        } catch (err) {
+          if (err instanceof RequestError && err.status === 404) {
+            throw err;
+          }
+          onlineCatalogueFailed = true;
+          const cached = await database.snapshots.get("school:" + slug).catch(() => undefined);
+          if (!cached) {
+            throw err;
+          }
+          cat = cached.data as Catalogue;
+        }
       } else {
-        const cached = await database.snapshots.get("school:" + slug);
-
+        const cached = await database.snapshots.get("school:" + slug).catch(() => undefined);
         if (!cached) throw new Error("SCHOOL_NOT_FOUND");
-
         cat = cached.data as Catalogue;
       }
 
       this.school.set(cat.school);
       this.applyBrand(cat.school);
 
-      if (this.api.online()) {
-        const session = await this.api.request<{ user: User } | null>(
-          "/auth/get-session",
-        );
+      if (this.api.online() && !onlineCatalogueFailed) {
+        try {
+          const session = await this.api.request<{ user: User } | null>(
+            "/auth/get-session",
+          );
 
-        const pending = this.readPendingSignout();
+          const pending = this.readPendingSignout();
 
-        let currentUser = session?.user || null;
+          let currentUser = session?.user || null;
 
-        // Only sign out the same account that requested offline logout.
-        if (pending) {
-          if (
-            pending.schoolSlug === slug &&
-            currentUser?.id === pending.userId
-          ) {
-            await this.api.request("/auth/sign-out", "POST", {});
-            currentUser = null;
+          // Only sign out the same account that requested offline logout.
+          if (pending) {
+            if (
+              pending.schoolSlug === slug &&
+              currentUser?.id === pending.userId
+            ) {
+              await this.api.request("/auth/sign-out", "POST", {});
+              currentUser = null;
+            }
+
+            localStorage.removeItem(this.pendingSignoutKey);
+          } else if (localStorage.getItem(this.pendingSignoutKey)) {
+            // Remove an obsolete or malformed legacy marker.
+            localStorage.removeItem(this.pendingSignoutKey);
           }
 
-          localStorage.removeItem(this.pendingSignoutKey);
-        } else if (localStorage.getItem(this.pendingSignoutKey)) {
-          // Remove an obsolete or malformed legacy marker.
-          localStorage.removeItem(this.pendingSignoutKey);
-        }
+          this.user.set(currentUser);
+          this.api.expectedUserId = currentUser?.id || "";
 
-        this.user.set(currentUser);
-        this.api.expectedUserId = currentUser?.id || "";
+          if (currentUser) {
+            try {
+              const membership = await this.api.tenant<{ role: Role }>("session");
 
-        if (currentUser) {
+              if (!this.isRole(membership.role)) {
+                throw new Error("INVALID_USER_ROLE");
+              }
+
+              this.role.set(membership.role);
+              await this.refreshLease();
+            } catch (e) {
+              if (!(e instanceof RequestError && e.status === 403)) {
+                throw e;
+              }
+
+              this.role.set(null);
+            }
+          }
+
           try {
-            const membership = await this.api.tenant<{ role: Role }>("session");
-
-            if (!this.isRole(membership.role)) {
-              throw new Error("INVALID_USER_ROLE");
-            }
-
-            this.role.set(membership.role);
-            await this.refreshLease();
-          } catch (e) {
-            if (!(e instanceof RequestError && e.status === 403)) {
-              throw e;
-            }
-
-            this.role.set(null);
+            await database.snapshots.put({
+              key: "identity:" + slug,
+              scope: "identity:" + slug,
+              data: {
+                user: this.user(),
+                role: this.role(),
+              },
+              updatedAt: Date.now(),
+            });
+          } catch (storageErr) {
+            console.warn("Unable to persist identity snapshot", storageErr);
           }
-        }
-
-        await database.snapshots.put({
-          key: "identity:" + slug,
-          scope: "identity:" + slug,
-          data: {
-            user: this.user(),
-            role: this.role(),
-          },
-          updatedAt: Date.now(),
-        });
-      } else {
-        const cached = await database.snapshots.get("identity:" + slug);
-
-        const identity = cached?.data as CachedIdentity | undefined;
-
-        if (identity?.user?.id && this.isRole(identity.role)) {
-          this.user.set(identity.user);
-          this.role.set(identity.role);
-          this.api.expectedUserId = identity.user.id;
-
-          if (!(await this.offlineAllowed(false))) {
+        } catch (sessionErr) {
+          console.warn("Session initialization fallback", sessionErr);
+          const isAuthFailure =
+            sessionErr instanceof RequestError &&
+            (sessionErr.status === 401 || sessionErr.status === 403 || sessionErr.status === 404);
+          if (isAuthFailure) {
             this.clearIdentity();
+          } else {
+            await this.restoreCachedIdentity(slug);
           }
-        } else {
-          this.clearIdentity();
         }
+      } else {
+        await this.restoreCachedIdentity(slug);
       }
 
       this.error.set("");
     } catch (e) {
       console.error("School initialization failed", e);
       this.clearIdentity();
-      this.error.set("noSchool");
+      if (e instanceof RequestError && e.status === 404) {
+        this.error.set("noSchool");
+      } else if (e instanceof Error && e.message === "SCHOOL_NOT_FOUND") {
+        this.error.set("noSchool");
+      } else {
+        this.error.set("unavailable");
+      }
     } finally {
       this.ready.set(true);
+    }
+  }
+
+  private async restoreCachedIdentity(slug: string) {
+    const cached = await database.snapshots.get("identity:" + slug).catch(() => undefined);
+    const identity = cached?.data as CachedIdentity | undefined;
+
+    if (identity?.user?.id && this.isRole(identity.role)) {
+      this.user.set(identity.user);
+      this.role.set(identity.role);
+      this.api.expectedUserId = identity.user.id;
+
+      if (!(await this.offlineAllowed(false))) {
+        this.clearIdentity();
+      }
+    } else {
+      this.clearIdentity();
     }
   }
 

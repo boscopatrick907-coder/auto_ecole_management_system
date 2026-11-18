@@ -70,8 +70,13 @@ import { BottomNavComponent, IconComponent } from "../shared/ui";
     <main id="main" class="page">
       @if (auth.error()) {
         <div class="empty">
-          <h1>{{ t.noSchool }}</h1>
-          <a class="btn" routerLink="/">{{ t.back }}</a>
+          <h1>{{ auth.error() === "unavailable" ? t.networkError : t.noSchool }}</h1>
+          <div class="actions">
+            <button class="btn" type="button" (click)="auth.openSchool(api.slug)">
+              {{ t.retry }}
+            </button>
+            <a class="btn ghost" routerLink="/">{{ t.back }}</a>
+          </div>
         </div>
       } @else {
         <router-outlet />
