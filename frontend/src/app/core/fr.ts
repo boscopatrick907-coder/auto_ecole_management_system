@@ -100,6 +100,7 @@ export const FR = {
   confirmCancel: "Annuler ce paiement",
   correct: "réponses correctes",
   noSchool: "École introuvable ou indisponible.",
+  networkError: "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez.",
   conflict: "Action bloquée : vérifiez les données avant de réessayer.",
   retryQueue: "Réessayer les actions bloquées",
   connectedAs: "Connecté en tant que",

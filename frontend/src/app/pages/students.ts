@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit } from "@angular/core";
+import { Component, inject, signal, OnInit, OnDestroy } from "@angular/core";
 import {
   FormsModule,
   ReactiveFormsModule,
@@ -8,7 +8,7 @@ import {
 import { RouterLink, ActivatedRoute, Router } from "@angular/router";
 import { DatePipe } from "@angular/common";
 import { AuthService } from "../core/auth.service";
-import { ApiService } from "../core/api.service";
+import { ApiService, RequestError } from "../core/api.service";
 import { DataService } from "../core/data.service";
 import { WhatsAppService } from "../core/whatsapp.service";
 import { ReceiptService } from "../core/receipt.service";
@@ -25,68 +25,81 @@ import type { Dossier, Student, Group, Payment } from "../core/models";
 @Component({
   standalone: true,
   imports: [RouterLink, FormsModule, MoneyPipe, EmptyComponent, IconComponent],
-  template: `<div class="page-heading">
-      <div>
-        <span class="eyebrow">{{ t.admin }}</span>
-        <h1>{{ t.students }}</h1>
-      </div>
-      <a class="btn" [routerLink]="base + '/nouveau'"
-        ><app-icon name="person_add" />{{ t.newStudent }}</a
-      >
-    </div>
-    <section class="card">
-      <form class="search" (submit)="search($event)">
-        <app-icon name="search" /><input
-          [(ngModel)]="query"
-          name="query"
-          [placeholder]="t.search"
-          [attr.aria-label]="t.search"
-        /><button class="btn small">{{ t.search }}</button>
-      </form>
-      @if (error()) {
-        <p class="error-box" role="alert">{{ t.error }}</p>
-      }
-      @for (s of students(); track s.id) {
-        <a class="list-row student-row" [routerLink]="base + '/' + s.id"
-          ><span class="avatar">{{ s.full_name.charAt(0) }}</span>
-          <div class="grow">
-            <strong>{{ s.full_name }}</strong>
-            <p>
-              {{
-                learnerNumber(
-                  auth.school()?.slug || api.slug,
-                  s.student_number,
-                  auth.school()?.learner_number_prefix
-                )
-              }}
-              · {{ s.phone }}
-            </p>
-            <span class="muted">{{ s.group_name }}</span>
-          </div>
-          <div class="align-right">
-            <strong>{{ s.balance | fcfa }}</strong
-            ><app-icon name="chevron_right" /></div
-        ></a>
-      } @empty {
-        <app-empty />
-      }
-      @if (count()) {
-        <p class="muted">{{ students().length }} / {{ count() }}</p>
-      }
-      @if (hasMore()) {
-        <div class="actions">
-          <button
-            class="btn secondary"
-            [disabled]="loading() || loadingMore()"
-            (click)="loadMore()"
-          >
-            {{ loading() || loadingMore() ? t.loading : t.next }}
-          </button>
+  template: `@if (sameIdentity()) {
+      <div class="page-heading">
+        <div>
+          <span class="eyebrow">{{ t.admin }}</span>
+          <h1>{{ t.students }}</h1>
         </div>
-      }
-    </section>`,
+        <a class="btn" [routerLink]="base + '/nouveau'"
+          ><app-icon name="person_add" />{{ t.newStudent }}</a
+        >
+      </div>
+      <section class="card">
+        <form class="search" (submit)="search($event)">
+          <app-icon name="search" /><input
+            [(ngModel)]="query"
+            name="query"
+            [placeholder]="t.search"
+            [attr.aria-label]="t.search"
+          /><button class="btn small">{{ t.search }}</button>
+        </form>
+        @if (error()) {
+          <p class="error-box" role="alert">{{ t.error }}</p>
+        }
+        @if (loading()) {
+          <p role="status">Chargement des élèves…</p>
+        }
+        <p>{{ students().length }} / {{ count() }}</p>
+        @for (s of students(); track s.id) {
+          <a class="list-row student-row" [routerLink]="base + '/' + s.id"
+            ><span class="avatar">{{ s.full_name.charAt(0) }}</span>
+            <div class="grow">
+              <strong>{{ s.full_name }}</strong>
+              <p>
+                {{
+                  learnerNumber(
+                    auth.school()?.slug || api.slug,
+                    s.student_number,
+                    auth.school()?.learner_number_prefix
+                  )
+                }}
+                · {{ s.phone }}
+              </p>
+              <span class="muted">{{ s.group_name }}</span>
+            </div>
+            <div class="align-right">
+              <strong>{{ s.balance | fcfa }}</strong
+              ><app-icon name="chevron_right" /></div
+          ></a>
+        } @empty {
+          @if (!loading()) {
+            <app-empty />
+          }
+        }
+        @if (hasMore()) {
+          <div class="actions">
+            <button
+              class="btn secondary"
+              [disabled]="loading() || loadingMore()"
+              (click)="loadMore()"
+            >
+              {{
+                loading() || loadingMore()
+                  ? t.loading
+                  : "Continuer"
+              }}
+            </button>
+          </div>
+        }
+      </section>
+    } @else {
+      <p role="alert">
+        Actualisez cette page après avoir changé d’école ou de compte.
+      </p>
+    }`,
 })
-export class StudentListComponent implements OnInit {
+export class StudentListComponent implements OnInit, OnDestroy {
   t = FR;
   api = inject(ApiService);
   auth = inject(AuthService);
@@ -96,27 +109,40 @@ export class StudentListComponent implements OnInit {
   students = signal<Array<Student & { balance: number; group_name: string }>>(
     [],
   );
+  private readonly identity = `${this.api.slug}:${this.api.expectedUserId}`;
+  sameIdentity() {
+    return this.identity === `${this.api.slug}:${this.api.expectedUserId}`;
+  }
+  error = signal(false);
+  loading = signal(false);
   count = signal(0);
   hasMore = signal(false);
-  loading = signal(false);
   loadingMore = signal(false);
-  error = signal(false);
   private nextOffset = 0;
-  private queryVersion = 0;
   private loadedQuery = "";
+  private requestId = 0;
   get base() {
     return "/s/" + this.api.slug + "/admin/eleves";
   }
   ngOnInit() {
     void this.load();
   }
+  ngOnDestroy() {
+    this.requestId++;
+  }
   search(e: Event) {
     e.preventDefault();
     void this.load();
   }
-  async load() {
+  async load(reset = true) {
+    if (!reset) {
+      await this.loadMore();
+      return;
+    }
+
     const query = this.query.trim();
-    const version = ++this.queryVersion;
+    const request = ++this.requestId;
+    const identity = `${this.api.slug}:${this.api.expectedUserId}`;
     this.error.set(false);
     this.loading.set(true);
     this.loadingMore.set(false);
@@ -129,22 +155,35 @@ export class StudentListComponent implements OnInit {
     }
 
     try {
-      const r = await this.store.read("students:" + query, () =>
-        this.api.students(query),
+      const r = await this.store.read(`students:${query}`, () =>
+        this.api.students(query, 0),
       );
 
-      if (version !== this.queryVersion) return;
+      if (
+        request !== this.requestId ||
+        identity !== `${this.api.slug}:${this.api.expectedUserId}`
+      )
+        return;
 
       this.loadedQuery = query;
       this.students.set(r?.students || []);
-      this.count.set(r?.count || 0);
-      this.hasMore.set(r?.hasMore || false);
-      this.nextOffset = r?.nextOffset || 0;
+      this.count.set(r?.count ?? this.students().length);
+      this.nextOffset = r?.nextOffset ?? this.students().length;
+      this.hasMore.set(!!r?.hasMore && this.nextOffset > 0);
       this.error.set(false);
-    } catch {
-      if (version === this.queryVersion) this.error.set(true);
+    } catch (e) {
+      if (
+        request !== this.requestId ||
+        identity !== `${this.api.slug}:${this.api.expectedUserId}`
+      )
+        return;
+      this.error.set(true);
+      if (e instanceof RequestError && [401, 403].includes(e.status)) {
+        this.students.set([]);
+        this.hasMore.set(false);
+      }
     } finally {
-      if (version === this.queryVersion) this.loading.set(false);
+      if (request === this.requestId) this.loading.set(false);
     }
   }
 
@@ -153,7 +192,8 @@ export class StudentListComponent implements OnInit {
 
     const query = this.loadedQuery;
     const offset = this.nextOffset;
-    const version = this.queryVersion;
+    const request = this.requestId;
+    const identity = `${this.api.slug}:${this.api.expectedUserId}`;
     this.loadingMore.set(true);
     this.error.set(false);
 
@@ -163,7 +203,12 @@ export class StudentListComponent implements OnInit {
         () => this.api.students(query, offset),
       );
 
-      if (version !== this.queryVersion || query !== this.loadedQuery) return;
+      if (
+        request !== this.requestId ||
+        identity !== `${this.api.slug}:${this.api.expectedUserId}` ||
+        query !== this.loadedQuery
+      )
+        return;
       if (!r) {
         this.error.set(true);
         return;
@@ -176,13 +221,22 @@ export class StudentListComponent implements OnInit {
           ...r.students.filter((student) => !seen.has(student.id)),
         ];
       });
-      this.count.set(r.count);
-      this.hasMore.set(r.hasMore);
-      this.nextOffset = r.nextOffset;
-    } catch {
-      if (version === this.queryVersion) this.error.set(true);
+      this.count.set(r.count ?? this.students().length);
+      this.nextOffset = r.nextOffset ?? offset + r.students.length;
+      this.hasMore.set(!!r.hasMore && this.nextOffset > offset);
+    } catch (e) {
+      if (
+        request !== this.requestId ||
+        identity !== `${this.api.slug}:${this.api.expectedUserId}`
+      )
+        return;
+      this.error.set(true);
+      if (e instanceof RequestError && [401, 403].includes(e.status)) {
+        this.students.set([]);
+        this.hasMore.set(false);
+      }
     } finally {
-      if (version === this.queryVersion) this.loadingMore.set(false);
+      if (request === this.requestId) this.loadingMore.set(false);
     }
   }
 }

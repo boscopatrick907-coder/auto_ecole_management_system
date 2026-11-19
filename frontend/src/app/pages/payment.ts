@@ -392,7 +392,10 @@ export class PaymentComponent implements OnInit, OnDestroy {
         throw new Error("AUTH_CHANGED");
       }
 
-      await this.outbox.enqueuePayment(d.enrollment.id, body, id);
+      await this.outbox.enqueuePayment(d.enrollment.id, body, id, {
+        studentId: d.student.id,
+        studentName: d.student.full_name,
+      });
 
       if (this.auth.scope !== scope) {
         throw new Error("AUTH_CHANGED");

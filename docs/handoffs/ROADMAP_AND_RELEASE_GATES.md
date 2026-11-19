@@ -1,3 +1,5 @@
+> **16 November update:** Patrick requested the admin content portal. See [portal delivery and remaining collaborator tasks](CONTENT_PORTAL_AND_REMAINING_TASKS.md) for the current additions, priorities and live-validation limits. Earlier findings below are historical; do not reopen items already fixed without checking current code.
+
 # Current roadmap and release gates
 
 **As of:** 9 November 2026, Africa/Douala. **Repository reviewed:** main `8ce436f`. No arbitrary completion percentage or production date is assigned.

@@ -8,6 +8,7 @@ import type {
   Quiz,
   Resource,
 } from "./models";
+import type { AdminResource, AdminQuiz, MaterialKind } from "./content";
 export class RequestError extends Error {
   constructor(
     public status: number,
@@ -93,40 +94,58 @@ export class ApiService {
         headers["X-Expected-User"] ??
         this.expectedUserId,
     });
-    const abort = new AbortController();
-    const timer = setTimeout(() => abort.abort(), 30000);
-    try {
-      const r = await fetch(this.base + path, {
-        method,
-        credentials: "include",
-        headers: { ...(body !== undefined ? { "Content-Type": "application/json" } : {}), ...headers },
-        body: body === undefined ? undefined : JSON.stringify(body),
-        signal: abort.signal,
-      });
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        const error = new RequestError(r.status, data.error || "REQUEST_FAILED");
-        const tenantPrefix = `/schools/${encodeURIComponent(requestContext.schoolSlug)}/`;
-
-        if (
-          (r.status === 401 || r.status === 403) &&
-          path.startsWith(tenantPrefix) &&
-          this.isCurrentTenantContext(requestContext) &&
-          this.authorizationErrorHandler
-        ) {
-          try {
-            await this.authorizationErrorHandler(error, path, requestContext);
-          } catch (invalidationError) {
-            console.error("Authorization cache invalidation failed", invalidationError);
+    const maxAttempts = method === "GET" ? 2 : 1;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const abort = new AbortController();
+      const timer = setTimeout(() => abort.abort(), 45000);
+      try {
+        const r = await fetch(this.base + path, {
+          method,
+          credentials: "include",
+          headers: {
+            ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+            ...headers,
+          },
+          body: body === undefined ? undefined : JSON.stringify(body),
+          signal: abort.signal,
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          if (attempt < maxAttempts && (r.status === 502 || r.status === 503 || r.status === 504)) {
+            await new Promise((res) => setTimeout(res, 600));
+            continue;
           }
-        }
+          const error = new RequestError(r.status, data.error || "REQUEST_FAILED");
+          const tenantPrefix = `/schools/${encodeURIComponent(requestContext.schoolSlug)}/`;
 
-        throw error;
+          if (
+            (r.status === 401 || r.status === 403) &&
+            path.startsWith(tenantPrefix) &&
+            this.isCurrentTenantContext(requestContext) &&
+            this.authorizationErrorHandler
+          ) {
+            try {
+              await this.authorizationErrorHandler(error, path, requestContext);
+            } catch (invalidationError) {
+              console.error("Authorization cache invalidation failed", invalidationError);
+            }
+          }
+
+          throw error;
+        }
+        return data as T;
+      } catch (e) {
+        if (e instanceof RequestError) throw e;
+        if (attempt < maxAttempts) {
+          await new Promise((res) => setTimeout(res, 600));
+          continue;
+        }
+        throw e;
+      } finally {
+        clearTimeout(timer);
       }
-      return data as T;
-    } finally {
-      clearTimeout(timer);
     }
+    throw new Error("REQUEST_FAILED");
   }
   tenant<T>(path: string, method = "GET", body?: unknown): Promise<T> {
     const schoolSlug = this.slug;
@@ -188,6 +207,45 @@ export class ApiService {
       hasMore: boolean;
       nextOffset: number;
     }>("admin/payments?date=" + encodeURIComponent(date) + "&offset=" + offset);
+  }
+  adminResources() {
+    return this.tenant<{ resources: AdminResource[] }>("admin/resources");
+  }
+  adminQuizzes() {
+    return this.tenant<{ quizzes: AdminQuiz[] }>("admin/quizzes");
+  }
+  async uploadMaterial(file: File, _kind: MaterialKind) {
+    const slug = this.slug,
+      user = this.expectedUserId;
+    const name =
+      file.name
+        .normalize("NFKD")
+        .replace(/[^a-zA-Z0-9._-]/g, "_")
+        .slice(-120) || "material";
+    const data = await this.tenant<{ uploadUrl: string; storagePath: string }>(
+      "admin/resources/upload-url",
+      "POST",
+      { fileName: name, contentType: file.type, size: file.size },
+    );
+    if (this.slug !== slug || this.expectedUserId !== user)
+      throw new RequestError(403, "SESSION_IDENTITY_CHANGED");
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), 120000);
+    try {
+      const result = await fetch(data.uploadUrl, {
+        method: "PUT",
+        credentials: "omit",
+        headers: { "Content-Type": file.type, "If-None-Match": "*" },
+        body: file,
+        signal: abort.signal,
+      });
+      if (!result.ok) throw new RequestError(result.status, "UPLOAD_FAILED");
+      if (this.slug !== slug || this.expectedUserId !== user)
+        throw new RequestError(403, "SESSION_IDENTITY_CHANGED");
+      return data.storagePath;
+    } finally {
+      clearTimeout(timer);
+    }
   }
   resources() {
     return this.tenant<{ resources: Resource[] }>("resources");

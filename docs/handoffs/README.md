@@ -1,3 +1,7 @@
+> **17 November:** see [Willy’s replacement assignment](WILLY_NEXT_TASK_20261117.md) after the quiz recovery, pending-action and pagination delivery.
+
+> **16 November update:** Patrick requested the admin content portal. See [portal delivery and remaining collaborator tasks](CONTENT_PORTAL_AND_REMAINING_TASKS.md) for the current additions, priorities and live-validation limits. Earlier findings below are historical; do not reopen items already fixed without checking current code.
+
 # Handoffs — 9 November 2026
 
 Review base: **8ce436f** on main. These documents review the combined repository, not only Emmanuel's commits. They do not certify a deployed service or an unseen environment file.

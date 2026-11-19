@@ -1,0 +1,15 @@
+
+it("review: new payments include their issuance snapshot",async()=>{
+ const group=randomUUID();
+ await owner.query("insert into school_app.groups(id,school_id,licence_category_id,name,capacity,total_fee) values($1,$2,$3,'Receipt review',20,10000)",[group,school,cat]);
+ const created=await req("admin/students","POST",{fullName:"Synthetic receipt review",phone:"+237699987654",groupId:group});expect(created.status).toBe(201);
+ const d=await created.json();const r=await req("admin/payments","POST",{enrollmentId:d.enrollment.id,amount:1000,method:"cash",clientId:randomUUID(),paidAt:new Date().toISOString()});expect(r.status).toBe(201);
+ const payment=(await r.json()).payment;expect(payment.issuance_snapshot).not.toBeNull();expect(payment.snapshot_provenance).toBe("recorded_at_issuance");
+});
+it("review: saved material remains counted after its upload reservation ages out",async()=>{
+ await owner.query("update school_app.schools set storage_quota_bytes=20 where id=$1",[school]);
+ const signed=await req("admin/resources/upload-url","POST",{fileName:"review.pdf",contentType:"application/pdf",size:20});expect(signed.status).toBe(201);const key=(await signed.json()).storagePath;
+ storage();const saved=await req("admin/resources","POST",{licenceCategoryId:cat,title:"Synthetic quota review",type:"pdf",storagePath:key});expect(saved.status).toBe(201);
+ await owner.query("update school_app.storage_uploads set created_at=now()-interval '2 hours' where school_id=$1",[school]);
+ const excess=await req("admin/resources/upload-url","POST",{fileName:"excess.pdf",contentType:"application/pdf",size:1});expect(excess.status).toBe(409);
+});

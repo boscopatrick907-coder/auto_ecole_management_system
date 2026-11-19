@@ -540,6 +540,7 @@ async function main() {
       }
     }
 
+    const lessonPdfContent = "%PDF-1.4\n% Cours officiel Auto-ecole La Marseillaise\n%%EOF\n";
     // Admin requests a presigned PUT upload URL via POST /admin/resources/upload-url and uploads a real PDF to R2
     const uploadUrlRes = await callWorker(
       "/api/schools/la-marseillaise/admin/resources/upload-url",
@@ -547,6 +548,7 @@ async function main() {
       {
         fileName: "priorite-et-signalisation.pdf",
         contentType: "application/pdf",
+        size: Buffer.byteLength(lessonPdfContent),
       },
       adminCookie,
     );
@@ -557,10 +559,9 @@ async function main() {
       uploadUrl: string;
       storagePath: string;
     };
-    const lessonPdfContent = "%PDF-1.4\n% Cours officiel Auto-ecole La Marseillaise\n%%EOF\n";
     const r2PutRes = await fetch(uploadUrl, {
       method: "PUT",
-      headers: { "Content-Type": "application/pdf" },
+      headers: { "Content-Type": "application/pdf", "If-None-Match": "*" },
       body: lessonPdfContent,
     });
     if (!r2PutRes.ok) {

@@ -85,7 +85,10 @@ beforeAll(async () => {
 }, 60000);
 afterAll(async () => {
   await owner?.end();
-  await cluster.query("drop database " + name + " with(force)");
+  // Pools above are closed explicitly. Do not terminate connections while pg
+  // is still completing socket shutdown: that can emit an uncaught 57P01.
+  // A real connection leak should fail cleanup rather than be hidden by FORCE.
+  await cluster.query("drop database " + name);
   await cluster.end();
 });
 it("imports in one transaction with reconciled balances, preserved expired trial and compatible Better Auth login", async () => {

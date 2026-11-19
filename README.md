@@ -1,3 +1,5 @@
+> **Admin content portal (16 November 2026):** school admins can manage permit categories, private materials and quizzes under **Contenus**. See [implementation, validation and staging requirements](docs/CONTENT_PORTAL_VALIDATION.md) and [remaining collaborator tasks](docs/handoffs/CONTENT_PORTAL_AND_REMAINING_TASKS.md).
+
 > **Collaborator and customer handoffs (9 November 2026):** [Emmanuel, Willy, school onboarding, env review and current roadmap](docs/handoffs/README.md). Current phase: real-stack integration and pilot preparation; no production-readiness claim.
 
 > **Multi-school frontend / Worker implementation (9 November 2026):** see [setup and remaining prerequisites](docs/FRONTEND_SETUP.md), [migration plan](docs/MULTITENANT_MIGRATION.md) and [backup/restore](docs/BACKUP_RESTORE.md). The new Angular UI uses the new Better Auth/Hono tenant Worker; the older single-school setup below is retained for migration reference. No live cutover was performed.

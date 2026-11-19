@@ -355,12 +355,12 @@ All content mutations execute through audited `SECURITY DEFINER` functions in `s
   - Body: `{ "code": "B", "name": "Permis B", "isActive": true }` (`409 CATEGORY_CODE_CONFLICT` on duplicate code).
 - **`GET /admin/resources`**, **`POST /admin/resources`**, **`PATCH /admin/resources/:id`**
   - Body: `{ "licenceCategoryId": "uuid", "title": "string", "description": "string", "type": "pdf" | "video" | "link" | "image", "storagePath": "<schoolId>/resources/...", "externalUrl": "https://...", "isPublished": boolean }`
-  - `storagePath` for new R2 objects must begin with `<schoolId>/` (`403 RESOURCE_FORBIDDEN` otherwise).
+  - `storagePath` for new R2 objects must match `<schoolId>/resources/<uuid>-<safe-fileName>` (`403 RESOURCE_FORBIDDEN` otherwise).
 - **`POST /admin/resources/upload-url`**
-  - Body: `{ "fileName": "code-de-la-route.pdf", "contentType": "application/pdf" | "video/mp4" | "image/png" | "image/jpeg" | "image/webp" }`
+  - Body: `{ "fileName": "code-de-la-route.pdf", "size": 123456, "contentType": "application/pdf" | "video/mp4" | "image/png" | "image/jpeg" | "image/webp" }`
   - Returns `201 Created`: `{ "uploadUrl": "https://...", "storagePath": "<schoolId>/resources/<uuid>-code-de-la-route.pdf", "expiresIn": 300 }`.
 - **`GET /admin/quizzes`**, **`POST /admin/quizzes`**, **`PATCH /admin/quizzes/:id`**, **`POST /admin/quizzes/:id/questions`**
-  - `POST /admin/quizzes`: `{ "licenceCategoryId": "uuid", "title": "string", "durationMinutes": 20, "isPublished": true, "questions": [{ "body": "string", "options": ["A", "B"], "correctIndex": 0, "imageUrl": null, "explanation": "string", "position": 1 }] }`
+  - `POST /admin/quizzes`: `{ "licenceCategoryId": "uuid", "title": "string", "durationMinutes": 20, "isPublished": true, "questions": [{ "body": "string", "options": ["A", "B"], "correctIndex": 0, "imageUrl": null, "explanation": "string" }] }`
   - Validates `options.length >= 2` and `0 <= correctIndex < options.length` (`400 INVALID_QUESTION_OPTIONS`), and refuses publishing a quiz with 0 questions (`400 EMPTY_QUIZ`).
 
 ---
@@ -434,3 +434,26 @@ Requires the caller's `user_id` to be present in `school_app.platform_admins` (`
 | `REASON_REQUIRED` | `400` | Cancellation or platform audit reason is too short |
 | `EMPTY_QUIZ` | `400` | Cannot publish or grade a quiz with 0 questions |
 | `INVALID_QUESTION_OPTIONS` | `400` | Question has `< 2` options or `correctIndex` is out of bounds |
+
+
+## Admin content authoring update — 16 November 2026
+
+UI: `/s/:school/admin/contenus`, restricted to school admins. All routes below also enforce API authentication, mutation origin checks and school membership/RLS. Student reads still require the existing entitlement policies. Apply the updated tenant migration before using quiz question replacement.
+
+- `POST admin/resources/upload-url`: `{fileName, contentType, size}`. `size` is required (1–26,214,400 bytes); allowlisted MIME types are PDF, PNG, JPEG, WebP and MP4. Returns a 300-second presigned PUT `uploadUrl` and school-prefixed `storagePath`. Upload raw file bytes with the declared `Content-Type` and `If-None-Match: *`. The signature binds content length, MIME and create-only writes. Bucket CORS must permit those headers and the exact frontend origin; cookies are omitted on the storage PUT. No long-lived storage secret is returned.
+- `POST admin/resources` / `PATCH admin/resources/:id`: existing course fields. Private material records verify actual R2 size, MIME, and initial magic bytes before creation or publication. Use `type: link`, HTTPS `externalUrl` and null `storagePath` for an external link. External links are explicitly not private R2 materials. Missing objects, invalid bytes or storage failures do not create a record. Unpublishing remains possible during a storage outage.
+- `GET admin/resources/:id/url`: admin preview for a saved draft or published material. R2 GET URLs expire in 120 seconds. Another school's ID returns 404. Student `/resources/:id/url` continues to reject drafts.
+- `POST admin/quizzes`: up to 100 questions, each with `body`, 2–6 `options`, in-range integer `correctIndex`, `explanation`, optional HTTPS `imageUrl`. Positions follow array order; published quizzes require at least one question.
+- `PATCH admin/quizzes/:id`: existing metadata plus optional `questions`. The complete array replaces the question set in one transaction; keep returned question `id` values to edit existing questions, omit `id` to add one, omit a question to remove it. IDs from another quiz/school and duplicate IDs are rejected. Invalid publication rolls the whole replacement back. If attempts exist, question changes return `409 QUIZ_HAS_ATTEMPTS`; duplicate the quiz instead. Metadata/publication-only updates omit `questions`. Quiz submission and question authoring serialize through quiz-row locks.
+- New errors: `400 INVALID_FILE_SIZE`, `INVALID_FILE_TYPE`, `UPLOAD_NOT_FOUND`; `503 STORAGE_UNAVAILABLE`; `409 QUIZ_HAS_ATTEMPTS`. Existing `STORAGE_UNCONFIGURED`, auth, origin, validation and isolation errors remain.
+
+Presigned URLs are short-lived bearer capabilities: do not log them. Private files already downloaded cannot be remotely erased. Replaced or orphaned objects need a reviewed retention/cleanup process; no automatic deletion is performed by this change. File magic checks are not antivirus scanning. Live R2, CORS and deployed Worker behavior require staging verification; automated local storage checks use an SDK mock.
+
+
+## Quiz recovery and version binding — 17 November 2026
+
+Published quiz responses include integer `content_version`. It increases when quiz metadata/publication or questions change. New clients submit optional `quizVersion` with the existing attempt body; when supplied, the API invokes the version-aware function in the updated tenant migration. A stale version for a new attempt returns `409 QUIZ_VERSION_CHANGED`; an identical already-accepted attempt keeps its original result on retry. Omitted `quizVersion` preserves compatibility with older offline clients and uses the original endpoint behavior. No correct answer index is exposed to learners.
+
+Client drafts persist only within their original school/account. Draft removal, submission history and queue insertion are atomic locally; enqueue/transport retries keep the same client ID and body/timestamp. Server grading remains authoritative. The client deadline/high-water guard supports interruption recovery and clock-error detection; it is not a server-enforced proctoring guarantee. Logout clears active drafts/caches; already queued entries remain scoped for the same identity to resume later.
+
+`/s/:school/synchronisation` shows local pending/rejected entries and confirmed quiz results. A per-entry retry preserves payload/ID. It does not edit, delete or authoritatively reconcile a rejected financial operation. Student pagination consumes the existing `count`, `hasMore` and `nextOffset` contract.

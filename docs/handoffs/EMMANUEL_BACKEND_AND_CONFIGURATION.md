@@ -1,3 +1,9 @@
+> **Latest 17 November recheck:** the core ER-1/ER-2 regressions now pass after Emmanuel's `b453feb` and the accompanying policy-order/replacement-upload corrections. See the [updated review](EMMANUEL_REVIEW_20261117.md). There are now 81 passing backend tests. Cleanup/migration-to-real-staging evidence and verification of the supplied public URL remain distinct from local acceptance.
+
+> **17 November implementation review:** EM-C1/EM-C2 are partially implemented. The fresh-migration ordering regression is corrected; receipt snapshots and persistent quota accounting still fail targeted checks. See [ER-1/ER-2 and reproductions](EMMANUEL_REVIEW_20261117.md) before claiming completion. Patrick supplied a staging URL, but this environment’s outbound policy blocks inspection of that hostname.
+
+> **16 November update:** Patrick requested the admin content portal. See [portal delivery and remaining collaborator tasks](CONTENT_PORTAL_AND_REMAINING_TASKS.md) for the current additions, priorities and live-validation limits. Earlier findings below are historical; do not reopen items already fixed without checking current code.
+
 # Emmanuel — backend, Neon and deployment handoff
 
 **Reviewed:** main at `8ce436f`, 9 November 2026. **Priority:** make the multi-school API safe and usable in staging; do not declare the product finished from a successful database connection alone.
@@ -109,3 +115,40 @@ Return a report containing SHA, entry point, redacted role/TLS evidence, migrati
 
 ## Inputs to obtain from Patrick / each school
 Use [the customer checklist](CUSTOMER_SCHOOL_ONBOARDING_FR.md): approved identity/logo/colors/contacts/agrément, slug, admin email/responsibilities, permits/groups/capacity, integer-FCFA tariffs/installments, real course/quiz files and rights, receipt/legal sample, migration data plus reconciliation owner, and consented pilot participants. Patrick gathers business information; you provision technical roles/keys/buckets securely. Do not ask a customer for database-owner passwords, Mobile Money PINs or unnecessary identity photographs. Record which missing input blocks each E task.
+
+## Current coding assignments — 16 November 2026
+
+Patrick authorised merging the admin content portal and asked for concrete remaining coding work. Preserve the new portal and startup validation; do not recreate them. Implement the assignments below in separate reviewable branches with tests. Coordinate response-shape changes with Willy before merging.
+
+### EM-C1 — Storage quotas and safe unused-object cleanup (P1)
+
+- Add server-enforced per-school storage usage/quota accounting and bounded upload signing. Keep credentials server-side, private buckets, 25 MiB validation and create-only PUTs.
+- Track uploads and replacements so failed record saves do not leave permanent unaccounted objects. Cleanup must use a grace period and prove the object is no longer referenced; never delete all old objects or another school's files.
+- Define a minimal upload/finalisation/status API with Willy. Test quota exhaustion, failed/retried completion, interrupted transfers, concurrent uploads, and school isolation using synthetic storage fixtures. Separately verify real R2/CORS on disposable staging.
+
+### EM-C2 — Historical receipt data contract (P0)
+
+- Agree with Patrick which school/student/legal details are immutable issuance snapshots and which displayed balances are explicitly current.
+- Extend the tenant receipt response/schema with approved snapshots and required labels. Preserve existing payment IDs, receipt numbers, issuance-balance calculation and audited cancellation. Do not fabricate historical snapshots where source information is missing; mark provenance/unknown fields.
+- Give Willy examples for original, reprinted, provisional, confirmed and cancelled receipts. Add migration/reapplication and financial regression tests; no production backfill without a reviewed reconciliation plan.
+
+### EM-C3 — Repeatable staging integration/operations evidence (P0)
+
+- Turn existing verification scripts into a documented noninteractive staging workflow that fails with a nonzero exit code and produces a redacted report for the exact commit tested.
+- Use disposable data and explicit environment selection. Cover restricted DB roles/TLS, cookies, school isolation, R2 authoring, and recovery-provider behavior; missing credentials are blocked checks, not passes.
+- Confirm successful scheduled backup execution and a checksum-verified restore drill, alerts and rollback. Scripts existing in Git do not prove these operations succeeded.
+- Share a staging origin and limited test-account invitation with Willy securely. Never send database-owner credentials or production accounts as the integration workaround.
+
+**Handback for each assignment:** commit/PR, changed API/schema, migration/rollback notes, exact test commands/results, and remaining external prerequisites. The live migration, private R2 and restore gates in the shared task list remain outstanding until evidence is recorded.
+
+
+### EM-D1 — Publish the requested staging deployment (current blocker)
+
+Patrick requested a phone-accessible deployment and confirmed the Cloudflare account is yours, but he cannot access it. The current Codex environment has no authenticated Cloudflare account or hosted database/R2 bindings. See [the tested staging deployment package](../STAGING_DEPLOYMENT.md): `backend/wrangler.staging.toml` serves static Angular assets and `/api/*` on one origin; `bash scripts/build-staging.sh` builds it.
+
+Either deploy it from your authorised account or grant the owner/deployment environment appropriately scoped access securely. Never paste API tokens, database URLs or private keys into chat or Git. Configure disposable Neon, restricted runtime roles, private R2 and auth/host bindings as documented. Return the actual HTTPS URL, deployed commit and redacted catalogue/login/upload smoke results. A successful dry run alone is not a live deployment.
+
+
+### 17 November integration note — quiz content versions
+
+Apply the updated tenant migration before deploying the new frontend: it adds `quizzes.content_version`, metadata/question version triggers and `submit_quiz_versioned`. New submissions include `quizVersion`; incompatible new submissions return `409 QUIZ_VERSION_CHANGED`, while identical prior accepted attempts retain their result on retry. Unversioned older clients keep the original grading API behavior for compatibility. Refresh old offline quiz caches; they cannot start new version-bound drafts until updated. Rehearse upgrades and verify existing attempts/roles on the disposable staging branch. The release does not add a server-enforced exam/proctoring timer.

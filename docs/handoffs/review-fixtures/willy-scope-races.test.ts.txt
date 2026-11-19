@@ -1,0 +1,37 @@
+import "@angular/compiler";
+import "fake-indexeddb/auto";
+import {it,expect,vi,beforeEach} from "vitest";
+import {createEnvironmentInjector,runInInjectionContext,signal} from "@angular/core";
+import {Router} from "@angular/router";
+import {ApiService} from "../src/app/core/api.service";
+import {AuthService} from "../src/app/core/auth.service";
+import {DataService} from "../src/app/core/data.service";
+import {database} from "../src/app/core/database";
+Object.defineProperty(globalThis,"navigator",{value:{onLine:true},configurable:true});
+Object.assign(globalThis,{window:new EventTarget(),localStorage:{getItem:()=>null,setItem:()=>{},removeItem:()=>{}}});
+beforeEach(async()=>{await database.snapshots.clear();await database.files.clear();vi.restoreAllMocks();});
+it("does not invalidate the new account for an old account's late denial",async()=>{
+ const api=new ApiService();api.slug="school";api.expectedUserId="user-a";
+ const handler=vi.fn().mockResolvedValue(undefined);api.setAuthorizationErrorHandler(handler);
+ let finish!:(r:Response)=>void;vi.stubGlobal("fetch",vi.fn(()=>new Promise<Response>(r=>{finish=r;})));
+ const request=api.tenant("me").catch(()=>{});api.expectedUserId="user-b";
+ finish(new Response(JSON.stringify({error:"AUTH_REQUIRED"}),{status:401}));await request;
+ expect(handler).not.toHaveBeenCalled();
+});
+it("does not return the old account's cached file after identity changes during lease refresh",async()=>{
+ const auth={scope:"school:user-a",refreshLease:async()=>{auth.scope="school:user-b";},offlineAllowed:async()=>true};
+ const api={online:signal(true),setAuthorizationErrorHandler:vi.fn()};
+ const injector=createEnvironmentInjector([{provide:AuthService,useValue:auth},{provide:ApiService,useValue:api}],null as never);
+ const data=runInInjectionContext(injector,()=>new DataService());
+ await database.files.put({key:"school:user-a:resource",scope:"school:user-a",blob:new Blob(["synthetic private material"])});
+ await expect(data.file("resource")).rejects.toThrow();injector.destroy();
+});
+it("does not store the old account's lease under the new account",async()=>{
+ let finish!:(x:unknown)=>void;
+ const api={slug:"school",expectedUserId:"user-a",tenant:vi.fn(()=>new Promise(r=>{finish=r;}))};
+ const injector=createEnvironmentInjector([{provide:ApiService,useValue:api},{provide:Router,useValue:{navigate:vi.fn()}}],null as never);
+ const auth=runInInjectionContext(injector,()=>new AuthService());auth.school.set({id:"school"} as never);auth.user.set({id:"user-a"} as never);auth.role.set("student");
+ const pending=auth.refreshLease().catch(()=>{});auth.user.set({id:"user-b"} as never);api.expectedUserId="user-b";
+ finish({token:"synthetic-token-for-user-a",publicKey:{kty:"OKP"}});await pending;
+ expect(await database.snapshots.get("school:user-b:lease")).toBeUndefined();injector.destroy();
+});
