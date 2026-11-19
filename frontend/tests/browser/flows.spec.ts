@@ -54,9 +54,9 @@ async function fixtures(
   role: "admin" | "student" | null = "student",
 ) {
   page.on("console", (msg) => {
-    if (msg.type() === "error") console.log(msg.text());
+    console.log("[BROWSER " + msg.type() + "]", msg.text());
   });
-  page.on("pageerror", (err) => console.log(err.message));
+  page.on("pageerror", (err) => console.log("[PAGE ERROR]", err.message));
   const { privateKey, publicKey } = await generateKeyPair("EdDSA");
   const token = await new SignJWT({
     schoolId: school.id,
@@ -247,20 +247,34 @@ async function fixtures(
     await route.fulfill({ json: data });
   });
 }
-test("school selection and unauthenticated guard", async ({ page }) => {
-  await fixtures(page, null);
-  await page.goto("/");
-  await page.getByRole("textbox").fill("horizon");
-  await page.getByRole("button", { name: "Ouvrir mon école" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Connexion", exact: true }),
-  ).toBeVisible();
-  await expect(page.getByText("École Horizon").first()).toBeVisible();
-  await page.goto("/s/horizon/admin");
-  await expect(page).toHaveURL(/connexion/);
-  await expect(
-    page.getByRole("heading", { name: "Tableau de bord" }),
-  ).toHaveCount(0);
+test.describe("API-mocked school selection", () => {
+  // This test relies on context.route() fixtures. A cold production service
+  // worker can delay those mocked requests while it prefetches the app shell.
+  test.use({ serviceWorkers: "block" });
+
+  test("school selection and unauthenticated guard", async ({ page }) => {
+    await fixtures(page, null);
+    await page.goto("/");
+    await page.getByRole("textbox").fill("horizon");
+    const catalogueResponse = page.waitForResponse((response) =>
+      response.url().endsWith("/api/schools/horizon/catalogue"),
+    );
+    await page.getByRole("button", { name: "Ouvrir mon école" }).click();
+    const response = await catalogueResponse;
+    expect(response.status()).toBe(200);
+    expect(await response.json()).toMatchObject({
+      school: { slug: "horizon" },
+    });
+    await expect(
+      page.getByRole("heading", { name: "Connexion", exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText("École Horizon").first()).toBeVisible();
+    await page.goto("/s/horizon/admin");
+    await expect(page).toHaveURL(/connexion/);
+    await expect(
+      page.getByRole("heading", { name: "Tableau de bord" }),
+    ).toHaveCount(0);
+  });
 });
 test("student dashboard follows design and has no merchant checkout", async ({
   page,
