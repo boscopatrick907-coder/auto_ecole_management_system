@@ -47,7 +47,7 @@ import type { Dossier, Student, Group, Payment } from "../core/models";
           <p class="error-box" role="alert">{{ t.error }}</p>
         }
         @if (loading()) {
-          <p role="status">Chargement des élèves…</p>
+          <p role="status">{{ students().length ? t.refreshing : t.loading }}</p>
         }
         <p>{{ students().length }} élève(s) affiché(s) sur {{ total() }}</p>
         @for (s of students(); track s.id) {
@@ -131,8 +131,16 @@ export class StudentListComponent implements OnInit, OnDestroy {
     this.loading.set(true);
     this.error.set(false);
     try {
-      const r = await this.store.read(`students:${query}:page:${offset}`, () =>
-        this.api.students(query, offset),
+      const current = () =>
+        request === this.requestId &&
+        identity === `${this.api.slug}:${this.api.expectedUserId}`;
+      const r = await this.store.read(
+        `students:${query}:page:${offset}`,
+        () => this.api.students(query, offset),
+        // Show the verified cached first page while it is revalidated.
+        (cached) => {
+          if (reset && current()) this.students.set(cached?.students || []);
+        },
       );
       if (
         request !== this.requestId ||

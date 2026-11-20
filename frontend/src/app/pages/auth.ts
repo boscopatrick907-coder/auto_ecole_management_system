@@ -267,7 +267,7 @@ export class AuthPageComponent implements OnDestroy, AfterViewInit {
         if (!this.auth.user()) {
           if (!this.token) throw new Error("TURNSTILE_REQUIRED");
           await this.auth.signup(v.name, v.email, v.password, this.token);
-          await this.auth.openSchool(this.api.slug);
+          await this.auth.openSchool(this.api.slug, true);
         }
         if (this.mode() === "invite")
           await this.api.tenant("claim-invite", "POST", {
@@ -280,7 +280,7 @@ export class AuthPageComponent implements OnDestroy, AfterViewInit {
             fullName: v.name,
             phone: v.phone,
           });
-        await this.auth.openSchool(this.api.slug);
+        await this.auth.openSchool(this.api.slug, true);
       }
       if (!this.auth.role()) {
         if (this.mode() === "login") this.error.set(this.t.loginNoMembership);

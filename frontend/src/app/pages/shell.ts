@@ -68,11 +68,14 @@ import { BottomNavComponent, IconComponent } from "../shared/ui";
       >
     }
     <main id="main" class="page">
+      @if (auth.leaseError()) {
+        <p role="status" class="error-box">{{ t.leaseRefreshFailed }}</p>
+      }
       @if (auth.error()) {
         <div class="empty">
-          <h1>{{ auth.error() === "unavailable" ? t.networkError : t.noSchool }}</h1>
+          <h1>{{ auth.error() === "noSchool" ? t.noSchool : auth.error() === "unavailable" ? t.networkError : t.error }}</h1>
           <div class="actions">
-            <button class="btn" type="button" (click)="auth.openSchool(api.slug)">
+            <button class="btn" type="button" (click)="auth.openSchool(api.slug, true)">
               {{ t.retry }}
             </button>
             <a class="btn ghost" routerLink="/">{{ t.back }}</a>

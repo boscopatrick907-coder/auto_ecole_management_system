@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import dotenv from "dotenv";
 import app from "./worker.js";
 import { developmentBindings } from "./dev-config.js";
+import { closeRequestPools } from "./context.js";
 
 let devVars: Record<string, string> = {};
 try {
@@ -18,13 +19,27 @@ try {
     );
 }
 // Explicit process bindings (including --env-file) override local file defaults.
-const bindings = developmentBindings({ ...devVars, ...process.env });
+// The long-running Node server reuses bounded pools; Workers stay request-local.
+const bindings = {
+  ...developmentBindings({ ...devVars, ...process.env }),
+  NODE_DATABASE_POOLS: true,
+};
 
 const port = Number(process.env.PORT || 8788);
 
 export const server = serve(
   {
-    fetch: (req) => app.fetch(req, bindings),
+    fetch: async (req) => {
+      const started = performance.now();
+      const response = await app.fetch(req, bindings);
+      const elapsed = Math.round(performance.now() - started);
+      response.headers.set("Server-Timing", `app;dur=${elapsed}`);
+      if (elapsed >= 1000) {
+        // Include no query parameters, cookies, credentials or response bodies.
+        console.log(`[slow API] ${req.method} ${new URL(req.url).pathname} ${response.status} ${elapsed}ms`);
+      }
+      return response;
+    },
     port,
   },
   (info) => {
@@ -33,3 +48,11 @@ export const server = serve(
     );
   },
 );
+
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.once(signal, () => {
+    server.close(() => {
+      void closeRequestPools(bindings).then(() => process.exit(0));
+    });
+  });
+}
