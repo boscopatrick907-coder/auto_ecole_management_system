@@ -56,7 +56,7 @@ export class ApiService {
             await new Promise((res) => setTimeout(res, 600));
             continue;
           }
-          throw new RequestError(r.status, data.error || "REQUEST_FAILED");
+          throw new RequestError(r.status, data.error || data.code || "REQUEST_FAILED");
         }
         return data as T;
       } catch (e) {
