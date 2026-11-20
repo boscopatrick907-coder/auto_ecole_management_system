@@ -19,7 +19,7 @@ export class DataService {
   async read<T>(
     key: string,
     load: () => Promise<T>,
-    onCached?: (value: T) => void,
+    onCached?: (value: T | null) => void,
   ): Promise<T | null> {
     const scope = this.auth.scope;
 
@@ -30,10 +30,19 @@ export class DataService {
     if (this.auth.scope !== scope) return null;
 
     if (this.api.online()) {
+      // Show the last confirmed snapshot during revalidation, only when this
+      // account still has a valid signed lease. Never treat it as fresh data.
+      if (cached && onCached && await this.auth.offlineAllowed(false)) {
+        if (this.auth.scope !== scope) return null;
+        onCached(cached.data as T);
+      }
       try {
         const data = await load();
 
-        if (this.auth.scope !== scope) return null;
+        if (this.auth.scope !== scope) {
+          onCached?.(null);
+          return null;
+        }
 
         await database.snapshots.put({
           key: scope + ":" + key,
@@ -42,11 +51,18 @@ export class DataService {
           updatedAt: Date.now(),
         });
 
+        if (this.auth.scope !== scope) {
+          onCached?.(null);
+          return null;
+        }
+
         return data;
       } catch (e) {
         // Never use cached data after an authorization
         // or other client error from the server.
         if (e instanceof RequestError && e.status >= 400 && e.status < 500) {
+          onCached?.(null);
+          await database.snapshots.delete(scope + ":" + key);
           throw e;
         }
 
@@ -55,11 +71,15 @@ export class DataService {
 
         // Cached protected data requires a valid offline lease.
         if (!(await this.auth.offlineAllowed())) {
+          onCached?.(null);
           throw new Error("ACCESS_EXPIRED");
         }
 
         // Ensure the authenticated account has not changed.
-        if (this.auth.scope !== scope) return null;
+        if (this.auth.scope !== scope) {
+          onCached?.(null);
+          return null;
+        }
 
         onCached?.(cached.data as T);
         return cached.data as T;

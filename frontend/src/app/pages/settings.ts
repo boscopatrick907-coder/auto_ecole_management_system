@@ -63,7 +63,7 @@ export class SettingsComponent {
         agrement_number: v.agreement,
         colors: { primary: v.primary, accent: v.accent },
       });
-      await this.auth.openSchool(this.api.slug);
+      await this.auth.openSchool(this.api.slug, true);
     } catch {
       this.error.set(true);
     } finally {

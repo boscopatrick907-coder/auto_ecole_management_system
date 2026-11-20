@@ -22,6 +22,10 @@ export class AuthService {
   readonly role = signal<Role | null>(null);
   readonly ready = signal(false);
   readonly error = signal("");
+  readonly leaseError = signal(false);
+  private initialization = 0;
+  private opening?: { slug: string; promise: Promise<void> };
+  private leases = new Map<string, Promise<void>>();
 
   private readonly pendingSignoutKey = "school-pending-signout";
 
@@ -69,19 +73,51 @@ export class AuthService {
     return null;
   }
 
-  async openSchool(slug: string) {
+  /**
+   * Load the school and the visitor's identity. Concurrent calls for the same
+   * school share one load; pass reload after sign-in/sign-up so a load started
+   * before the session cookie existed is not reused.
+   */
+  openSchool(slug: string, reload = false): Promise<void> {
+    if (!reload && this.opening?.slug === slug) return this.opening.promise;
+    const promise = this.loadSchool(slug);
+    this.opening = { slug, promise };
+    void promise.finally(() => {
+      if (this.opening?.promise === promise) this.opening = undefined;
+    });
+    return promise;
+  }
+
+  private async loadSchool(slug: string) {
+    const generation = ++this.initialization;
+    const ensureCurrent = () => {
+      if (generation !== this.initialization) throw new Error("INITIALIZATION_REPLACED");
+    };
     this.ready.set(false);
+    this.error.set("");
+    this.leaseError.set(false);
     this.clearIdentity();
     this.school.set(null);
     this.api.slug = slug;
 
     try {
-      let cat: Catalogue | null = null;
-      let onlineCatalogueFailed = false;
+      let cat: Catalogue;
+      let session: PromiseSettledResult<{ user: User } | null> | null = null;
+      // Offline, or online but the catalogue could only come from the cache:
+      // identity then comes from the verified local snapshot.
+      let useCachedIdentity = !this.api.online();
 
       if (this.api.online()) {
-        try {
-          cat = await this.api.catalogue();
+        // Independent requests run together instead of one after the other.
+        const [catalogue, sessionResult] = await Promise.allSettled([
+          this.api.catalogue(),
+          this.api.request<{ user: User } | null>("/auth/get-session"),
+        ]);
+        ensureCurrent();
+        session = sessionResult;
+
+        if (catalogue.status === "fulfilled") {
+          cat = catalogue.value;
           try {
             await database.snapshots.put({
               key: "school:" + slug,
@@ -92,16 +128,14 @@ export class AuthService {
           } catch (storageErr) {
             console.warn("Unable to persist school snapshot", storageErr);
           }
-        } catch (err) {
-          if (err instanceof RequestError && err.status === 404) {
-            throw err;
-          }
-          onlineCatalogueFailed = true;
+        } else {
+          const err = catalogue.reason;
+          if (err instanceof RequestError && err.status === 404) throw err;
           const cached = await database.snapshots.get("school:" + slug).catch(() => undefined);
-          if (!cached) {
-            throw err;
-          }
+          ensureCurrent();
+          if (!cached) throw err;
           cat = cached.data as Catalogue;
+          useCachedIdentity = true;
         }
       } else {
         const cached = await database.snapshots.get("school:" + slug).catch(() => undefined);
@@ -109,18 +143,16 @@ export class AuthService {
         cat = cached.data as Catalogue;
       }
 
+      ensureCurrent();
       this.school.set(cat.school);
       this.applyBrand(cat.school);
 
-      if (this.api.online() && !onlineCatalogueFailed) {
+      if (!useCachedIdentity && session) {
         try {
-          const session = await this.api.request<{ user: User } | null>(
-            "/auth/get-session",
-          );
-
+          if (session.status === "rejected") throw session.reason;
           const pending = this.readPendingSignout();
 
-          let currentUser = session?.user || null;
+          let currentUser = session.value?.user || null;
 
           // Only sign out the same account that requested offline logout.
           if (pending) {
@@ -129,6 +161,7 @@ export class AuthService {
               currentUser?.id === pending.userId
             ) {
               await this.api.request("/auth/sign-out", "POST", {});
+              ensureCurrent();
               currentUser = null;
             }
 
@@ -144,13 +177,13 @@ export class AuthService {
           if (currentUser) {
             try {
               const membership = await this.api.tenant<{ role: Role }>("session");
+              ensureCurrent();
 
               if (!this.isRole(membership.role)) {
                 throw new Error("INVALID_USER_ROLE");
               }
 
               this.role.set(membership.role);
-              await this.refreshLease();
             } catch (e) {
               if (!(e instanceof RequestError && e.status === 403)) {
                 throw e;
@@ -173,7 +206,9 @@ export class AuthService {
           } catch (storageErr) {
             console.warn("Unable to persist identity snapshot", storageErr);
           }
+          ensureCurrent();
         } catch (sessionErr) {
+          ensureCurrent();
           console.warn("Session initialization fallback", sessionErr);
           const isAuthFailure =
             sessionErr instanceof RequestError &&
@@ -181,15 +216,23 @@ export class AuthService {
           if (isAuthFailure) {
             this.clearIdentity();
           } else {
-            await this.restoreCachedIdentity(slug);
+            useCachedIdentity = true;
+            await this.restoreCachedIdentity(slug, ensureCurrent);
           }
         }
       } else {
-        await this.restoreCachedIdentity(slug);
+        await this.restoreCachedIdentity(slug, ensureCurrent);
       }
 
       this.error.set("");
+      // The offline token does not block the dashboard; failures surface via leaseError.
+      if (this.api.online() && !useCachedIdentity && this.role()) {
+        void this.refreshLease().catch(() => {
+          if (generation === this.initialization) this.leaseError.set(true);
+        });
+      }
     } catch (e) {
+      if (generation !== this.initialization) return;
       console.error("School initialization failed", e);
       this.clearIdentity();
       if (e instanceof RequestError && e.status === 404) {
@@ -200,12 +243,13 @@ export class AuthService {
         this.error.set("unavailable");
       }
     } finally {
-      this.ready.set(true);
+      if (generation === this.initialization) this.ready.set(true);
     }
   }
 
-  private async restoreCachedIdentity(slug: string) {
+  private async restoreCachedIdentity(slug: string, ensureCurrent: () => void) {
     const cached = await database.snapshots.get("identity:" + slug).catch(() => undefined);
+    ensureCurrent();
     const identity = cached?.data as CachedIdentity | undefined;
 
     if (identity?.user?.id && this.isRole(identity.role)) {
@@ -213,7 +257,9 @@ export class AuthService {
       this.role.set(identity.role);
       this.api.expectedUserId = identity.user.id;
 
-      if (!(await this.offlineAllowed(false))) {
+      const allowed = await this.offlineAllowed(false);
+      ensureCurrent();
+      if (!allowed) {
         this.clearIdentity();
       }
     } else {
@@ -277,7 +323,7 @@ export class AuthService {
   async login(email: string, password: string) {
     await this.api.request("/auth/sign-in/email", "POST", { email, password });
 
-    await this.openSchool(this.api.slug);
+    await this.openSchool(this.api.slug, true);
   }
 
   async signup(
@@ -294,7 +340,18 @@ export class AuthService {
     );
   }
 
-  async refreshLease() {
+  refreshLease(): Promise<void> {
+    const scope = this.scope;
+    const key = this.initialization + ":" + scope;
+    const pending = this.leases.get(key);
+    if (pending) return pending;
+    const promise = this.loadLease(scope, this.initialization);
+    this.leases.set(key, promise);
+    void promise.finally(() => this.leases.delete(key)).catch(() => {});
+    return promise;
+  }
+
+  private async loadLease(scope: string, generation: number) {
     if (!this.scope || !this.role()) {
       throw new Error("INVALID_LEASE_IDENTITY");
     }
@@ -304,6 +361,8 @@ export class AuthService {
       publicKey: JWK;
     }>("lease");
 
+    if (this.scope !== scope || generation !== this.initialization) return;
+
     if (!lease.token || !lease.publicKey) {
       throw new Error("INVALID_OFFLINE_LEASE");
     }
@@ -311,14 +370,15 @@ export class AuthService {
     const now = Date.now();
 
     await database.snapshots.put({
-      key: this.scope + ":lease",
-      scope: this.scope,
+      key: scope + ":lease",
+      scope,
       data: {
         ...lease,
         highWater: now,
       },
       updatedAt: now,
     });
+    if (this.scope === scope && generation === this.initialization) this.leaseError.set(false);
   }
 
   async offlineAllowed(learning = true): Promise<boolean> {
@@ -387,6 +447,8 @@ export class AuthService {
   }
 
   async logout() {
+    ++this.initialization;
+    this.opening = undefined;
     const scope = this.scope;
     const currentUser = this.user();
     const slug = this.api.slug;
