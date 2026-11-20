@@ -80,8 +80,19 @@ export class ApiService {
       this.expectedUserId ? { "X-Expected-User": this.expectedUserId } : {},
     );
   }
-  catalogue() {
-    return this.tenant<Catalogue>("catalogue");
+  private catalogueCache?: { slug: string; at: number; value: Promise<Catalogue> };
+  /** Public catalogue, shared for 30 s so one page load does not fetch it repeatedly. */
+  catalogue(fresh = false) {
+    const c = this.catalogueCache;
+    if (!fresh && c && c.slug === this.slug && Date.now() - c.at < 30_000)
+      return c.value;
+    const value = this.tenant<Catalogue>("catalogue");
+    const entry = { slug: this.slug, at: Date.now(), value };
+    this.catalogueCache = entry;
+    value.catch(() => {
+      if (this.catalogueCache === entry) this.catalogueCache = undefined;
+    });
+    return value;
   }
   me() {
     return this.tenant<Dossier>("me");
