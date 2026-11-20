@@ -42,7 +42,9 @@ export async function runMigrationsAndSeed(options: { forceSeed?: boolean } = {}
     const adminPhone = process.env.INITIAL_ADMIN_PHONE || '+237699000001';
     const adminEmail = process.env.INITIAL_ADMIN_EMAIL || 'direction@lamarseillaise.cm';
     const adminName = process.env.INITIAL_ADMIN_NAME || 'Direction La Marseillaise';
-    const adminPassword = process.env.INITIAL_ADMIN_PASSWORD || 'Admin@Marseillaise2026!';
+    const adminPassword =
+      process.env.INITIAL_ADMIN_PASSWORD || (process.env.VITEST ? 'Admin@Marseillaise2026!' : '');
+    if (!adminPassword) throw new Error('Set INITIAL_ADMIN_PASSWORD before seeding the initial admin.');
 
     const existingAdmin = await client.query(
       `SELECT u.id, p.role

@@ -4,6 +4,12 @@ import { randomUUID } from "node:crypto";
 import dotenv from "dotenv";
 import app from "./worker.js";
 import { type TenantBindings } from "./context.js";
+// Read when used, after any .env / .dev.vars loading. Never hardcode a real password.
+function adminPassword(): string {
+  const value = process.env.ADMIN_PASSWORD;
+  if (!value) throw new Error("Set ADMIN_PASSWORD to the admin account's password before running this script.");
+  return value;
+}
 
 dotenv.config({ path: new URL("../../../.env", import.meta.url) });
 
@@ -68,7 +74,7 @@ async function main() {
     // Sign in as admin to get adminCookie
     const adminSignIn = await callWorker("/api/auth/sign-in/email", "POST", {
       email: "direction@lamarseillaise.cm",
-      password: "Admin@Marseillaise2026!",
+      password: adminPassword(),
     });
     if (adminSignIn.status !== 200) {
       throw new Error("Admin login failed during benchmark setup");

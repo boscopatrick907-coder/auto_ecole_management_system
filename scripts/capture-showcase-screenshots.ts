@@ -1,6 +1,12 @@
 import { chromium, type Browser } from "../frontend/node_modules/playwright/index.mjs";
 import path from "node:path";
 import fs from "node:fs/promises";
+// Read when used, after any .env / .dev.vars loading. Never hardcode a real password.
+function adminPassword(): string {
+  const value = process.env.ADMIN_PASSWORD;
+  if (!value) throw new Error("Set ADMIN_PASSWORD to the admin account's password before running this script.");
+  return value;
+}
 
 const SCREENSHOTS_DIR = "C:\\Users\\TOUTENUN\\.gemini\\antigravity\\brain\\551dc5e1-d3d5-4975-8c80-eb5cc4233d9b\\screenshots";
 const CHROME_PATH = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
@@ -62,7 +68,7 @@ async function main() {
     await adminPage.goto(`${BASE_URL}/s/la-marseillaise/connexion`, { waitUntil: "networkidle" });
     await adminPage.waitForSelector('input[type="email"]', { timeout: 30000 });
     await adminPage.fill('input[type="email"]', "admin@lamarseillaise.cm");
-    await adminPage.fill('input[type="password"]', "Admin@Marseillaise2026!");
+    await adminPage.fill('input[type="password"]', adminPassword());
     
     console.log("  Submitting admin credentials...");
     await adminPage.click('form .actions button');

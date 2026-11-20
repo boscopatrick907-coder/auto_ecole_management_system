@@ -64,7 +64,9 @@ async function main() {
 
     // 2. Define admin user credentials
     const adminEmail = (process.argv[2] || "admin@lamarseillaise.cm").trim().toLowerCase();
-    const adminPassword = process.argv[3] || "Admin@Marseillaise2026!";
+    const adminPassword = process.argv[3] || process.env.ADMIN_PASSWORD;
+    if (!adminPassword || adminPassword.length < 12)
+      throw new Error("Pass the new admin password (at least 12 characters) as the 2nd argument or ADMIN_PASSWORD.");
     const adminName = process.argv[4] || "Administrateur La Marseillaise";
 
     console.log(`Creating/Verifying Admin User for school '${school.name}' (${school.slug}):`);
