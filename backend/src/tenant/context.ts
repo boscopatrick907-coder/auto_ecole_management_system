@@ -51,19 +51,18 @@ export async function tenantTransaction<T>(
   const c = await pool.connect();
   let dirty = false;
   try {
-    await c.query("BEGIN");
+    // Two round trips instead of four: open the transaction and check the login
+    // role is restricted, then bind the tenant context and drop privileges.
     const role = await c.query(
-      `SELECT r.rolsuper,r.rolbypassrls,EXISTS(SELECT 1 FROM pg_class t JOIN pg_namespace n ON n.oid=t.relnamespace WHERE n.nspname='school_app' AND pg_has_role(r.oid,t.relowner,'MEMBER')) AS owns_tables FROM pg_roles r WHERE r.rolname=current_user`,
+      `BEGIN;
+       SELECT r.rolsuper,r.rolbypassrls,EXISTS(SELECT 1 FROM pg_class t JOIN pg_namespace n ON n.oid=t.relnamespace WHERE n.nspname='school_app' AND pg_has_role(r.oid,t.relowner,'MEMBER')) AS owns_tables FROM pg_roles r WHERE r.rolname=current_user;`,
     );
-    if (
-      role.rows[0]?.rolsuper ||
-      role.rows[0]?.rolbypassrls ||
-      role.rows[0]?.owns_tables
-    )
+    const roleRow = (role as unknown as pg.QueryResult[])[1]?.rows[0];
+    if (!roleRow || roleRow.rolsuper || roleRow.rolbypassrls || roleRow.owns_tables)
       throw new Error("UNSAFE_DATABASE_ROLE");
-    await c.query("SET LOCAL ROLE aem_tenant_runtime");
+    // set_config('role', ..., true) is SET LOCAL ROLE, so this stays parameterised.
     await c.query(
-      "SELECT set_config('app.user_id',$1,true),set_config('app.school_id',$2,true)",
+      "SELECT set_config('app.user_id',$1,true),set_config('app.school_id',$2,true),set_config('role','aem_tenant_runtime',true)",
       [userId || "", schoolId],
     );
     const result = await run(c);

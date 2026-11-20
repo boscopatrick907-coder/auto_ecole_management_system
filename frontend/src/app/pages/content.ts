@@ -178,7 +178,7 @@ export class ContentComponent implements OnInit, OnDestroy {
     this.error.set("");
     try {
       const [catalogue, resources, quizzes] = await Promise.all([
-        this.api.catalogue(),
+        this.api.catalogue(true),
         this.api.adminResources(),
         this.api.adminQuizzes(),
       ]);
