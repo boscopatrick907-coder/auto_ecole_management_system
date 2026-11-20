@@ -101,6 +101,15 @@ export const FR = {
   correct: "réponses correctes",
   noSchool: "École introuvable ou indisponible.",
   networkError: "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez.",
+  loginInvalid: "Email ou mot de passe incorrect.",
+  loginEmailInvalid: "Saisissez une adresse email valide.",
+  loginPasswordMissing: "Saisissez votre mot de passe.",
+  loginOriginRejected:
+    "Connexion refusée par le serveur : l’adresse de cette page n’est pas autorisée (TRUSTED_ORIGINS / BETTER_AUTH_URL).",
+  loginRateLimited: "Trop de tentatives. Patientez une minute puis réessayez.",
+  loginServerError: "Le serveur a rencontré une erreur. Réessayez dans un instant.",
+  loginNoMembership:
+    "Ce compte n’est pas encore rattaché à cette école. Terminez l’inscription ci-dessous ou contactez l’école.",
   conflict: "Action bloquée : vérifiez les données avant de réessayer.",
   retryQueue: "Réessayer les actions bloquées",
   connectedAs: "Connecté en tant que",

@@ -10,7 +10,7 @@ import {
 import { ReactiveFormsModule, FormBuilder, Validators } from "@angular/forms";
 import { Router, RouterLink } from "@angular/router";
 import { AuthService } from "../core/auth.service";
-import { ApiService } from "../core/api.service";
+import { ApiService, RequestError } from "../core/api.service";
 import { FR } from "../core/fr";
 import { IconComponent } from "../shared/ui";
 import type { Catalogue } from "../core/models";
@@ -250,8 +250,15 @@ export class AuthPageComponent implements OnDestroy, AfterViewInit {
       this.step.update((n) => n + 1);
       return;
     }
-    if (this.form.controls.email.invalid || this.form.controls.password.invalid)
+    if (this.form.controls.email.invalid) {
+      this.error.set(this.t.loginEmailInvalid);
       return;
+    }
+    // Minimum length applies to new passwords only; imported accounts may be shorter.
+    if (this.mode() === "login" ? !v.password : this.form.controls.password.invalid) {
+      this.error.set(this.mode() === "login" ? this.t.loginPasswordMissing : this.t.conflict);
+      return;
+    }
     this.busy.set(true);
     try {
       if (this.mode() === "login") {
@@ -276,6 +283,7 @@ export class AuthPageComponent implements OnDestroy, AfterViewInit {
         await this.auth.openSchool(this.api.slug);
       }
       if (!this.auth.role()) {
+        if (this.mode() === "login") this.error.set(this.t.loginNoMembership);
         this.form.controls.name.setValue(this.auth.user()?.name || v.name);
         this.setMode("signup");
         this.step.set(2);
@@ -286,11 +294,22 @@ export class AuthPageComponent implements OnDestroy, AfterViewInit {
         this.api.slug,
         this.auth.role() === "admin" ? "admin" : "accueil",
       ]);
-    } catch {
-      this.error.set(this.t.conflict);
+    } catch (e) {
+      this.error.set(
+        this.mode() === "login" ? this.loginError(e) : this.t.conflict,
+      );
     } finally {
       this.busy.set(false);
     }
+  }
+  private loginError(e: unknown) {
+    if (!(e instanceof RequestError)) return this.t.networkError;
+    if (e.status === 401 || e.code === "INVALID_EMAIL_OR_PASSWORD")
+      return this.t.loginInvalid;
+    if (e.status === 403) return this.t.loginOriginRejected;
+    if (e.status === 429) return this.t.loginRateLimited;
+    if (e.status >= 500) return this.t.loginServerError;
+    return this.t.conflict;
   }
   async requestReset() {
     if (this.form.controls.email.invalid) {
