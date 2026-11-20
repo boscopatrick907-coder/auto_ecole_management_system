@@ -1,99 +1,104 @@
-> **Admin content portal (16 November 2026):** school admins can manage permit categories, private materials and quizzes under **Contenus**. See [implementation, validation and staging requirements](docs/CONTENT_PORTAL_VALIDATION.md) and [remaining collaborator tasks](docs/handoffs/CONTENT_PORTAL_AND_REMAINING_TASKS.md).
+# Auto-École — plateforme multi-écoles (PWA)
 
-> **Collaborator and customer handoffs (9 November 2026):** [Emmanuel, Willy, school onboarding, env review and current roadmap](docs/handoffs/README.md). Current phase: real-stack integration and pilot preparation; no production-readiness claim.
+Application web progressive **hors-ligne et mobile d'abord** pour auto-écoles au Cameroun, conçue d'abord pour l'**Auto-École La Marseillaise**. Un seul déploiement sert plusieurs écoles ; chaque école a ses propres élèves, paiements, reçus et contenus, isolés au niveau de la base de données.
 
-> **Multi-school frontend / Worker implementation (9 November 2026):** see [setup and remaining prerequisites](docs/FRONTEND_SETUP.md), [migration plan](docs/MULTITENANT_MIGRATION.md) and [backup/restore](docs/BACKUP_RESTORE.md). The new Angular UI uses the new Better Auth/Hono tenant Worker; the older single-school setup below is retained for migration reference. No live cutover was performed.
+> **Statut (novembre 2026) :** fondation multi-écoles implémentée et testée localement. Intégration sur l'infrastructure réelle (Neon, Cloudflare, R2) et préparation du pilote en cours — **pas encore prête pour la production**. Voir [feuille de route et critères de mise en production](docs/handoffs/ROADMAP_AND_RELEASE_GATES.md).
 
-> **Backend checkpoint, 8 November 2026:** See [current backend status](docs/BACKEND_COMPLETION_20261108.md) and [API v1.3 contract](docs/API_CONTRACT.md). Live integrations and automated merchant collection remain explicit release blockers. Run `npm run build` before `npm start`; the backend now runs compiled JavaScript.
-
-# Auto-École La Marseillaise (AEM) — Plateforme PWA & Gestion Administrative
-
-Application Progressive Web App (PWA) **Offline-First & Mobile-First** conçue pour l'**Auto-École La Marseillaise (AEM)** au Cameroun.
-
----
-
-## 🎨 Identité Visuelle Officielle (`AEM Clair — Bleu Marseillaise`)
-
-L'interface adopte un thème clair haute-lisibilité inspiré de la charte officielle AEM et des standards d'ingénierie mobile (Apple Light UX / Emil Kowalski) :
-- **Bleu Marseillaise Principal** : `#3D8BCD` (`#5BA4E5` clair, `#2B6CA8` foncé)
-- **Corail-Vermillon Officiel** : `#D94E28`
-- **Étoile Or AEM** : `#EAB308`
-- **Toile Daylight Alabaster** : `#F4F7FB` avec cartes `#FFFFFF` et barres givrées (`backdrop-filter: blur(20px) saturate(180%)`)
-
----
-
-## 🏗️ Architecture Technique (100% Free-Tier)
+## Architecture
 
 | Couche | Technologie | Rôle |
 |---|---|---|
-| **Base de données** | **Neon Serverless PostgreSQL 16** | RLS (`current_user_id()`), triggers d'essai 14j, reçus séquentiels sans trou (`LM-YYYY-NNNNNN`), journal d'audit financier inaltérable |
-| **Backend API** | **Node.js + Express + TypeScript** | Authentification téléphone `+237` / OTP, jetons de bail hors-ligne signés (`HS256`), intégration WhatsApp Cloud API & liens 1-clic `wa.me` |
-| **Frontend PWA** | **Angular 19 Standalone + Service Worker** | Cache hors-ligne (`@angular/service-worker`), base locale **Dexie.js (IndexedDB)**, garde d'horloge monotone anti-triche |
-| **Exports & Reçus** | **jsPDF + SheetJS (`xlsx`)** | Génération instantanée de reçus officiels PDF A5 et export des listes d'élèves en Excel (`.xlsx`) et PDF A4 |
+| Frontend | Angular 22 (standalone, signals), service worker, Dexie (IndexedDB) | Interface élève et direction, cache hors-ligne, file d'attente d'actions hors-ligne |
+| API | Cloudflare Worker, Hono, Better Auth — `backend/src/tenant/worker.ts` | Connexion email/mot de passe, routes `/api/schools/<école>/…`, baux hors-ligne signés Ed25519 |
+| Base de données | Neon PostgreSQL — `backend/migrations/001_multitenant.sql` | Isolation par école (RLS), compteurs de reçus sans trou, journal d'audit, paiements non supprimables |
+| Fichiers | Cloudflare R2 privé | Supports de cours ; URLs signées de courte durée |
 
----
+Les URLs de l'application commencent par `/s/<slug-de-l-école>` (ex. `/s/la-marseillaise/connexion`).
 
-## ✨ Fonctionnalités Clés
+> L'ancien serveur Express mono-école (`backend/src/app.ts`, `backend/src/routes/*`) est conservé uniquement pour la migration des anciennes données. **Il n'est pas l'API du frontend actuel.**
 
-### 1. Espace Élève (Mobile-First & Hors-Ligne)
-- **Inscription en 30 secondes** avec numéro Cameroun (`+237`) et validation par code OTP à 6 chiffres.
-- **Activation Code Agence (8 caractères)** pour les élèves inscrits physiquement au secrétariat.
-- **14 jours d'essai gratuit automatiques** : accès immédiat aux cours d'aperçu et quiz d'évaluation.
-- **Déblocage illimité automatique** dès le 1er versement enregistré par la caisse (`student_has_access()`).
-- **Lecteur de Cours & Téléchargement Hors-Ligne** dans IndexedDB pour réviser sans forfait Internet.
-- **Moteur de Quiz & Examens Blancs** chronométrés avec explications pédagogiques et synchronisation automatique des scores.
-- **Suivi financier transparent** : barre de progression, échéancier des 3 tranches et téléchargement des reçus PDF.
+## Fonctionnalités
 
-### 2. Espace Direction & Caisse
-- **Tableau de bord temps réel** : Encaissé ce mois, Encaissé aujourd'hui, Reste à recouvrer, Élèves en essai 14j, Élèves confirmés.
-- **Liste d'actions prioritaires (« À traiter aujourd'hui »)** : relance WhatsApp en 1 clic (`wa.me`) avec message pré-rempli en FCFA ou encaissement direct.
-- **Guichet d'encaissement en 3 clics (< 10 secondes)** : sélection de l'élève, montant (avec boutons rapides `15 000 F`, `25 000 F`, `30 000 F`, `50 000 F`), mode (`Espèces`, `Orange Money`, `MTN MoMo`), génération du reçu PDF et envoi WhatsApp.
-- **Mode Caisse Hors-Ligne** : émission de reçus provisoires (`LM-D1-0001`) en cas de coupure Internet et réconciliation automatique au retour de la connexion.
-- **Inaltérabilité comptable** : aucune suppression de paiement (`trg_payments_guard`) ; annulation possible uniquement avec motif obligatoire tracé dans `audit_log`.
+- **Élèves :** inscription ou code d'invitation remis par l'école, essai gratuit de 14 jours, accès débloqué dès un paiement valide, cours et quiz disponibles hors-ligne, suivi du solde et des reçus.
+- **Direction / caisse :** tableau de bord, élèves, groupes, encaissements avec reçu PDF, annulation motivée (jamais de suppression), journal du jour et rapport mensuel, relances WhatsApp manuelles (`wa.me`).
+- **Contenus :** catégories de permis, supports privés (PDF, images, MP4 ≤ 25 Mo) et quiz, avec brouillon, aperçu et publication.
+- **Hors-ligne :** reçus provisoires `RC-<appareil>-<n>` confirmés au retour du réseau ; un refus du serveur n'est jamais compté comme un paiement.
 
----
+Hors périmètre du lancement : envoi automatique WhatsApp/SMS, paiement en ligne, moniteurs/planning, facturation SaaS. La connexion par OTP SMS n'est pas implémentée.
 
-## 🚀 Démarrage Rapide
+## Démarrage local
 
-### 1. Configuration de l'environnement
-Copiez `.env.example` vers `.env` et renseignez votre URL **Neon PostgreSQL** :
+Prérequis : Node 24, npm, PostgreSQL 16+.
+
 ```bash
-cp .env.example .env
+npm ci --prefix backend
+npm ci --prefix frontend
 ```
 
-### 2. Initialisation de la base Neon & Données Cameroun
+1. **Base de données jetable** — créez une base locale, puis appliquez le schéma avec un compte propriétaire :
+   ```bash
+   MIGRATION_DATABASE_URL=postgresql://postgres:<mdp>@127.0.0.1:5432/aemdev npm run db:migrate:tenant --prefix backend
+   ```
+2. **Deux comptes restreints** (jamais superuser ni propriétaire des tables) :
+   ```sql
+   create role dev_app login password '<mdp-app>';  grant aem_tenant_runtime  to dev_app;
+   create role dev_id  login password '<mdp-id>';   grant aem_identity_runtime to dev_id;
+   ```
+3. **Configuration** — copiez `backend/.dev.vars.example` vers `backend/.dev.vars` et renseignez `DATABASE_URL` (dev_app), `AUTH_DATABASE_URL` (dev_id), `BETTER_AUTH_SECRET` (aléatoire), `BETTER_AUTH_URL=http://localhost:8788`, `TRUSTED_ORIGINS=http://localhost:4200`, `ENVIRONMENT=development` et une clé privée Ed25519 PKCS#8 dans `OFFLINE_PRIVATE_KEY_PEM`. R2 et Turnstile peuvent rester vides en local (pas d'envoi de fichiers ni d'inscription publique).
+4. **Première école et son administrateur** (mot de passe ≥ 12 caractères, à choisir vous-même) :
+   ```bash
+   MIGRATION_DATABASE_URL=… AUTH_DATABASE_URL=… BETTER_AUTH_SECRET=… BETTER_AUTH_URL=http://localhost:8788 \
+   TRUSTED_ORIGINS=http://localhost:4200 SCHOOL_NAME="Auto-École La Marseillaise" SCHOOL_SLUG=la-marseillaise \
+   ADMIN_EMAIL=admin@example.cm ADMIN_PASSWORD='<mot de passe fort>' npm run tenant:bootstrap --prefix backend
+   ```
+5. **Lancer** l'API puis l'interface, et ouvrez `http://localhost:4200/s/la-marseillaise/connexion` :
+   ```bash
+   npm run dev:tenant:node --prefix backend
+   ```
+   ```bash
+   npm start --prefix frontend
+   ```
+
+Ouvrez bien `localhost` et non `127.0.0.1` : la connexion n'est acceptée que depuis les adresses listées dans `TRUSTED_ORIGINS`.
+
+## Dépannage de la connexion
+
+L'écran de connexion affiche la cause exacte :
+
+| Message | Cause | Correction |
+|---|---|---|
+| « Email ou mot de passe incorrect. » | Identifiants erronés | Vérifier ou réinitialiser le mot de passe |
+| « Connexion refusée… adresse non autorisée » | L'adresse du navigateur n'est pas dans `TRUSTED_ORIGINS` / `BETTER_AUTH_URL` | Mettre l'adresse exacte (en `https://` hors local) |
+| « Ce compte n'est pas encore rattaché à cette école » | Compte sans adhésion à l'école | Rattacher via `backend/src/tenant/link-admin.ts` |
+| « Impossible de joindre le serveur » | API arrêtée ou injoignable | Démarrer / vérifier le Worker |
+
+## Tests
+
 ```bash
-cd backend
-npm install
-npm run db:migrate
+npm run lint --prefix frontend && npm test --prefix frontend
+```
+```bash
+npm run test:e2e --prefix frontend
+```
+```bash
+npm run build --prefix backend && npm run build:worker --prefix backend
+```
+```bash
+npm run test:tenant --prefix backend
 ```
 
-### 3. Lancement du serveur API Backend (Port 3000)
-```bash
-cd backend
-npm run dev
-```
+`test:tenant` exige une base PostgreSQL locale jetable (`TENANT_TEST_DATABASE_URL`, par défaut `127.0.0.1:55436`) et refuse tout hôte distant. Ne lancez jamais les tests sur une base d'école.
 
-### 4. Tests de Sécurité Automatisés (OWASP API Top 10)
-```bash
-cd backend
-npm run test:security
-```
+## Production
 
-### 5. Lancement / Build de la PWA Angular 19
-```bash
-cd frontend
-npm install
-npm start
-# Ou pour compiler le build de production avec Service Worker PWA :
-npm run build
-```
+Frontend et Worker sont servis sur la **même origine HTTPS** (`/api/*` routé vers le Worker) pour que les cookies de session fonctionnent. Secrets via `wrangler secret put`. Pour des temps de réponse corrects :
 
----
+- **Hyperdrive** pour `APP_DB` et `AUTH_DB` (connexions réutilisées, voir `backend/wrangler.toml`) ;
+- **Smart Placement** activé (le Worker s'exécute près de la base) ;
+- base Neon en **`aws-eu-central-1`** (Francfort), la région la plus proche du Cameroun. Sur l'offre gratuite, Neon se met en veille après 5 minutes : la première requête suivante prend 1 à 3 s de plus.
 
-## 🔐 Identifiants de Démonstration (Pré-initialisés)
+Détails : [mise en place](docs/FRONTEND_SETUP.md) · [staging](docs/STAGING_DEPLOYMENT.md) · [migration des anciennes données](docs/MULTITENANT_MIGRATION.md) · [sauvegarde/restauration](docs/BACKUP_RESTORE.md) · [contrat d'API](docs/TENANT_API_CONTRACT.md) · [portail de contenus](docs/CONTENT_PORTAL_VALIDATION.md) · [répartition des tâches](docs/handoffs/README.md).
 
-- **Compte Super-Admin / Direction** :
-  - **Téléphone** : `+237699000001` (ou `direction@lamarseillaise.cm`)
-  - **Mot de passe** : `Admin@Marseillaise2026!`
-  - *(Un bouton « Admin Démo » en 1 clic est également disponible sur l'écran de connexion).*
+## Identité visuelle
+
+Bleu Marseillaise `#3D8BCD` (clair `#5BA4E5`, foncé `#2B6CA8`), corail `#D94E28`, or `#EAB308`, fond `#F4F7FB` avec cartes blanches. Maquettes dans `stitch-designs/`.

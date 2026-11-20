@@ -1,6 +1,12 @@
 import { chromium, type Browser, type Page } from "../frontend/node_modules/playwright/index.mjs";
 import path from "node:path";
 import fs from "node:fs/promises";
+// Read when used, after any .env / .dev.vars loading. Never hardcode a real password.
+function adminPassword(): string {
+  const value = process.env.ADMIN_PASSWORD;
+  if (!value) throw new Error("Set ADMIN_PASSWORD to the admin account's password before running this script.");
+  return value;
+}
 
 interface TestReportItem {
   id: number;
@@ -215,7 +221,7 @@ async function main() {
       const passwordInput = page.locator('input[type="password"], input[formControlName="password"]');
 
       await emailInput.fill("admin@lamarseillaise.cm");
-      await passwordInput.fill("Admin@Marseillaise2026!");
+      await passwordInput.fill(adminPassword());
 
       const loginBtn = page.getByRole("button", { name: /Connexion/i });
       await loginBtn.click();

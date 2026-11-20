@@ -1,5 +1,11 @@
 import { chromium } from "../frontend/node_modules/playwright/index.mjs";
 import path from "node:path";
+// Read when used, after any .env / .dev.vars loading. Never hardcode a real password.
+function adminPassword(): string {
+  const value = process.env.ADMIN_PASSWORD;
+  if (!value) throw new Error("Set ADMIN_PASSWORD to the admin account's password before running this script.");
+  return value;
+}
 
 async function debug() {
   const browser = await chromium.launch({
@@ -18,7 +24,7 @@ async function debug() {
   console.log("Navigating to login...");
   await page.goto("http://localhost:4200/s/la-marseillaise/connexion", { waitUntil: "networkidle" });
   await page.fill('input[type="email"]', "admin@lamarseillaise.cm");
-  await page.fill('input[type="password"]', "Admin@Marseillaise2026!");
+  await page.fill('input[type="password"]', adminPassword());
   await page.click('form .actions button:has-text("Connexion")');
 
   await page.waitForFunction(() => window.location.pathname.includes('/admin'), { timeout: 30000 });

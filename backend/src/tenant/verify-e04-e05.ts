@@ -6,6 +6,12 @@ import { S3Client, PutObjectCommand, PutBucketCorsCommand, HeadObjectCommand } f
 import dotenv from "dotenv";
 import app from "./worker.js";
 import { poolFor, type TenantBindings } from "./context.js";
+// Read when used, after any .env / .dev.vars loading. Never hardcode a real password.
+function adminPassword(): string {
+  const value = process.env.ADMIN_PASSWORD;
+  if (!value) throw new Error("Set ADMIN_PASSWORD to the admin account's password before running this script.");
+  return value;
+}
 
 dotenv.config({ path: new URL("../../../.env", import.meta.url) });
 
@@ -291,7 +297,7 @@ async function main() {
     // Sign in as migrated La Marseillaise Admin
     const adminSignIn = await callWorker("/api/auth/sign-in/email", "POST", {
       email: "direction@lamarseillaise.cm",
-      password: "Admin@Marseillaise2026!",
+      password: adminPassword(),
     });
     if (adminSignIn.status !== 200) {
       throw new Error(`Admin sign-in failed: ${adminSignIn.status}`);

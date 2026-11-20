@@ -3,6 +3,12 @@ import fs from "node:fs/promises";
 import dotenv from "dotenv";
 import app from "./worker.js";
 import { type TenantBindings } from "./context.js";
+// Read when used, after any .env / .dev.vars loading. Never hardcode a real password.
+function adminPassword(): string {
+  const value = process.env.ADMIN_PASSWORD;
+  if (!value) throw new Error("Set ADMIN_PASSWORD to the admin account's password before running this script.");
+  return value;
+}
 
 async function run() {
   let devVars: Record<string, string> = {};
@@ -123,7 +129,7 @@ async function run() {
       },
       body: JSON.stringify({
         email: "admin@lamarseillaise.cm",
-        password: "Admin@Marseillaise2026!",
+        password: adminPassword(),
       }),
     });
     const adminCookies = adminLoginRes.headers.getSetCookie();
