@@ -14,12 +14,14 @@ region = "aws:eu-central-1"
 #   wrangler hyperdrive create aem-app --connection-string="<restricted app login URL>"
 #   wrangler hyperdrive create aem-auth --connection-string="<restricted identity login URL>"
 # then uncomment; context.ts uses APP_DB / AUTH_DB automatically when present.
-[[hyperdrive]]
-binding = "APP_DB"
-id = "3ca7b0b9fce04553b33c4006133c1701"
-[[hyperdrive]]
-binding = "AUTH_DB"
-id = "6bd1874759434e9b910e68c3fcb9f3dc"
+# Production needs its OWN Hyperdrive configs pointing at the production
+# database. Never reuse the staging IDs from wrangler.staging.toml here.
+# [[hyperdrive]]
+# binding = "APP_DB"
+# id = "<production aem-app id>"
+# [[hyperdrive]]
+# binding = "AUTH_DB"
+# id = "<production aem-auth id>"
 [[ratelimits]]
 name = "SIGNUP_LIMITER"
 namespace_id = "1001"
