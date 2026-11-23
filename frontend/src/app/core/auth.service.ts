@@ -1,3 +1,4 @@
+import { applyTheme } from "./theme";
 import { rememberSchool } from "./school-memory";
 import { Injectable, inject, signal } from "@angular/core";
 import { ApiService, RequestError } from "./api.service";
@@ -270,14 +271,8 @@ export class AuthService {
   }
 
   private applyBrand(s: School) {
-    for (const [key, value] of Object.entries({
-      primary: s.colors.primary,
-      accent: s.colors.accent,
-    })) {
-      if (/^#[0-9a-f]{6}$/i.test(value)) {
-        document.documentElement.style.setProperty("--" + key, value);
-      }
-    }
+    // Two school colors -> full theme (readable text, tints, gradients).
+    applyTheme(s.colors);
 
     document.title = s.name;
 
