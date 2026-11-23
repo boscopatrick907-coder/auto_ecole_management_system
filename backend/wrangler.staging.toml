@@ -5,6 +5,17 @@ compatibility_date = "2026-11-01"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = true
 
+[placement]
+region = "aws:us-east-2"
+
+[[hyperdrive]]
+binding = "APP_DB"
+id = "3ca7b0b9fce04553b33c4006133c1701"
+
+[[hyperdrive]]
+binding = "AUTH_DB"
+id = "6bd1874759434e9b910e68c3fcb9f3dc"
+
 [assets]
 directory = "../frontend/dist/auto-ecole-la-marseillaise-pwa/browser"
 not_found_handling = "single-page-application"
