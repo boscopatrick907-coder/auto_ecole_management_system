@@ -631,3 +631,9 @@ create or replace function school_app.claim_invite(p_code text,p_phone text) ret
  update school_app.invites set used_at=now() where school_id=i.school_id and id=i.id;return s;
 end $$;
 revoke all on function school_app.new_unique_desk_code() from public;
+
+-- La Marseillaise's brand palette (blue + coral), applied once and only while
+-- the school still has the original default colors, so later choices made in
+-- Paramètres are never overwritten.
+update school_app.schools set colors='{"primary":"#2b6ca8","accent":"#d94e28"}'::jsonb
+ where slug='la-marseillaise' and colors='{"primary":"#1f4e8c","accent":"#f5a623"}'::jsonb;
