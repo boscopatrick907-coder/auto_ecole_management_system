@@ -62,18 +62,18 @@ export async function queryBatch(client: pg.PoolClient, statements: readonly str
 }
 
 export function poolFor(env: TenantBindings, identity = false): pg.Pool {
+  const hyperdriveUrl = identity
+    ? env.AUTH_DB?.connectionString
+    : env.APP_DB?.connectionString;
+  const connectionString =
+    hyperdriveUrl || (identity ? env.AUTH_DATABASE_URL : env.DATABASE_URL);
   return new pg.Pool({
-    connectionString: identity
-      ? env.AUTH_DB?.connectionString || env.AUTH_DATABASE_URL
-      : env.APP_DB?.connectionString || env.DATABASE_URL,
+    connectionString,
     max: env.NODE_DATABASE_POOLS ? 5 : 2,
     connectionTimeoutMillis: 10000,
     idleTimeoutMillis: env.NODE_DATABASE_POOLS ? 60000 : 5000,
     statement_timeout: 10000,
-    ...((identity
-      ? env.AUTH_DB?.connectionString || env.AUTH_DATABASE_URL
-      : env.APP_DB?.connectionString || env.DATABASE_URL
-    ).includes("-pooler.")
+    ...(hyperdriveUrl || connectionString.includes("-pooler.")
       ? {}
       : {
           options: identity

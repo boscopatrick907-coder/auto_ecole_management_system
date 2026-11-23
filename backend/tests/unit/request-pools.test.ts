@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { closeRequestPools, releaseRequestPool, requestPoolFor, type TenantBindings } from "../../src/tenant/context.js";
+import { closeRequestPools, poolFor, releaseRequestPool, requestPoolFor, type TenantBindings } from "../../src/tenant/context.js";
 import { requestAuth } from "../../src/tenant/auth.js";
 
 const bindings = (node = true) => ({
@@ -39,4 +39,41 @@ it("keeps Worker pools request-local and closes them at request completion", asy
   await Promise.all([releaseRequestPool(env, first), releaseRequestPool(env, second)]);
   expect(first.ended).toBe(true);
   expect(second.ended).toBe(true);
+});
+
+it("omits startup options for Hyperdrive and pooled URLs while keeping them for direct URLs", async () => {
+  const direct = bindings(false);
+  const pooled = {
+    ...direct,
+    DATABASE_URL: "postgresql://app:local@ep-example-pooler.us-east-2.aws.neon.tech/db",
+    AUTH_DATABASE_URL: "postgresql://identity:local@ep-example-pooler.us-east-2.aws.neon.tech/db",
+  } as TenantBindings;
+  const hyperdrive = {
+    ...direct,
+    APP_DB: { connectionString: "postgresql://app:local@app.hyperdrive.local:5432/db" },
+    AUTH_DB: { connectionString: "postgresql://identity:local@auth.hyperdrive.local:5432/db" },
+  } as TenantBindings;
+
+  const pools = [
+    poolFor(direct, false),
+    poolFor(direct, true),
+    poolFor(pooled, false),
+    poolFor(pooled, true),
+    poolFor(hyperdrive, false),
+    poolFor(hyperdrive, true),
+  ];
+  try {
+    const opts = (p: (typeof pools)[number]) =>
+      (p.options as { connectionString?: string; options?: string });
+    expect(opts(pools[0]).options).toBe("-c timezone=Africa/Douala");
+    expect(opts(pools[1]).options).toBe("-c search_path=identity,pg_catalog");
+    expect(opts(pools[2]).options).toBeUndefined();
+    expect(opts(pools[3]).options).toBeUndefined();
+    expect(opts(pools[4]).connectionString).toBe(hyperdrive.APP_DB!.connectionString);
+    expect(opts(pools[4]).options).toBeUndefined();
+    expect(opts(pools[5]).connectionString).toBe(hyperdrive.AUTH_DB!.connectionString);
+    expect(opts(pools[5]).options).toBeUndefined();
+  } finally {
+    await Promise.all(pools.map((p) => p.end()));
+  }
 });
