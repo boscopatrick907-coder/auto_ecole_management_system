@@ -24,6 +24,12 @@ export const routes: Routes = [
           import("./pages/auth").then((m) => m.AuthPageComponent),
       },
       {
+        path: "activation",
+        canActivate: [guestGuard],
+        loadComponent: () =>
+          import("./pages/auth").then((m) => m.AuthPageComponent),
+      },
+      {
         path: "inscription",
         canActivate: [guestGuard],
         loadComponent: () =>

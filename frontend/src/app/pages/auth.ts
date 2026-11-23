@@ -8,12 +8,13 @@ import {
   ElementRef,
 } from "@angular/core";
 import { ReactiveFormsModule, FormBuilder, Validators } from "@angular/forms";
-import { Router, RouterLink } from "@angular/router";
+import { Router } from "@angular/router";
 import { AuthService } from "../core/auth.service";
 import { ApiService, RequestError } from "../core/api.service";
 import { FR } from "../core/fr";
 import { IconComponent } from "../shared/ui";
 import type { Catalogue } from "../core/models";
+import { normalizePhone } from "../core/activation";
 declare global {
   interface Window {
     turnstile?: {
@@ -23,6 +24,12 @@ declare global {
     __TURNSTILE_SITE_KEY__?: string;
   }
 }
+
+type Mode = "login" | "activate" | "signup";
+const PHONE = /^\+237[26][0-9]{8}$/;
+export const MIN_PASSWORD = 8;
+
+
 @Component({
   standalone: true,
   imports: [ReactiveFormsModule, IconComponent],
@@ -34,54 +41,113 @@ declare global {
       <div class="auth-road"><app-icon name="directions_car" /></div>
     </div>
     <div class="card auth-form">
-      <div class="segmented">
+      <div class="segmented" role="tablist">
         @for (m of modes; track m) {
-          <button [class.selected]="mode() === m" (click)="setMode(m)">
-            {{ t[m] }}
+          <button
+            type="button"
+            role="tab"
+            [attr.aria-selected]="mode() === m"
+            [class.selected]="mode() === m"
+            (click)="setMode(m)"
+          >
+            {{ tabLabel[m] }}
           </button>
         }
       </div>
-      <h2>{{ t[mode()] }}</h2>
-      @if (mode() !== "login") {
-        <div class="stepper">
-          @for (n of [1, 2, 3]; track n) {
-            <span [class.selected]="step() >= n">{{ n }}</span>
-          }
-        </div>
-      }
+
       <form [formGroup]="form" (ngSubmit)="submit()">
-        @if (mode() === "login" || step() === 1) {
-          @if (mode() !== "login") {
+        @if (mode() === "login") {
+          <h2>{{ t.login }}</h2>
+          @if (loginWith() === "phone") {
             <label
-              >{{ t.name }}<input formControlName="name" autocomplete="name"
+              >{{ t.phoneLogin
+              }}<input
+                formControlName="phone"
+                type="tel"
+                inputmode="tel"
+                autocomplete="tel"
+                placeholder="6XX XX XX XX"
+            /></label>
+          } @else {
+            <label
+              >{{ t.email
+              }}<input formControlName="email" type="email" autocomplete="email"
             /></label>
           }
           <label
-            >{{ t.email
-            }}<input
-              formControlName="email"
-              type="email"
-              autocomplete="email" /></label
-          ><label
             >{{ t.password
             }}<input
               formControlName="password"
               type="password"
-              [attr.autocomplete]="
-                mode() === 'login' ? 'current-password' : 'new-password'
-              "
+              autocomplete="current-password"
           /></label>
         }
-        @if (mode() !== "login" && step() === 2) {
+
+        @if (mode() === "activate") {
+          <h2>{{ t.activateTitle }}</h2>
+          <p class="muted">{{ t.activateHelp }}</p>
           <label
-            >{{ t.phone
+            >{{ t.phoneLogin
             }}<input
               formControlName="phone"
               type="tel"
+              inputmode="tel"
               autocomplete="tel"
-              placeholder="+2376XXXXXXXX"
+              placeholder="6XX XX XX XX"
           /></label>
-          @if (mode() === "signup") {
+          <label
+            >{{ t.activationCode
+            }}<input
+              formControlName="code"
+              autocomplete="one-time-code"
+              autocapitalize="characters"
+              spellcheck="false"
+              placeholder="XXXX-XXXX"
+          /></label>
+          <label
+            >{{ t.newPassword
+            }}<input
+              formControlName="password"
+              type="password"
+              autocomplete="new-password"
+          /></label>
+          <p class="muted">{{ t.passwordRule }}</p>
+        }
+
+        @if (mode() === "signup") {
+          <h2>{{ t.signup }}</h2>
+          <div class="stepper">
+            @for (n of [1, 2, 3]; track n) {
+              <span [class.selected]="step() >= n">{{ n }}</span>
+            }
+          </div>
+          @if (step() === 1) {
+            <label
+              >{{ t.name }}<input formControlName="name" autocomplete="name"
+            /></label>
+            <label
+              >{{ t.email
+              }}<input formControlName="email" type="email" autocomplete="email"
+            /></label>
+            <label
+              >{{ t.password
+              }}<input
+                formControlName="password"
+                type="password"
+                autocomplete="new-password"
+            /></label>
+            <p class="muted">{{ t.passwordRule }}</p>
+          }
+          @if (step() === 2) {
+            <label
+              >{{ t.phone
+              }}<input
+                formControlName="phone"
+                type="tel"
+                inputmode="tel"
+                autocomplete="tel"
+                placeholder="6XX XX XX XX"
+            /></label>
             <label
               >{{ t.licence
               }}<select
@@ -106,37 +172,24 @@ declare global {
                 }
               </select></label
             >
-          } @else {
-            <label
-              >{{ t.inviteCode
-              }}<input formControlName="code" autocomplete="one-time-code"
-            /></label>
+          }
+          @if (step() === 3) {
+            <div class="inset">
+              <strong>{{ form.controls.name.value }}</strong>
+              <p>{{ form.controls.email.value }}</p>
+              <p>{{ phoneValue() }}</p>
+              <p>{{ t.trialInfo }}</p>
+            </div>
+            <div #captcha></div>
           }
         }
-        @if (mode() !== "login" && step() === 3) {
-          <div class="inset">
-            <strong>{{ form.controls.name.value }}</strong>
-            <p>{{ form.controls.email.value }}</p>
-            <p>{{ form.controls.phone.value }}</p>
-            <p>{{ t.trialInfo }}</p>
-          </div>
-          <div #captcha></div>
-        }
+
         @if (error()) {
           <p class="error-box" role="alert">{{ error() }}</p>
         }
-        @if (mode() === "login") {
-          <button
-            type="button"
-            class="btn ghost full"
-            [disabled]="busy()"
-            (click)="requestReset()"
-          >
-            {{ t.resetPassword }}
-          </button>
-        }
+
         <div class="actions">
-          @if (step() > 1 && mode() !== "login") {
+          @if (mode() === "signup" && step() > 1) {
             <button
               type="button"
               class="btn secondary"
@@ -146,17 +199,30 @@ declare global {
             </button>
           }
           <button class="btn full" [disabled]="busy()">
-            {{
-              busy()
-                ? t.loading
-                : mode() === "login"
-                  ? t.login
-                  : step() < 3
-                    ? t.next
-                    : t.activate
-            }}<app-icon name="arrow_forward" />
+            {{ busy() ? t.loading : submitLabel() }}<app-icon name="arrow_forward" />
           </button>
         </div>
+
+        @if (mode() === "login") {
+          @if (loginWith() === "phone") {
+            <p class="muted">{{ t.forgotPasswordDesk }}</p>
+            <button type="button" class="btn ghost full" (click)="setLoginWith('email')">
+              {{ t.staffEmailLogin }}
+            </button>
+          } @else {
+            <button
+              type="button"
+              class="btn ghost full"
+              [disabled]="busy()"
+              (click)="requestReset()"
+            >
+              {{ t.resetPassword }}
+            </button>
+            <button type="button" class="btn ghost full" (click)="setLoginWith('phone')">
+              {{ t.studentPhoneLogin }}
+            </button>
+          }
+        }
       </form>
     </div>
   </section>`,
@@ -167,8 +233,14 @@ export class AuthPageComponent implements OnDestroy, AfterViewInit {
   api = inject(ApiService);
   router = inject(Router);
   fb = inject(FormBuilder);
-  mode = signal<"login" | "signup" | "invite">("login");
-  modes = ["login", "signup", "invite"] as const;
+  mode = signal<Mode>("login");
+  modes = ["login", "activate", "signup"] as const;
+  tabLabel: Record<Mode, string> = {
+    login: FR.login,
+    activate: FR.haveCode,
+    signup: FR.signup,
+  };
+  loginWith = signal<"phone" | "email">("phone");
   step = signal(1);
   busy = signal(false);
   error = signal("");
@@ -181,8 +253,8 @@ export class AuthPageComponent implements OnDestroy, AfterViewInit {
   form = this.fb.nonNullable.group({
     name: ["", Validators.minLength(2)],
     email: ["", [Validators.required, Validators.email]],
-    password: ["", [Validators.required, Validators.minLength(12)]],
-    phone: ["", Validators.pattern(/^\+237[26][0-9]{8}$/)],
+    password: ["", [Validators.required, Validators.minLength(MIN_PASSWORD)]],
+    phone: [""],
     category: [""],
     group: [""],
     code: [""],
@@ -192,22 +264,47 @@ export class AuthPageComponent implements OnDestroy, AfterViewInit {
       .request<{ turnstileSiteKey: string }>("/config")
       .then((x) => (this.siteKey = x.turnstileSiteKey))
       .catch(() => {});
+    // A message about the previous attempt goes away as soon as the user edits.
+    this.form.valueChanges.subscribe(() => {
+      if (this.error() && !this.busy()) this.error.set("");
+    });
+    // Links sent by the desk: /s/<school>/activation?code=XXXX-XXXX&tel=6XXXXXXXX
+    const params = new URLSearchParams(location.search);
     if (location.pathname.endsWith("/inscription")) this.mode.set("signup");
+    if (location.pathname.endsWith("/activation") || params.get("code")) {
+      this.mode.set("activate");
+      this.form.patchValue({
+        code: params.get("code") || "",
+        phone: params.get("tel") || "",
+      });
+    }
     void this.api
       .catalogue()
       .then((x) => this.catalogue.set(x))
       .catch(() => this.error.set(this.t.error));
   }
-  setMode(m: "login" | "signup" | "invite") {
+  phoneValue() {
+    return normalizePhone(this.form.controls.phone.value);
+  }
+  submitLabel() {
+    if (this.mode() === "login") return this.t.login;
+    if (this.mode() === "activate") return this.t.activate;
+    return this.step() < 3 ? this.t.next : this.t.activate;
+  }
+  setMode(m: Mode) {
     this.mode.set(m);
     this.step.set(1);
+    this.error.set("");
+  }
+  setLoginWith(way: "phone" | "email") {
+    this.loginWith.set(way);
     this.error.set("");
   }
   ngAfterViewInit() {
     this.timer = setInterval(() => this.renderCaptcha(), 500);
   }
   renderCaptcha() {
-    if (this.mode() === "login" || this.step() !== 3 || !this.captcha()) return;
+    if (this.mode() !== "signup" || this.step() !== 3 || !this.captcha()) return;
     if (this.widget) return;
     const key = this.siteKey || window.__TURNSTILE_SITE_KEY__;
     if (!key) {
@@ -231,59 +328,60 @@ export class AuthPageComponent implements OnDestroy, AfterViewInit {
       "expired-callback": () => (this.token = ""),
     });
   }
+
   async submit() {
     this.error.set("");
     const v = this.form.getRawValue();
-    if (this.mode() !== "login" && this.step() < 3) {
-      const valid =
-        this.step() === 1
-          ? v.name.length >= 2 &&
-            this.form.controls.email.valid &&
-            this.form.controls.password.valid
-          : this.form.controls.phone.valid &&
-            !!v.phone &&
-            (this.mode() === "invite" ? !!v.code : !!v.group);
-      if (!valid) {
-        this.error.set(this.t.conflict);
-        return;
+    const phone = this.phoneValue();
+    const mode = this.mode();
+
+    // Validate before any network call, with a message that says what to fix.
+    if (mode === "login") {
+      if (this.loginWith() === "phone" ? !PHONE.test(phone) : this.form.controls.email.invalid)
+        return this.error.set(
+          this.loginWith() === "phone" ? this.t.phoneInvalid : this.t.loginEmailInvalid,
+        );
+      if (!v.password) return this.error.set(this.t.loginPasswordMissing);
+    } else if (mode === "activate") {
+      if (!PHONE.test(phone)) return this.error.set(this.t.phoneInvalid);
+      if (v.code.replace(/[^A-Za-z0-9]/g, "").length < 8)
+        return this.error.set(this.t.activationCodeInvalid);
+      if (v.password.length < MIN_PASSWORD) return this.error.set(this.t.passwordRule);
+    } else if (this.step() < 3) {
+      if (this.step() === 1) {
+        if (v.name.trim().length < 2) return this.error.set(this.t.nameRequired);
+        if (this.form.controls.email.invalid) return this.error.set(this.t.loginEmailInvalid);
+        if (v.password.length < MIN_PASSWORD) return this.error.set(this.t.passwordRule);
+      } else {
+        if (!PHONE.test(phone)) return this.error.set(this.t.phoneInvalid);
+        if (!v.group) return this.error.set(this.t.groupRequired);
       }
       this.step.update((n) => n + 1);
       return;
     }
-    if (this.form.controls.email.invalid) {
-      this.error.set(this.t.loginEmailInvalid);
-      return;
-    }
-    // Minimum length applies to new passwords only; imported accounts may be shorter.
-    if (this.mode() === "login" ? !v.password : this.form.controls.password.invalid) {
-      this.error.set(this.mode() === "login" ? this.t.loginPasswordMissing : this.t.conflict);
-      return;
-    }
+
     this.busy.set(true);
     try {
-      if (this.mode() === "login") {
-        await this.auth.login(v.email, v.password);
+      if (mode === "login") {
+        if (this.loginWith() === "phone") await this.auth.loginWithPhone(phone, v.password);
+        else await this.auth.login(v.email, v.password);
+      } else if (mode === "activate") {
+        await this.auth.activate(phone, v.code, v.password);
       } else {
         if (!this.auth.user()) {
           if (!this.token) throw new Error("TURNSTILE_REQUIRED");
           await this.auth.signup(v.name, v.email, v.password, this.token);
           await this.auth.openSchool(this.api.slug, true);
         }
-        if (this.mode() === "invite")
-          await this.api.tenant("claim-invite", "POST", {
-            inviteCode: v.code,
-            phone: v.phone,
-          });
-        else
-          await this.api.tenant("enroll", "POST", {
-            groupId: v.group,
-            fullName: v.name,
-            phone: v.phone,
-          });
+        await this.api.tenant("enroll", "POST", {
+          groupId: v.group,
+          fullName: v.name,
+          phone,
+        });
         await this.auth.openSchool(this.api.slug, true);
       }
       if (!this.auth.role()) {
-        if (this.mode() === "login") this.error.set(this.t.loginNoMembership);
+        if (mode === "login") this.error.set(this.t.loginNoMembership);
         this.form.controls.name.setValue(this.auth.user()?.name || v.name);
         this.setMode("signup");
         this.step.set(2);
@@ -295,25 +393,32 @@ export class AuthPageComponent implements OnDestroy, AfterViewInit {
         this.auth.role() === "admin" ? "admin" : "accueil",
       ]);
     } catch (e) {
-      this.error.set(
-        this.mode() === "login" ? this.loginError(e) : this.t.conflict,
-      );
+      this.error.set(this.errorMessage(e, mode));
     } finally {
       this.busy.set(false);
     }
   }
-  private loginError(e: unknown) {
+
+  private errorMessage(e: unknown, mode: Mode) {
+    if (e instanceof Error && e.message === "TURNSTILE_REQUIRED")
+      return this.t.captchaUnavailable;
     if (!(e instanceof RequestError)) return this.t.networkError;
-    if (e.status === 401 || e.code === "INVALID_EMAIL_OR_PASSWORD")
-      return this.t.loginInvalid;
-    if (e.status === 403) return this.t.loginOriginRejected;
+    if (e.code === "LOGIN_LOCKED") return this.t.loginLocked;
     if (e.status === 429) return this.t.loginRateLimited;
+    if (e.status === 403 && e.code === "ORIGIN_FORBIDDEN") return this.t.loginOriginRejected;
     if (e.status >= 500) return this.t.loginServerError;
+    if (mode === "activate" && (e.code === "INVALID_INVITE" || e.status === 400))
+      return this.t.activationInvalid;
+    if (mode === "login" && (e.status === 401 || e.code === "INVALID_EMAIL_OR_PASSWORD"))
+      return this.loginWith() === "phone" ? this.t.phoneLoginInvalid : this.t.loginInvalid;
+    if (e.code === "PHONE_ALREADY_REGISTERED") return this.t.phoneTaken;
+    if (e.status === 403 && mode === "login") return this.t.loginOriginRejected;
     return this.t.conflict;
   }
+
   async requestReset() {
     if (this.form.controls.email.invalid) {
-      this.error.set(this.t.conflict);
+      this.error.set(this.t.loginEmailInvalid);
       return;
     }
     this.busy.set(true);

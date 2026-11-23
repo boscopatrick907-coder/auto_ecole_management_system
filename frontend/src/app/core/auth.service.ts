@@ -326,6 +326,18 @@ export class AuthService {
     await this.openSchool(this.api.slug, true);
   }
 
+  /** Students activated at the desk sign in with their phone number. */
+  async loginWithPhone(phone: string, password: string) {
+    await this.api.tenant("auth/phone-sign-in", "POST", { phone, password });
+    await this.openSchool(this.api.slug, true);
+  }
+
+  /** First sign-in (or desk reset): phone + desk code + new password. */
+  async activate(phone: string, code: string, password: string) {
+    await this.api.tenant("auth/activate", "POST", { phone, code, password });
+    await this.openSchool(this.api.slug, true);
+  }
+
   async signup(
     name: string,
     email: string,

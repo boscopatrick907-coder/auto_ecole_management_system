@@ -34,7 +34,7 @@ export class RecoveryComponent {
   busy = signal(false);
   error = signal(false);
   form = this.fb.nonNullable.group({
-    password: ["", [Validators.required, Validators.minLength(12)]],
+    password: ["", [Validators.required, Validators.minLength(8)]],
   });
   async save() {
     if (this.form.invalid) return;

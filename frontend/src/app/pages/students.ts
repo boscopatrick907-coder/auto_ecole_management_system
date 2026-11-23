@@ -1,3 +1,4 @@
+import { formatCode, activationLink, activationMessage } from "../core/activation";
 import { Component, inject, signal, OnInit, OnDestroy } from "@angular/core";
 import {
   FormsModule,
@@ -218,12 +219,15 @@ export class StudentListComponent implements OnInit, OnDestroy {
     </section>
     @if (created(); as d) {
       <section class="card narrow">
-        <h2>{{ t.invitationReady }}</h2>
-        <code class="invite-code">{{ inviteCode() }}</code>
-        <p>{{ d.student.full_name }}</p>
+        <h2>{{ t.activationReady }}</h2>
+        <code class="invite-code">{{ code() }}</code>
+        <p>{{ d.student.full_name }} · {{ d.student.phone }}</p>
+        <p class="muted">{{ t.activationValidity }}</p>
         <div class="actions">
           <button class="btn secondary" (click)="sendInvite()">
             {{ t.whatsapp }}</button
+          ><button class="btn ghost" type="button" (click)="print()">
+            {{ t.printCode }}</button
           ><a
             class="btn"
             [routerLink]="'/s/' + api.slug + '/admin/paiement/' + d.student.id"
@@ -285,13 +289,24 @@ export class NewStudentComponent implements OnInit {
       this.busy.set(false);
     }
   }
+  code() {
+    return formatCode(this.inviteCode());
+  }
   sendInvite() {
     const s = this.created()?.student;
     if (s)
       this.wa.open(
         s.phone,
-        `${this.auth.school()?.name} — ${this.t.inviteCode} : ${this.inviteCode()}\n${location.origin}/s/${this.api.slug}/inscription`,
+        activationMessage(
+          this.auth.school()?.name || "",
+          this.inviteCode(),
+          s.phone,
+          activationLink(location.origin, this.api.slug, this.inviteCode(), s.phone),
+        ),
       );
+  }
+  print() {
+    window.print();
   }
 }
 @Component({
@@ -338,17 +353,24 @@ export class NewStudentComponent implements OnInit {
           <button class="btn secondary full" (click)="remind()">
             {{ t.whatsapp }}
           </button>
-          @if (!d.student.user_id) {
-            <button
-              class="btn ghost full"
-              [disabled]="!api.online()"
-              (click)="invite()"
-            >
-              {{ t.invitation }}
-            </button>
-            @if (inviteCode()) {
-              <code class="invite-code">{{ inviteCode() }}</code>
-            }
+          <button
+            class="btn ghost full"
+            [disabled]="!api.online() || busy()"
+            (click)="d.student.user_id ? resetCode() : invite()"
+          >
+            {{ d.student.user_id ? t.resetCodeButton : t.invitation }}
+          </button>
+          @if (inviteCode()) {
+            <div class="inset">
+              <strong>{{ codeIsReset() ? t.resetCodeReady : t.activationReady }}</strong>
+              <code class="invite-code">{{ code() }}</code>
+              <p class="muted">
+                {{ codeIsReset() ? t.resetCodeValidity : t.activationValidity }}
+              </p>
+              <button class="btn secondary full" type="button" (click)="sendCode()">
+                {{ t.whatsapp }}
+              </button>
+            </div>
           }
         </section>
         <section class="card">
@@ -468,6 +490,10 @@ export class DossierComponent implements OnInit {
         `${this.auth.school()?.name} — ${this.t.balance} : ${d.enrollment?.balance || 0} FCFA. ${this.auth.school()?.address}`,
       );
   }
+  codeIsReset = signal(false);
+  code() {
+    return formatCode(this.inviteCode());
+  }
   async invite() {
     try {
       const r = await this.api.tenant<{ inviteCode: string }>(
@@ -475,10 +501,41 @@ export class DossierComponent implements OnInit {
         "POST",
         {},
       );
+      this.codeIsReset.set(false);
       this.inviteCode.set(r.inviteCode);
     } catch {
       this.error.set(true);
     }
+  }
+  async resetCode() {
+    this.busy.set(true);
+    try {
+      const r = await this.api.tenant<{ resetCode: string }>(
+        "admin/students/" + this.id + "/reset-code",
+        "POST",
+        {},
+      );
+      this.codeIsReset.set(true);
+      this.inviteCode.set(r.resetCode);
+    } catch {
+      this.error.set(true);
+    } finally {
+      this.busy.set(false);
+    }
+  }
+  sendCode() {
+    const d = this.dossier();
+    if (!d) return;
+    this.wa.open(
+      d.student.phone,
+      activationMessage(
+        this.auth.school()?.name || "",
+        this.inviteCode(),
+        d.student.phone,
+        activationLink(location.origin, this.api.slug, this.inviteCode(), d.student.phone),
+        this.codeIsReset(),
+      ),
+    );
   }
   async cancelPayment() {
     this.busy.set(true);

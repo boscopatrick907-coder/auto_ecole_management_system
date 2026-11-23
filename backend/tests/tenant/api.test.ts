@@ -229,7 +229,8 @@ it("creates a hashed walk-in invitation, handles idempotent and offline RC-devic
   });
   expect(r.status).toBe(201);
   const d = await r.json();
-  expect(d.inviteCode).toMatch(/^[0-9A-F]{24}$/);
+  // Short desk code (8 chars, no 0/O/1/I); stored only as a hash.
+  expect(d.inviteCode).toMatch(/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/);
   const hash = (
     await owner.query(
       "select code_hash from school_app.invites where school_id=$1 and student_id=$2",

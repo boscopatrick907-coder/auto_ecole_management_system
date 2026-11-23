@@ -56,7 +56,8 @@ export function createAuth(env: TenantBindings, pool: pg.Pool) {
         });
         if (!response.ok) throw new Error("EMAIL_DELIVERY_UNAVAILABLE");
       },
-      minPasswordLength: 12,
+      // 8+ with per-phone lockout and IP limits; owner chose this for students (23 Nov).
+      minPasswordLength: 8,
       password: {
         hash: hashPassword,
         verify: async ({ hash, password }) => {
