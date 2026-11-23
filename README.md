@@ -19,7 +19,7 @@ Les URLs de l'application commencent par `/s/<slug-de-l-école>` (ex. `/s/la-mar
 
 ## Fonctionnalités
 
-- **Comptes élèves à l'accueil :** l'école inscrit l'élève (nom, téléphone, groupe) et lui remet un code de 8 caractères (`XXXX-XXXX`, valable 7 jours, envoyable par WhatsApp). L'élève ouvre « J'ai un code », saisit téléphone + code + mot de passe (8 caractères minimum), puis se connecte ensuite avec **téléphone + mot de passe**, sans email. Mot de passe oublié : l'accueil génère un nouveau code (valable 2 jours) depuis la fiche de l'élève. Après 5 échecs, le numéro est bloqué 15 minutes. Le personnel se connecte par email.
+- **Comptes élèves à l'accueil :** l'école inscrit l'élève (nom, téléphone, groupe) et lui remet un code de 6 chiffres (`482 913`, valable 7 jours, envoyable par WhatsApp). L'élève ouvre « J'ai un code », saisit téléphone + code + mot de passe (8 caractères minimum), puis se connecte ensuite avec **téléphone + mot de passe**, sans email. Mot de passe oublié : l'accueil génère un nouveau code (valable 2 jours) depuis la fiche de l'élève. Après 5 échecs, le numéro est bloqué 15 minutes. Le personnel se connecte par email.
 - **Élèves :** inscription en ligne possible, essai gratuit de 14 jours, accès débloqué dès un paiement valide, cours et quiz disponibles hors-ligne, suivi du solde et des reçus.
 - **Direction / caisse :** tableau de bord, élèves, groupes, encaissements avec reçu PDF, annulation motivée (jamais de suppression), journal du jour et rapport mensuel, relances WhatsApp manuelles (`wa.me`).
 - **Contenus :** catégories de permis, supports privés (PDF, images, MP4 ≤ 25 Mo) et quiz, avec brouillon, aperçu et publication.

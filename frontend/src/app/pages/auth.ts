@@ -99,10 +99,10 @@ export const MIN_PASSWORD = 8;
             >{{ t.activationCode
             }}<input
               formControlName="code"
+              inputmode="numeric"
               autocomplete="one-time-code"
-              autocapitalize="characters"
               spellcheck="false"
-              placeholder="XXXX-XXXX"
+              placeholder="123 456"
           /></label>
           <label
             >{{ t.newPassword
@@ -268,7 +268,7 @@ export class AuthPageComponent implements OnDestroy, AfterViewInit {
     this.form.valueChanges.subscribe(() => {
       if (this.error() && !this.busy()) this.error.set("");
     });
-    // Links sent by the desk: /s/<school>/activation?code=XXXX-XXXX&tel=6XXXXXXXX
+    // Links sent by the desk: /s/<school>/activation?code=482913&tel=6XXXXXXXX
     const params = new URLSearchParams(location.search);
     if (location.pathname.endsWith("/inscription")) this.mode.set("signup");
     if (location.pathname.endsWith("/activation") || params.get("code")) {
@@ -344,7 +344,7 @@ export class AuthPageComponent implements OnDestroy, AfterViewInit {
       if (!v.password) return this.error.set(this.t.loginPasswordMissing);
     } else if (mode === "activate") {
       if (!PHONE.test(phone)) return this.error.set(this.t.phoneInvalid);
-      if (v.code.replace(/[^A-Za-z0-9]/g, "").length < 8)
+      if (v.code.replace(/[^A-Za-z0-9]/g, "").length < 6)
         return this.error.set(this.t.activationCodeInvalid);
       if (v.password.length < MIN_PASSWORD) return this.error.set(this.t.passwordRule);
     } else if (this.step() < 3) {
