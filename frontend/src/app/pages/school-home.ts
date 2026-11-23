@@ -18,6 +18,9 @@ import { MoneyPipe } from "../shared/money.pipe";
   imports: [RouterLink, IconComponent, MoneyPipe],
   template: `@if (auth.school(); as s) {
     <section class="auth-brand">
+      @if (s.logo) {
+        <img class="school-logo" [src]="s.logo" alt="" width="72" height="72" />
+      }
       <span class="eyebrow">{{ t.drivingSchool }}</span>
       <h1>{{ s.name }}</h1>
       @if (s.address) {

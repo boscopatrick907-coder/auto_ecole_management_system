@@ -51,8 +51,16 @@ const money = (v: number | string) =>
   new Intl.NumberFormat("fr-FR").format(Number(v) || 0).replace(/ | /g, " ") + " FCFA";
 
 /** Only https images are used for previews; anything else falls back to the default. */
+/** Absolute URL of a school logo: uploaded logos are served by this app (/api/schools/<slug>/logo). */
+export function logoUrl(origin: string, logo: string | null | undefined): string | null {
+  if (!logo) return null;
+  if (/^\/api\/schools\/[a-z0-9-]+\/logo(\?v=\d+)?$/.test(logo)) return origin + logo;
+  return /^https:\/\/[^\s"<>]+$/.test(logo) ? logo : null;
+}
+
+/** Only https or app-served images are used for previews; anything else falls back to the default. */
 export function previewImage(origin: string, logo: string | null | undefined): string {
-  return logo && /^https:\/\/[^\s"<>]+$/.test(logo) ? logo : `${origin}/og-default.png`;
+  return logoUrl(origin, logo) ?? `${origin}/og-default.png`;
 }
 
 /** Path segments under /s/<slug>/ that are public entry points (login, activation...). */
@@ -151,7 +159,7 @@ export function schoolMeta(
             url: canonical,
             ...(school.phone ? { telephone: school.phone } : {}),
             ...(school.address ? { address: school.address } : {}),
-            ...(school.logo && /^https:\/\//.test(school.logo) ? { logo: school.logo } : {}),
+            ...(logoUrl(origin, school.logo) ? { logo: logoUrl(origin, school.logo) } : {}),
             ...(fees.length ? { priceRange: `${money(Math.min(...fees))} – ${money(Math.max(...fees))}` } : {}),
           }
         : undefined,

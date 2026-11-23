@@ -28,6 +28,37 @@ import { PRESETS, applyTheme, isHex, mix, themeVariables } from "../core/theme";
       </section>
 
       <section class="card">
+        <h2>{{ t.schoolLogo }}</h2>
+        <p class="muted">{{ t.schoolLogoHelp }}</p>
+        <div class="logo-editor">
+          <div class="logo-preview" [class.empty]="!logo()">
+            @if (logo()) {
+              <img [src]="logo()" alt="" />
+            } @else {
+              <app-icon name="add_photo_alternate" />
+            }
+          </div>
+          <div class="grow">
+            <label class="btn secondary logo-pick">
+              <app-icon name="upload" />{{ logo() ? t.changeLogo : t.addLogo }}
+              <input type="file" accept="image/png,image/jpeg,image/webp" (change)="pickLogo($event)" [disabled]="logoBusy() || !api.online()" />
+            </label>
+            @if (logo()) {
+              <button type="button" class="btn ghost" [disabled]="logoBusy() || !api.online()" (click)="removeLogo()">
+                <app-icon name="delete" />{{ t.removeLogo }}
+              </button>
+            }
+            @if (logoBusy()) {
+              <p role="status" class="muted">{{ t.loading }}</p>
+            }
+            @if (logoError()) {
+              <p class="error-box" role="alert">{{ logoError() }}</p>
+            }
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
         <h2>{{ t.schoolColors }}</h2>
         <p class="muted">{{ t.schoolColorsHelp }}</p>
         <div class="palette-grid" role="list">
@@ -89,6 +120,9 @@ export class SettingsComponent implements OnDestroy {
   error = signal(false);
   saved = signal(false);
   s = this.auth.school()!;
+  logo = signal<string | null>(this.s.logo);
+  logoBusy = signal(false);
+  logoError = signal("");
   form = this.fb.nonNullable.group({
     name: [this.s.name, [Validators.required, Validators.minLength(2)]],
     address: [this.s.address],
@@ -138,6 +172,42 @@ export class SettingsComponent implements OnDestroy {
     applyTheme({ primary: this.form.value.primary, accent: this.form.value.accent });
   }
 
+  /** Resize in the browser to a 512 px square (transparent padding), then upload. */
+  async pickLogo(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+    this.logoError.set("");
+    if (!/^image\/(png|jpeg|webp)$/.test(file.type)) return this.logoError.set(this.t.logoTypeInvalid);
+    if (file.size > 15 * 1024 * 1024) return this.logoError.set(this.t.logoTooLarge);
+    this.logoBusy.set(true);
+    try {
+      const dataUrl = await toSquareLogo(file);
+      const r = await this.api.tenant<{ logo: string }>("admin/settings/logo", "PUT", { dataUrl });
+      this.logo.set(r.logo);
+      await this.auth.openSchool(this.api.slug, true);
+    } catch (err) {
+      this.logoError.set(err instanceof Error && err.message === "IMAGE_UNREADABLE" ? this.t.logoTypeInvalid : this.t.error);
+    } finally {
+      this.logoBusy.set(false);
+    }
+  }
+
+  async removeLogo() {
+    this.logoBusy.set(true);
+    this.logoError.set("");
+    try {
+      await this.api.tenant("admin/settings/logo", "DELETE");
+      this.logo.set(null);
+      await this.auth.openSchool(this.api.slug, true);
+    } catch {
+      this.logoError.set(this.t.error);
+    } finally {
+      this.logoBusy.set(false);
+    }
+  }
+
   ngOnDestroy() {
     applyTheme(this.auth.school()?.colors);
   }
@@ -162,5 +232,34 @@ export class SettingsComponent implements OnDestroy {
     } finally {
       this.busy.set(false);
     }
+  }
+}
+
+/** Draws the image centered in a transparent 512x512 square; WebP when possible, under 300 KB. */
+async function toSquareLogo(file: File): Promise<string> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error("IMAGE_UNREADABLE"));
+      i.src = url;
+    });
+    const size = 512;
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext("2d")!;
+    const scale = Math.min(size / img.naturalWidth, size / img.naturalHeight);
+    const w = img.naturalWidth * scale,
+      h = img.naturalHeight * scale;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+    for (const q of [0.92, 0.8, 0.65]) {
+      const webp = canvas.toDataURL("image/webp", q);
+      if (webp.startsWith("data:image/webp") && webp.length * 0.75 < 300 * 1024) return webp;
+    }
+    return canvas.toDataURL("image/png");
+  } finally {
+    URL.revokeObjectURL(url);
   }
 }

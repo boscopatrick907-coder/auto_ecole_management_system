@@ -1,15 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Espace auto-école">
-  <!-- Road to the driving licence, ending at a validated (check) badge on the horizon. -->
+  <!-- Futuristic car on a frosted-glass panel over a vivid gradient (cyan, magenta, violet, amber). -->
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3d8bcd"/><stop offset="0.55" stop-color="#2b6ca8"/><stop offset="1" stop-color="#173f73"/></linearGradient>
-    <clipPath id="c"><rect width="512" height="512" rx="116"/></clipPath>
-  </defs>
-  <g clip-path="url(#c)">
-    <rect width="512" height="512" fill="url(#bg)"/>
-    <circle cx="256" cy="236" r="190" fill="#ffffff" opacity="0.07"/>
-    <path d="M106 512 L236 250 H276 L406 512 Z" fill="#ffffff"/>
-    <path d="M256 276 v28 M256 332 v44 M256 408 v72" stroke="#e8552a" stroke-width="16" stroke-linecap="round"/>
-  </g>
-  <circle cx="256" cy="150" r="96" fill="#ffc53d"/>
-  <path d="M212 152 L244 184 L304 118" fill="none" stroke="#173f73" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2a1b7a"/><stop offset="0.5" stop-color="#3a1fb8"/><stop offset="1" stop-color="#0b1a5e"/></linearGradient>
+<filter id="blur" filterUnits="userSpaceOnUse" x="-100" y="-100" width="712" height="712"><feGaussianBlur stdDeviation="46"/></filter>
+<filter id="glow" filterUnits="userSpaceOnUse" x="0" y="0" width="512" height="512"><feGaussianBlur stdDeviation="7" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<filter id="soft" filterUnits="userSpaceOnUse" x="0" y="0" width="512" height="512"><feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#0a0630" flood-opacity="0.45"/></filter>
+<linearGradient id="glass" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity="0.42"/><stop offset="0.5" stop-color="#ffffff" stop-opacity="0.14"/><stop offset="1" stop-color="#ffffff" stop-opacity="0.06"/></linearGradient>
+<linearGradient id="edge" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/><stop offset="0.5" stop-color="#ffffff" stop-opacity="0.15"/><stop offset="1" stop-color="#ffffff" stop-opacity="0.5"/></linearGradient>
+<linearGradient id="car" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#cfe6ff"/></linearGradient>
+<linearGradient id="beam" gradientUnits="userSpaceOnUse" x1="120" y1="0" x2="392" y2="0"><stop offset="0" stop-color="#00f0ff"/><stop offset="0.5" stop-color="#7cf7ff"/><stop offset="1" stop-color="#00f0ff"/></linearGradient>
+<clipPath id="c"><rect width="512" height="512" rx="116"/></clipPath></defs><g clip-path="url(#c)"><rect width="512" height="512" fill="url(#bg)"/><g filter="url(#blur)"><circle cx="110" cy="120" r="150" fill="#00d4ff" opacity="0.75"/><circle cx="420" cy="150" r="140" fill="#ff3cac" opacity="0.65"/><circle cx="360" cy="440" r="170" fill="#7b5cff" opacity="0.8"/><circle cx="90" cy="430" r="120" fill="#ff9a3c" opacity="0.5"/></g></g><g clip-path="url(#c)"><rect width="512" height="512" fill="url(#bg)"/><g filter="url(#blur)"><circle cx="100" cy="110" r="160" fill="#00d4ff" opacity="0.85"/><circle cx="430" cy="130" r="150" fill="#ff3cac" opacity="0.7"/><circle cx="380" cy="450" r="180" fill="#7b5cff" opacity="0.85"/><circle cx="80" cy="440" r="130" fill="#ff9a3c" opacity="0.55"/></g></g>
+<rect x="48" y="104" width="416" height="304" rx="84" fill="url(#glass)" stroke="url(#edge)" stroke-width="3" filter="url(#soft)"/>
+<path d="M78 134 Q170 108 320 112" stroke="#fff" stroke-opacity="0.55" stroke-width="5" fill="none" stroke-linecap="round"/>
+<g filter="url(#glow)">
+<path d="M96 300 C96 286 104 278 120 275 L196 262 C226 232 262 216 306 216 C352 216 390 234 412 266 C428 270 436 280 436 294 V304 C436 312 430 316 422 316 H106 C100 316 96 312 96 306 Z" fill="url(#car)"/>
+<path d="M214 262 C238 240 268 230 302 230 C334 230 360 242 378 262 Z" fill="#2a1b7a" opacity="0.55"/>
+<path d="M112 290 H420" stroke="url(#beam)" stroke-width="6" stroke-linecap="round"/>
+<path d="M410 276 L432 280" stroke="#ffd23f" stroke-width="8" stroke-linecap="round"/>
+<circle cx="172" cy="316" r="31" fill="#120d3d"/><circle cx="172" cy="316" r="18" fill="none" stroke="url(#beam)" stroke-width="7"/>
+<circle cx="360" cy="316" r="31" fill="#120d3d"/><circle cx="360" cy="316" r="18" fill="none" stroke="url(#beam)" stroke-width="7"/>
+<path d="M52 236 H140 M36 268 H118 M64 356 H124" stroke="#7cf7ff" stroke-width="6" stroke-linecap="round" opacity="0.85"/>
+</g></svg>

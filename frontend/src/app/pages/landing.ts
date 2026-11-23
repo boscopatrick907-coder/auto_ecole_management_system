@@ -51,6 +51,9 @@ interface DirectorySchool {
       } @else {
         @for (s of filtered(); track s.slug) {
           <a class="list-row" [routerLink]="['/s', s.slug]">
+            @if (s.logo) {
+              <img class="list-logo" [src]="s.logo" alt="" width="44" height="44" />
+            }
             <div class="grow">
               <strong>{{ s.name }}</strong>
               @if (s.address) {
