@@ -569,3 +569,65 @@ create or replace function school_app.school_is_listed(p_slug text) returns bool
  select coalesce((select listed from school_app.schools where slug=p_slug and status='active'),false) $$;
 revoke all on function school_app.public_schools(),school_app.school_is_listed(text) from public;
 grant execute on function school_app.public_schools(),school_app.school_is_listed(text) to aem_tenant_runtime;
+
+-- 6-digit desk codes (24 Nov 2026, owner decision): easier to read out and to
+-- type on a phone. Codes stay bound to the student's phone, single use,
+-- hashed, and protected by the 5-failure phone lockout. Existing 8-character
+-- codes keep working until they expire (code_hash ignores spaces/dashes).
+create or replace function school_app.new_short_code() returns text language plpgsql volatile set search_path=pg_catalog,school_app,public as $$
+declare b bytea := gen_random_bytes(4); n bigint;
+begin
+ n := ((get_byte(b,0)::bigint << 24) | (get_byte(b,1) << 16) | (get_byte(b,2) << 8) | get_byte(b,3)) % 1000000;
+ return lpad(n::text, 6, '0');
+end $$;
+
+-- A new code is never equal to another unused code of the same school.
+create or replace function school_app.new_unique_desk_code() returns text language plpgsql volatile set search_path=pg_catalog,school_app,public as $$
+declare code text; tries integer := 0;
+begin
+ loop
+  code := school_app.new_short_code();
+  exit when not exists(select 1 from school_app.invites where school_id=school_app.school_id() and code_hash=school_app.code_hash(code) and used_at is null and expires_at>now());
+  tries := tries + 1;
+  if tries > 20 then raise exception 'CODE_GENERATION_FAILED'; end if;
+ end loop;
+ return code;
+end $$;
+
+create or replace function school_app.create_invite(p_student uuid) returns text language plpgsql security definer set search_path=pg_catalog,school_app,public as $$ declare code text;v_user text;begin
+ if not school_app.is_admin() then raise exception 'ADMIN_REQUIRED';end if;
+ select user_id into v_user from school_app.students where school_id=school_app.school_id() and id=p_student;
+ if not found then raise exception 'STUDENT_NOT_FOUND';end if;
+ if v_user is not null then raise exception 'STUDENT_ALREADY_ACTIVATED';end if;
+ update school_app.invites set expires_at=now() where school_id=school_app.school_id() and student_id=p_student and used_at is null;
+ code=school_app.new_unique_desk_code();
+ insert into school_app.invites(school_id,student_id,code_hash,expires_at,created_by,purpose) values(school_app.school_id(),p_student,school_app.code_hash(code),now()+interval '7 days',school_app.user_id(),'activate');
+ return code;
+end $$;
+
+create or replace function school_app.create_password_reset(p_student uuid) returns text language plpgsql security definer set search_path=pg_catalog,school_app,public as $$ declare code text;v_user text;begin
+ if not school_app.is_admin() then raise exception 'ADMIN_REQUIRED';end if;
+ select user_id into v_user from school_app.students where school_id=school_app.school_id() and id=p_student;
+ if not found then raise exception 'STUDENT_NOT_FOUND';end if;
+ if v_user is null then raise exception 'STUDENT_NOT_ACTIVATED';end if;
+ update school_app.invites set expires_at=now() where school_id=school_app.school_id() and student_id=p_student and used_at is null;
+ code=school_app.new_unique_desk_code();
+ insert into school_app.invites(school_id,student_id,code_hash,expires_at,created_by,purpose) values(school_app.school_id(),p_student,school_app.code_hash(code),now()+interval '2 days',school_app.user_id(),'reset');
+ insert into school_app.audit_log(school_id,actor,action,row_id,details) values(school_app.school_id(),school_app.user_id(),'ISSUE_PASSWORD_RESET',p_student,'{}'::jsonb);
+ return code;
+end $$;
+
+-- With a smaller code space, always match the code together with the phone.
+create or replace function school_app.claim_invite(p_code text,p_phone text) returns uuid language plpgsql security definer set search_path=pg_catalog,school_app,public as $$ declare i school_app.invites;s uuid;begin
+ if school_app.user_id() is null then raise exception 'AUTH_REQUIRED';end if;
+ select inv.* into i from school_app.invites inv join school_app.students st on st.school_id=inv.school_id and st.id=inv.student_id
+  where inv.school_id=school_app.school_id() and inv.code_hash=school_app.code_hash(p_code) and inv.purpose='activate' and inv.used_at is null and inv.expires_at>now() and st.phone=p_phone
+  for update of inv;
+ if not found then raise exception 'INVALID_INVITE';end if;
+ if exists(select 1 from school_app.students where school_id=i.school_id and user_id=school_app.user_id() and id<>i.student_id) then raise exception 'STUDENT_ALREADY_REGISTERED';end if;
+ update school_app.students set user_id=school_app.user_id() where school_id=i.school_id and id=i.student_id and phone=p_phone and user_id is null returning id into s;
+ if s is null then raise exception 'INVALID_INVITE';end if;
+ insert into school_app.school_members values(i.school_id,school_app.user_id(),'student') on conflict do nothing;
+ update school_app.invites set used_at=now() where school_id=i.school_id and id=i.id;return s;
+end $$;
+revoke all on function school_app.new_unique_desk_code() from public;

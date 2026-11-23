@@ -6,16 +6,18 @@ export function normalizePhone(value: string): string {
   return digits;
 }
 
-/** Desk codes are 8 characters; show them as XXXX-XXXX so they are easy to read aloud. */
+/** Desk codes: 6 digits shown as "482 913" (older 8-character codes as XXXX-XXXX). */
 export function formatCode(code: string): string {
   const c = code.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  if (/^[0-9]{6}$/.test(c)) return `${c.slice(0, 3)} ${c.slice(3)}`;
   return c.length === 8 ? `${c.slice(0, 4)}-${c.slice(4)}` : c;
 }
 
 /** Link that opens "J'ai un code" with the code and phone already filled in. */
 export function activationLink(origin: string, slug: string, code: string, phone: string): string {
   const tel = phone.replace(/^\+237/, "");
-  return `${origin}/s/${encodeURIComponent(slug)}/activation?code=${encodeURIComponent(formatCode(code))}&tel=${encodeURIComponent(tel)}`;
+  const raw = code.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  return `${origin}/s/${encodeURIComponent(slug)}/activation?code=${encodeURIComponent(raw)}&tel=${encodeURIComponent(tel)}`;
 }
 
 export function activationMessage(

@@ -123,7 +123,7 @@ export const FR = {
   activateTitle: "Première connexion",
   activateHelp: "Saisissez le numéro donné à l’école et le code reçu à l’accueil, puis choisissez votre mot de passe.",
   activationCode: "Code reçu à l’accueil",
-  activationCodeInvalid: "Le code contient 8 caractères (ex. K7Q4-M2PX).",
+  activationCodeInvalid: "Le code contient 6 chiffres (ex. 482 913).",
   activationInvalid: "Code ou numéro incorrect, déjà utilisé ou expiré. Demandez un nouveau code à l’accueil.",
   newPassword: "Nouveau mot de passe",
   passwordRule: "Au moins 8 caractères.",

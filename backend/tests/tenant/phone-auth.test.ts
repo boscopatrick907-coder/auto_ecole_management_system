@@ -107,16 +107,16 @@ afterAll(async () => {
   await owner.end();
 });
 
-it("desk codes are 8 readable characters", async () => {
+it("desk codes are 6 digits", async () => {
   const { code } = await deskCreatesStudent(newPhone());
-  expect(code).toMatch(/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/);
+  expect(code).toMatch(/^[0-9]{6}$/);
 });
 
 it("activates with phone + code + password, then signs in with phone + password", async () => {
   const phone = newPhone();
   const { code } = await deskCreatesStudent(phone);
-  // Dash and lower case are accepted as typed from a slip.
-  const typed = (code.slice(0, 4) + "-" + code.slice(4)).toLowerCase();
+  // Spaces are accepted as written on a slip ("482 913").
+  const typed = code.slice(0, 3) + " " + code.slice(3);
   const activate = await call("auth/activate", "POST", { phone, code: typed, password: "motdepasse" });
   expect(activate.status).toBe(201);
   const session = await call("session", "GET", undefined, cookieOf(activate));
@@ -178,7 +178,7 @@ it("desk reset code sets a new password, ends old sessions and is audited", asyn
   const reset = await call(`admin/students/${id}/reset-code`, "POST", {}, adminCookie);
   expect(reset.status).toBe(200);
   const { resetCode } = await reset.json();
-  expect(resetCode).toMatch(/^[A-Z2-9]{8}$/);
+  expect(resetCode).toMatch(/^[0-9]{6}$/);
   const fresh = await deskCreatesStudent(newPhone());
   expect((await call(`admin/students/${fresh.id}/reset-code`, "POST", {}, adminCookie)).status).toBe(409);
 
@@ -204,4 +204,19 @@ it("a student already linked to an account cannot be activated again and no iden
   expect(r.status).toBeGreaterThanOrEqual(400);
   const after = Number((await owner.query('select count(*) from identity."user"')).rows[0].count);
   expect(after).toBe(before);
+});
+
+it("a code issued for one student never activates another student, even with the same digits", async () => {
+  // Two students of the same school; force both pending codes to the same value.
+  const a = await deskCreatesStudent(newPhone());
+  const bPhone = newPhone();
+  const b = await deskCreatesStudent(bPhone);
+  await owner.query(
+    "update school_app.invites set code_hash=(select code_hash from school_app.invites where student_id=$1 and used_at is null) where student_id=$2 and used_at is null",
+    [a.id, b.id],
+  );
+  // B, using the shared digits with their own phone, activates their own account.
+  expect((await call("auth/activate", "POST", { phone: bPhone, code: a.code, password: "motdepasse" })).status).toBe(201);
+  const linked = await owner.query("select user_id is not null as linked from school_app.students where id=$1", [a.id]);
+  expect(linked.rows[0].linked).toBe(false);
 });

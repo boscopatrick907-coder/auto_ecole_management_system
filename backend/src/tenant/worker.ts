@@ -422,7 +422,7 @@ app.get("/s/:slug/*", (c) => renderPublicPage(c, c.req.path));
 // a non-deliverable placeholder and password resets are issued by the desk.
 // ---------------------------------------------------------------------------
 const studentPassword = z.string().min(8).max(128);
-const activationCode = z.string().trim().min(8).max(40);
+const activationCode = z.string().trim().min(6).max(40);
 
 function inSchool<T>(
   pool: pg.Pool,

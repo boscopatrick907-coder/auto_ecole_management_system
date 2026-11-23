@@ -8,17 +8,23 @@ it("normalizes the ways people type a Cameroon number", () => {
   expect(normalizePhone("12345")).toBe("12345");
 });
 
-it("formats desk codes as XXXX-XXXX whatever the user typed", () => {
+it("formats 6-digit desk codes as 482 913", () => {
+  expect(formatCode("482913")).toBe("482 913");
+  expect(formatCode("482 913")).toBe("482 913");
+  expect(formatCode("482-913")).toBe("482 913");
+});
+
+it("still formats older 8-character codes as XXXX-XXXX", () => {
   expect(formatCode("k7q4m2px")).toBe("K7Q4-M2PX");
   expect(formatCode("K7Q4-M2PX")).toBe("K7Q4-M2PX");
   expect(formatCode(" k7q4 m2px ")).toBe("K7Q4-M2PX");
 });
 
 it("builds an activation link and WhatsApp text without exposing more than the code and phone", () => {
-  const link = activationLink("https://app.example", "la-marseillaise", "K7Q4M2PX", "+237699123456");
-  expect(link).toBe("https://app.example/s/la-marseillaise/activation?code=K7Q4-M2PX&tel=699123456");
-  const welcome = activationMessage("AEM", "K7Q4M2PX", "+237699123456", link);
-  expect(welcome).toContain("K7Q4-M2PX");
+  const link = activationLink("https://app.example", "la-marseillaise", "482913", "+237699123456");
+  expect(link).toBe("https://app.example/s/la-marseillaise/activation?code=482913&tel=699123456");
+  const welcome = activationMessage("AEM", "482913", "+237699123456", link);
+  expect(welcome).toContain("482 913");
   expect(welcome).toContain("7 jours");
-  expect(activationMessage("AEM", "K7Q4M2PX", "+237699123456", link, true)).toContain("2 jours");
+  expect(activationMessage("AEM", "482913", "+237699123456", link, true)).toContain("2 jours");
 });
