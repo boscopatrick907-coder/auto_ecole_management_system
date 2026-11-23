@@ -23,7 +23,7 @@ interface DirectorySchool {
   imports: [FormsModule, RouterLink, IconComponent],
   template: `<main id="main" class="auth-page">
     <section class="auth-brand">
-      <app-icon name="directions_car" />
+      <img class="app-logo" src="aem-icon.svg" alt="" width="64" height="64" />
       <h1>{{ t.app }}</h1>
       <p>{{ t.directoryIntro }}</p>
     </section>
@@ -51,6 +51,9 @@ interface DirectorySchool {
       } @else {
         @for (s of filtered(); track s.slug) {
           <a class="list-row" [routerLink]="['/s', s.slug]">
+            @if (s.logo) {
+              <img class="list-logo" [src]="s.logo" alt="" width="44" height="44" />
+            }
             <div class="grow">
               <strong>{{ s.name }}</strong>
               @if (s.address) {

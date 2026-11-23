@@ -717,3 +717,41 @@ end $$;
 
 revoke all on function school_app.create_staff_invite(text,text),school_app.staff_invite_lookup(text,text),school_app.consume_staff_invite(uuid),school_app.list_staff(),school_app.remove_staff(text),school_app.cancel_staff_invite(uuid) from public;
 grant execute on function school_app.create_staff_invite(text,text),school_app.staff_invite_lookup(text,text),school_app.consume_staff_invite(uuid),school_app.list_staff(),school_app.remove_staff(text),school_app.cancel_staff_invite(uuid) to aem_tenant_runtime;
+
+-- School logos (24 Nov 2026): each school uploads its own logo in Paramètres.
+-- Stored in the database (small, resized to 512 px by the browser) so it works
+-- offline and needs no external storage. Served at /api/schools/<slug>/logo.
+create table if not exists school_app.school_logos (school_id uuid primary key references school_app.schools(id), mime text not null check(mime in ('image/png','image/jpeg','image/webp')), data bytea not null check(octet_length(data) between 1 and 307200), updated_at timestamptz not null default now());
+alter table school_app.school_logos enable row level security;
+grant select on school_app.school_logos to aem_backup_reader;
+drop policy if exists backup_read on school_app.school_logos;
+create policy backup_read on school_app.school_logos for select to aem_backup_reader using(true);
+
+create or replace function school_app.set_school_logo(p_mime text,p_data bytea) returns text language plpgsql security definer set search_path=pg_catalog,school_app as $$
+declare v_slug text; v_url text;
+begin
+ if not school_app.is_admin() then raise exception 'ADMIN_REQUIRED'; end if;
+ insert into school_app.school_logos(school_id,mime,data,updated_at) values(school_app.school_id(),p_mime,p_data,now())
+  on conflict(school_id) do update set mime=excluded.mime,data=excluded.data,updated_at=now();
+ select slug into v_slug from school_app.schools where id=school_app.school_id();
+ -- Version in the URL so browsers and previews refresh immediately after a change.
+ v_url := '/api/schools/'||v_slug||'/logo?v='||floor(extract(epoch from now()))::bigint;
+ update school_app.schools set logo=v_url where id=school_app.school_id();
+ insert into school_app.audit_log(school_id,actor,action,row_id,details) values(school_app.school_id(),school_app.user_id(),'SET_LOGO',null,jsonb_build_object('mime',p_mime,'bytes',octet_length(p_data)));
+ return v_url;
+end $$;
+
+create or replace function school_app.clear_school_logo() returns void language plpgsql security definer set search_path=pg_catalog,school_app as $$
+begin
+ if not school_app.is_admin() then raise exception 'ADMIN_REQUIRED'; end if;
+ delete from school_app.school_logos where school_id=school_app.school_id();
+ update school_app.schools set logo=null where id=school_app.school_id();
+ insert into school_app.audit_log(school_id,actor,action,row_id,details) values(school_app.school_id(),school_app.user_id(),'CLEAR_LOGO',null,'{}'::jsonb);
+end $$;
+
+-- Public: logo of an active school by slug.
+create or replace function school_app.school_logo(p_slug text) returns table(mime text,data bytea,updated_at timestamptz) language sql stable security definer set search_path=pg_catalog,school_app as $$
+ select l.mime,l.data,l.updated_at from school_app.school_logos l join school_app.schools s on s.id=l.school_id where s.slug=p_slug and s.status='active' $$;
+
+revoke all on function school_app.set_school_logo(text,bytea),school_app.clear_school_logo(),school_app.school_logo(text) from public;
+grant execute on function school_app.set_school_logo(text,bytea),school_app.clear_school_logo(),school_app.school_logo(text) to aem_tenant_runtime;

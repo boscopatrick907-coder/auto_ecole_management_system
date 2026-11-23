@@ -59,6 +59,16 @@ const questionInput = z
   });
 const offlineReceiptRegex = /^RC-(?![0-9]{4}-)[A-Z0-9]{4,32}-[0-9]{1,12}$/;
 
+const MAX_LOGO_BYTES = 300 * 1024;
+/** Image type from magic bytes (PNG, JPEG, WebP); SVG is deliberately not accepted. */
+export function detectImage(b: Uint8Array): string | null {
+  if (b.length > 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return "image/png";
+  if (b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return "image/jpeg";
+  if (b.length > 12 && String.fromCharCode(...b.slice(0, 4)) === "RIFF" && String.fromCharCode(...b.slice(8, 12)) === "WEBP")
+    return "image/webp";
+  return null;
+}
+
 const fail = (code: string, status = 400) =>
   Object.assign(new Error(code), { status });
 
@@ -643,6 +653,31 @@ app.post("/api/schools/:slug/auth/staff-activate", async (c) => {
     return withSessionCookies(session, { ok: true, role: "admin" }, existing ? 200 : 201);
   } finally {
     await Promise.all([releaseRequestPool(c.env, pool), releaseRequestPool(c.env, authPool)]);
+  }
+});
+
+// School logo (uploaded in Paramètres), public and cacheable: the URL carries ?v=.
+app.get("/api/schools/:slug/logo", async (c) => {
+  const slug = c.req.param("slug");
+  if (!isSlug(slug)) throw fail("SCHOOL_NOT_FOUND", 404);
+  const pool = poolFor(c.env);
+  try {
+    const row = await tenantTransaction(pool, "", null, async (db) =>
+      (await db.query("select * from school_app.school_logo($1)", [slug])).rows[0] as
+        | { mime: string; data: Uint8Array }
+        | undefined,
+    );
+    if (!row) throw fail("NOT_FOUND", 404);
+    return new Response(new Uint8Array(row.data), {
+      headers: {
+        "Content-Type": row.mime,
+        "Cache-Control": "public, max-age=86400",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'",
+      },
+    });
+  } finally {
+    await releaseRequestPool(c.env, pool);
   }
 });
 
@@ -1617,6 +1652,21 @@ app.all("/api/schools/:slug/*", async (c) => {
         return c.json({ question: sq }, 201);
       }
 
+      if (path === "admin/settings/logo" && method === "PUT") {
+        const b = z.object({ dataUrl: z.string().max(450_000) }).parse(await c.req.json());
+        const m = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/.exec(b.dataUrl);
+        if (!m) throw fail("INVALID_FILE_TYPE", 400);
+        const bytes = Buffer.from(m[2], "base64");
+        if (!bytes.length || bytes.length > MAX_LOGO_BYTES) throw fail("INVALID_FILE_SIZE", 400);
+        // Check the real content, not only the declared type.
+        if (detectImage(bytes) !== m[1]) throw fail("INVALID_FILE_TYPE", 400);
+        const url = (await db.query("select school_app.set_school_logo($1,$2) as url", [m[1], bytes])).rows[0].url;
+        return c.json({ logo: url });
+      }
+      if (path === "admin/settings/logo" && method === "DELETE") {
+        await db.query("select school_app.clear_school_logo()");
+        return c.json({ ok: true });
+      }
       if (path === "admin/settings" && method === "PATCH") {
         const b = z
           .object({

@@ -32,7 +32,7 @@ Hors périmètre du lancement : envoi automatique WhatsApp/SMS, paiement en lign
 
 - **Accueil `/`** : liste des auto-écoles partenaires avec recherche par nom (personne ne tape de code technique). L'école ouverte en dernier sur l'appareil est proposée en premier (« Continuer avec … »).
 - **Page d'une école `/s/<école>`** : nom, adresse, formations et tarifs, boutons S'inscrire / Connexion / J'ai un code / WhatsApp.
-- Le Worker génère côté serveur, pour ces pages : titre, description, aperçu WhatsApp/Facebook (`og:*`, image `og-default.png` ou logo https de l'école), données `DrivingSchool` (schema.org), `robots.txt` et `sitemap.xml`. Les pages privées (tableau de bord, paiements, fiche élève…) sont servies telles quelles avec `X-Robots-Tag: noindex` ; les pages de connexion aussi.
+- Le Worker génère côté serveur, pour ces pages : titre, description, aperçu WhatsApp/Facebook (`og:*`, image `og-default.png` ou logo de l'école), données `DrivingSchool` (schema.org), `robots.txt` et `sitemap.xml`. Les pages privées (tableau de bord, paiements, fiche élève…) sont servies telles quelles avec `X-Robots-Tag: noindex` ; les pages de connexion aussi.
 - **Seule la production est indexée** (`ENVIRONMENT = "production"`) : en staging et en local, `robots.txt` interdit tout et chaque page publique porte `noindex` (données de test). Les aperçus WhatsApp/Facebook restent actifs partout.
 - **Une école n'apparaît dans la liste publique et le sitemap que si `schools.listed = true`** (désactivé par défaut ; `tenant:bootstrap` l'active sauf `SCHOOL_LISTED=false`). Une école non listée reste accessible par son lien direct, sans être indexée.
 - Ces pages nécessitent le déploiement **même origine** (Worker + fichiers Angular, binding `ASSETS`, voir `wrangler.staging.toml`). En local : `SERVE_FRONTEND=1 npm run dev:tenant:node` après `npm run build --prefix frontend`, puis `http://localhost:8788/` (ajouter `http://localhost:8788` à `TRUSTED_ORIGINS`).
@@ -115,5 +115,9 @@ Frontend et Worker sont servis sur la **même origine HTTPS** (`/api/*` routé v
 Détails : [mise en place](docs/FRONTEND_SETUP.md) · [staging](docs/STAGING_DEPLOYMENT.md) · [migration des anciennes données](docs/MULTITENANT_MIGRATION.md) · [sauvegarde/restauration](docs/BACKUP_RESTORE.md) · [contrat d'API](docs/TENANT_API_CONTRACT.md) · [portail de contenus](docs/CONTENT_PORTAL_VALIDATION.md) · [répartition des tâches](docs/handoffs/README.md).
 
 ## Identité visuelle
+
+- **Logo de la plateforme :** voiture futuriste sur un panneau de verre (`frontend/public/aem-icon.svg`, icônes PNG et `og-default.png` dérivées).
+- **Logo de chaque école :** Paramètres → « Logo de l'école » (PNG, JPEG ou WebP, redimensionné en 512×512 dans le navigateur, ≤ 300 Ko, SVG refusé). Il apparaît dans l'en-tête, la page de l'école, l'annuaire, l'aperçu WhatsApp et l'icône d'installation. Stocké en base (`school_logos`), servi par `/api/schools/<école>/logo`.
+- **Couleurs :** chaque école choisit ses couleurs principale et secondaire dans Paramètres. Par défaut :
 
 Bleu Marseillaise `#3D8BCD` (clair `#5BA4E5`, foncé `#2B6CA8`), corail `#D94E28`, or `#EAB308`, fond `#F4F7FB` avec cartes blanches. Maquettes dans `stitch-designs/`.

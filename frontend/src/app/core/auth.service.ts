@@ -82,7 +82,7 @@ export class AuthService {
    */
   openSchool(slug: string, reload = false): Promise<void> {
     if (!reload && this.opening?.slug === slug) return this.opening.promise;
-    const promise = this.loadSchool(slug);
+    const promise = this.loadSchool(slug, reload);
     this.opening = { slug, promise };
     void promise.finally(() => {
       if (this.opening?.promise === promise) this.opening = undefined;
@@ -90,7 +90,7 @@ export class AuthService {
     return promise;
   }
 
-  private async loadSchool(slug: string) {
+  private async loadSchool(slug: string, fresh = false) {
     const generation = ++this.initialization;
     const ensureCurrent = () => {
       if (generation !== this.initialization) throw new Error("INITIALIZATION_REPLACED");
@@ -112,7 +112,8 @@ export class AuthService {
       if (this.api.online()) {
         // Independent requests run together instead of one after the other.
         const [catalogue, sessionResult] = await Promise.allSettled([
-          this.api.catalogue(),
+          // After a change (login, Paramètres…) never reuse the 30 s catalogue cache.
+          this.api.catalogue(fresh),
           this.api.request<{ user: User } | null>("/auth/get-session"),
         ]);
         ensureCurrent();
@@ -301,13 +302,14 @@ export class AuthService {
               display: "standalone",
               theme_color: s.colors.primary,
               background_color: "#f7f9ff",
+              // The school's own logo is its installed app icon when it has one.
               icons: [
-                {
-                  src: location.origin + "/aem-icon.svg",
-                  sizes: "any",
-                  type: "image/svg+xml",
-                  purpose: "any maskable",
-                },
+                ...(s.logo && s.logo.startsWith("/api/schools/")
+                  ? [{ src: location.origin + s.logo, sizes: "512x512", purpose: "any" }]
+                  : []),
+                { src: location.origin + "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+                { src: location.origin + "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+                { src: location.origin + "/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
               ],
             }),
           ],
