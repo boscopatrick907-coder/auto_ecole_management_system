@@ -9,17 +9,19 @@ compatibility_flags = ["nodejs_compat"]
 # Run the Worker next to the Neon database: each request makes several
 # sequential queries, so database latency dominates response time.
 [placement]
-mode = "smart"
+region = "aws:eu-central-1"
 # Recommended: pooled, low-latency connections. Create with
 #   wrangler hyperdrive create aem-app --connection-string="<restricted app login URL>"
 #   wrangler hyperdrive create aem-auth --connection-string="<restricted identity login URL>"
 # then uncomment; context.ts uses APP_DB / AUTH_DB automatically when present.
+# Production needs its OWN Hyperdrive configs pointing at the production
+# database. Never reuse the staging IDs from wrangler.staging.toml here.
 # [[hyperdrive]]
 # binding = "APP_DB"
-# id = "<aem-app id>"
+# id = "<production aem-app id>"
 # [[hyperdrive]]
 # binding = "AUTH_DB"
-# id = "<aem-auth id>"
+# id = "<production aem-auth id>"
 [[ratelimits]]
 name = "SIGNUP_LIMITER"
 namespace_id = "1001"
