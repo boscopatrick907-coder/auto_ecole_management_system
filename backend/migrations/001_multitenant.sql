@@ -551,3 +551,21 @@ end $$;
 
 revoke all on function school_app.new_short_code(),school_app.code_hash(text),school_app.create_password_reset(uuid),school_app.assert_phone_not_locked(text),school_app.record_phone_login(text,boolean),school_app.phone_login_user(text),school_app.activation_lookup(text,text),school_app.consume_password_reset(uuid) from public;
 grant execute on function school_app.create_invite(uuid),school_app.claim_invite(text,text),school_app.create_password_reset(uuid),school_app.record_phone_login(text,boolean),school_app.phone_login_user(text),school_app.activation_lookup(text,text),school_app.consume_password_reset(uuid) to aem_tenant_runtime;
+
+-- Public directory (24 Nov 2026): schools opt in to the public home page and
+-- sitemap. Off by default so test or private schools never appear publicly.
+do $$ begin
+  if not exists (select 1 from information_schema.columns where table_schema='school_app' and table_name='schools' and column_name='listed') then
+    alter table school_app.schools add column listed boolean not null default false;
+    -- The launch customer is listed once, when the column is first created.
+    update school_app.schools set listed=true where slug='la-marseillaise';
+  end if;
+end $$;
+
+-- Only public business information; never ids, quotas, prefixes or members.
+create or replace function school_app.public_schools() returns table(slug text,name text,address text,phone text,whatsapp text,logo text) language sql stable security definer set search_path=pg_catalog,school_app as $$
+ select slug,name,address,phone,whatsapp,logo from school_app.schools where status='active' and listed order by name $$;
+create or replace function school_app.school_is_listed(p_slug text) returns boolean language sql stable security definer set search_path=pg_catalog,school_app as $$
+ select coalesce((select listed from school_app.schools where slug=p_slug and status='active'),false) $$;
+revoke all on function school_app.public_schools(),school_app.school_is_listed(text) from public;
+grant execute on function school_app.public_schools(),school_app.school_is_listed(text) to aem_tenant_runtime;

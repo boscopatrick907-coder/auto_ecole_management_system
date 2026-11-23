@@ -71,10 +71,11 @@ try {
   try {
     await c.query("BEGIN");
     const school = await c.query(
-      `insert into school_app.schools(name,slug,address,phone,whatsapp,agrement_number,receipt_prefix)
-       values($1,$2,$3,$4,$5,$6,$7)
+      `insert into school_app.schools(name,slug,address,phone,whatsapp,agrement_number,receipt_prefix,listed)
+       values($1,$2,$3,$4,$5,$6,$7,$8)
        on conflict(slug) do update set
          name = excluded.name,
+         listed = excluded.listed,
          address = excluded.address,
          phone = excluded.phone,
          whatsapp = excluded.whatsapp,
@@ -88,6 +89,8 @@ try {
         process.env.SCHOOL_WHATSAPP || "",
         process.env.SCHOOL_AGREMENT || "",
         process.env.SCHOOL_RECEIPT_PREFIX || "RC",
+        // Shown on the public home page and sitemap unless SCHOOL_LISTED=false.
+        process.env.SCHOOL_LISTED !== "false",
       ],
     );
     await c.query(
