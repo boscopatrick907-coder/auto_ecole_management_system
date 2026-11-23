@@ -344,8 +344,13 @@ app.get("/api/schools", async (c) => {
   return c.json({ schools: schools.map(({ slug, name, address, logo }) => ({ slug, name, address, logo })) });
 });
 
+/** Only the production deployment may be indexed by search engines. */
+const indexable = (env: TenantBindings) => env.ENVIRONMENT === "production";
+
 app.get("/robots.txt", (c) =>
-  c.text(robotsTxt(new URL(c.req.url).origin), 200, { "Cache-Control": "public, max-age=3600" }),
+  c.text(robotsTxt(new URL(c.req.url).origin, indexable(c.env)), 200, {
+    "Cache-Control": "public, max-age=3600",
+  }),
 );
 
 app.get("/sitemap.xml", async (c) => {
@@ -376,10 +381,11 @@ async function renderPublicPage(c: Context<{ Bindings: TenantBindings }>, path: 
   let res: Response;
   if (!match) {
     const schools = await listedSchools(c.env);
+    const meta = { ...homeMeta(origin), noindex: !indexable(c.env) };
     res = htmlResponse(
-      injectPage(await indexHtml(c), homeMeta(origin), homeBody(origin, schools)),
+      injectPage(await indexHtml(c), meta, homeBody(origin, schools)),
       200,
-      { noindex: false, cacheable: true },
+      { noindex: meta.noindex, cacheable: true },
     );
   } else {
     const data = isSlug(slug) ? await publicSchool(c.env, slug) : null;
@@ -395,6 +401,7 @@ async function renderPublicPage(c: Context<{ Bindings: TenantBindings }>, path: 
       );
     }
     const meta = schoolMeta(origin, data.school, data.groups, kind as "home" | "entry", data.listed);
+    if (!indexable(c.env)) meta.noindex = true;
     res = htmlResponse(
       injectPage(await indexHtml(c), meta, schoolBody(origin, data.school, data.groups)),
       200,
