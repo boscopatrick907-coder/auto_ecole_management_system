@@ -302,12 +302,9 @@ export class AuthService {
               theme_color: s.colors.primary,
               background_color: "#f7f9ff",
               icons: [
-                {
-                  src: location.origin + "/aem-icon.svg",
-                  sizes: "any",
-                  type: "image/svg+xml",
-                  purpose: "any maskable",
-                },
+                { src: location.origin + "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+                { src: location.origin + "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+                { src: location.origin + "/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
               ],
             }),
           ],

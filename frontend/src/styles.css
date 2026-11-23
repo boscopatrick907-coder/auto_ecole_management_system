@@ -803,6 +803,13 @@ a.list-row:hover {
 .auth-brand .material-symbols-outlined {
   vertical-align: -5px;
 }
+.app-logo {
+  display: block;
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  box-shadow: 0 10px 24px rgb(0 0 0 / 0.22);
+}
 .auth-brand > .material-symbols-outlined {
   font-size: 44px;
   color: inherit;

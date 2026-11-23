@@ -23,7 +23,7 @@ interface DirectorySchool {
   imports: [FormsModule, RouterLink, IconComponent],
   template: `<main id="main" class="auth-page">
     <section class="auth-brand">
-      <app-icon name="directions_car" />
+      <img class="app-logo" src="aem-icon.svg" alt="" width="64" height="64" />
       <h1>{{ t.app }}</h1>
       <p>{{ t.directoryIntro }}</p>
     </section>
