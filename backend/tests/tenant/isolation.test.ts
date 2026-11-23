@@ -407,3 +407,36 @@ it("platform school changes require explicit operator membership and persist imm
     "delete from school_app.platform_admins where user_id='admin-a'",
   );
 });
+
+it("the backup reader can dump every row-level-secured table without tenant helpers", async () => {
+  // Every RLS table needs a backup_read policy, and no tenant policy may apply to
+  // PUBLIC: otherwise pg_dump as aem_backup_reader evaluates school_app.school_id()
+  // and fails with "permission denied for function school_id" (backups 17–23 Nov).
+  const missing = await owner.query(
+    `select c.relname from pg_class c join pg_namespace n on n.oid=c.relnamespace
+      where n.nspname='school_app' and c.relkind='r' and c.relrowsecurity
+        and not exists(select 1 from pg_policy p where p.polrelid=c.oid and p.polname='backup_read')`,
+  );
+  expect(missing.rows.map((r) => r.relname)).toEqual([]);
+  const publicPolicies = await owner.query(
+    `select c.relname||'.'||p.polname as policy from pg_policy p
+       join pg_class c on c.oid=p.polrelid join pg_namespace n on n.oid=c.relnamespace
+      where n.nspname='school_app' and p.polroles='{0}'`,
+  );
+  expect(publicPolicies.rows.map((r) => r.policy)).toEqual([]);
+  const tables = await owner.query(
+    `select c.relname from pg_class c join pg_namespace n on n.oid=c.relnamespace
+      where n.nspname='school_app' and c.relkind='r' and c.relrowsecurity order by 1`,
+  );
+  const client = await owner.connect();
+  try {
+    await client.query("begin");
+    await client.query("set local role aem_backup_reader");
+    await client.query("set local row_security = on");
+    for (const { relname } of tables.rows)
+      await client.query(`select count(*) from school_app.${relname}`);
+  } finally {
+    await client.query("rollback");
+    client.release();
+  }
+});
