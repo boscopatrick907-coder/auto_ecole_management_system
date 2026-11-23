@@ -122,6 +122,11 @@ export const routes: Routes = [
               import("./pages/content").then((m) => m.ContentComponent),
           },
           {
+            path: "equipe",
+            loadComponent: () =>
+              import("./pages/team").then((m) => m.TeamComponent),
+          },
+          {
             path: "parametres",
             loadComponent: () =>
               import("./pages/settings").then((m) => m.SettingsComponent),

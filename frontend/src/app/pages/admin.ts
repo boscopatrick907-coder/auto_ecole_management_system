@@ -80,6 +80,8 @@ import type { Dashboard, Payment } from "../core/models";
         ><app-icon name="receipt_long" />{{ t.journal }}</a
       ><a class="card" [routerLink]="base + '/rapport'"
         ><app-icon name="bar_chart" />{{ t.report }}</a
+      ><a class="card" [routerLink]="base + '/equipe'"
+        ><app-icon name="group_add" />{{ t.team }}</a
       ><a class="card" [routerLink]="base + '/parametres'"
         ><app-icon name="settings" />{{ t.settings }}</a
       >

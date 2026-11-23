@@ -330,6 +330,12 @@ export class AuthService {
   }
 
   /** First sign-in (or desk reset): phone + desk code + new password. */
+  /** Staff joining from the Équipe page: email + code + password. */
+  async activateStaff(email: string, code: string, password: string, name = "") {
+    await this.api.tenant("auth/staff-activate", "POST", { email, code, password, ...(name ? { name } : {}) });
+    await this.openSchool(this.api.slug, true);
+  }
+
   async activate(phone: string, code: string, password: string) {
     await this.api.tenant("auth/activate", "POST", { phone, code, password });
     await this.openSchool(this.api.slug, true);

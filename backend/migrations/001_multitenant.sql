@@ -637,3 +637,83 @@ revoke all on function school_app.new_unique_desk_code() from public;
 -- Paramètres are never overwritten.
 update school_app.schools set colors='{"primary":"#2b6ca8","accent":"#d94e28"}'::jsonb
  where slug='la-marseillaise' and colors='{"primary":"#1f4e8c","accent":"#f5a623"}'::jsonb;
+
+-- Équipe (24 Nov 2026): school admins add or remove other admins without a
+-- developer. The admin issues a 6-digit code for an email; the staff member
+-- activates it with email + code + password (new or existing account).
+create table if not exists school_app.staff_invites (id uuid primary key default gen_random_uuid(), school_id uuid not null references school_app.schools(id), email text not null check(email = lower(email) and email like '%_@_%'), name text not null default '', code_hash text not null, expires_at timestamptz not null, used_at timestamptz, created_by text not null, created_at timestamptz not null default now());
+create index if not exists staff_invites_lookup on school_app.staff_invites(school_id, email, code_hash);
+alter table school_app.staff_invites enable row level security;
+-- Only the security-definer functions below touch it; no runtime grant.
+grant select on school_app.staff_invites to aem_backup_reader;
+drop policy if exists backup_read on school_app.staff_invites;
+create policy backup_read on school_app.staff_invites for select to aem_backup_reader using(true);
+
+create or replace function school_app.create_staff_invite(p_email text,p_name text) returns text language plpgsql security definer set search_path=pg_catalog,school_app,public as $$
+declare v_email text := lower(trim(p_email)); code text; tries integer := 0;
+begin
+ if not school_app.is_admin() then raise exception 'ADMIN_REQUIRED'; end if;
+ if v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then raise exception 'INVALID_EMAIL'; end if;
+ if exists(select 1 from school_app.school_members m join identity."user" u on u.id=m.user_id where m.school_id=school_app.school_id() and m.role='admin' and lower(u.email)=v_email) then raise exception 'ALREADY_STAFF'; end if;
+ update school_app.staff_invites set expires_at=now() where school_id=school_app.school_id() and email=v_email and used_at is null and expires_at>now();
+ loop
+  code := school_app.new_short_code();
+  exit when not exists(select 1 from school_app.staff_invites where school_id=school_app.school_id() and email=v_email and code_hash=school_app.code_hash(code) and used_at is null and expires_at>now());
+  tries := tries + 1; if tries > 20 then raise exception 'CODE_GENERATION_FAILED'; end if;
+ end loop;
+ insert into school_app.staff_invites(school_id,email,name,code_hash,expires_at,created_by) values(school_app.school_id(),v_email,left(trim(coalesce(p_name,'')),150),school_app.code_hash(code),now()+interval '7 days',school_app.user_id());
+ insert into school_app.audit_log(school_id,actor,action,row_id,details) values(school_app.school_id(),school_app.user_id(),'ISSUE_STAFF_INVITE',null,jsonb_build_object('email',v_email));
+ return code;
+end $$;
+
+-- Valid unused invite for this email + code (does not consume it). Lockout
+-- reuses the phone-login counter, keyed by 'email:<address>'.
+create or replace function school_app.staff_invite_lookup(p_email text,p_code text) returns table(invite_id uuid,name text) language plpgsql security definer set search_path=pg_catalog,school_app as $$
+declare v_email text := lower(trim(p_email));
+begin
+ perform school_app.assert_phone_not_locked('email:'||v_email);
+ return query select i.id,i.name from school_app.staff_invites i where i.school_id=school_app.school_id() and i.email=v_email and i.code_hash=school_app.code_hash(p_code) and i.used_at is null and i.expires_at>now() limit 1;
+end $$;
+
+-- Called with the activating user's identity: consumes the code and makes them admin.
+create or replace function school_app.consume_staff_invite(p_invite uuid) returns void language plpgsql security definer set search_path=pg_catalog,school_app as $$
+declare v_email text; v_role text;
+begin
+ if school_app.user_id() is null then raise exception 'AUTH_REQUIRED'; end if;
+ select role into v_role from school_app.school_members where school_id=school_app.school_id() and user_id=school_app.user_id();
+ if v_role='student' then raise exception 'STAFF_EMAIL_IS_STUDENT'; end if;
+ update school_app.staff_invites set used_at=now() where school_id=school_app.school_id() and id=p_invite and used_at is null and expires_at>now() returning email into v_email;
+ if v_email is null then raise exception 'INVALID_INVITE'; end if;
+ if not exists(select 1 from identity."user" where id=school_app.user_id() and lower(email)=v_email) then raise exception 'INVALID_INVITE'; end if;
+ insert into school_app.school_members(school_id,user_id,role) values(school_app.school_id(),school_app.user_id(),'admin') on conflict (school_id,user_id) do update set role='admin';
+ insert into school_app.audit_log(school_id,actor,action,row_id,details) values(school_app.school_id(),school_app.user_id(),'STAFF_JOINED',null,jsonb_build_object('email',v_email));
+end $$;
+
+create or replace function school_app.list_staff() returns table(kind text,id text,name text,email text,since timestamptz) language plpgsql security definer set search_path=pg_catalog,school_app as $$
+begin
+ if not school_app.is_admin() then raise exception 'ADMIN_REQUIRED'; end if;
+ return query
+  select 'member'::text, u.id, u.name, u.email, u."createdAt" from school_app.school_members m join identity."user" u on u.id=m.user_id where m.school_id=school_app.school_id() and m.role='admin'
+  union all
+  select 'invite'::text, i.id::text, i.name, i.email, i.created_at from school_app.staff_invites i where i.school_id=school_app.school_id() and i.used_at is null and i.expires_at>now()
+  order by 1 desc, 3;
+end $$;
+
+create or replace function school_app.remove_staff(p_user text) returns void language plpgsql security definer set search_path=pg_catalog,school_app as $$
+begin
+ if not school_app.is_admin() then raise exception 'ADMIN_REQUIRED'; end if;
+ if p_user=school_app.user_id() then raise exception 'CANNOT_REMOVE_SELF'; end if;
+ delete from school_app.school_members where school_id=school_app.school_id() and user_id=p_user and role='admin';
+ if not found then raise exception 'STAFF_NOT_FOUND'; end if;
+ insert into school_app.audit_log(school_id,actor,action,row_id,details) values(school_app.school_id(),school_app.user_id(),'REMOVE_STAFF',null,jsonb_build_object('userId',p_user));
+end $$;
+
+create or replace function school_app.cancel_staff_invite(p_invite uuid) returns void language plpgsql security definer set search_path=pg_catalog,school_app as $$
+begin
+ if not school_app.is_admin() then raise exception 'ADMIN_REQUIRED'; end if;
+ update school_app.staff_invites set expires_at=now() where school_id=school_app.school_id() and id=p_invite and used_at is null;
+ if not found then raise exception 'INVALID_INVITE'; end if;
+end $$;
+
+revoke all on function school_app.create_staff_invite(text,text),school_app.staff_invite_lookup(text,text),school_app.consume_staff_invite(uuid),school_app.list_staff(),school_app.remove_staff(text),school_app.cancel_staff_invite(uuid) from public;
+grant execute on function school_app.create_staff_invite(text,text),school_app.staff_invite_lookup(text,text),school_app.consume_staff_invite(uuid),school_app.list_staff(),school_app.remove_staff(text),school_app.cancel_staff_invite(uuid) to aem_tenant_runtime;

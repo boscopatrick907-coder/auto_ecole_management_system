@@ -86,18 +86,29 @@ export const MIN_PASSWORD = 8;
 
         @if (mode() === "activate") {
           <h2>{{ t.activateTitle }}</h2>
-          <p class="muted">{{ t.activateHelp }}</p>
+          <div class="segmented" role="tablist" [attr.aria-label]="t.activateAs">
+            <button type="button" role="tab" [attr.aria-selected]="!staff()" [class.selected]="!staff()" (click)="staff.set(false)">{{ t.iAmStudent }}</button>
+            <button type="button" role="tab" [attr.aria-selected]="staff()" [class.selected]="staff()" (click)="staff.set(true)">{{ t.iAmStaff }}</button>
+          </div>
+          <p class="muted">{{ staff() ? t.activateStaffHelp : t.activateHelp }}</p>
+          @if (staff()) {
+            <label
+              >{{ t.email
+              }}<input formControlName="email" type="email" autocomplete="email"
+            /></label>
+          } @else {
+            <label
+              >{{ t.phoneLogin
+              }}<input
+                formControlName="phone"
+                type="tel"
+                inputmode="tel"
+                autocomplete="tel"
+                placeholder="6XX XX XX XX"
+            /></label>
+          }
           <label
-            >{{ t.phoneLogin
-            }}<input
-              formControlName="phone"
-              type="tel"
-              inputmode="tel"
-              autocomplete="tel"
-              placeholder="6XX XX XX XX"
-          /></label>
-          <label
-            >{{ t.activationCode
+            >{{ staff() ? t.staffAccessCode : t.activationCode
             }}<input
               formControlName="code"
               inputmode="numeric"
@@ -112,7 +123,7 @@ export const MIN_PASSWORD = 8;
               type="password"
               autocomplete="new-password"
           /></label>
-          <p class="muted">{{ t.passwordRule }}</p>
+          <p class="muted">{{ staff() ? t.staffPasswordRule : t.passwordRule }}</p>
         }
 
         @if (mode() === "signup") {
@@ -242,6 +253,8 @@ export class AuthPageComponent implements OnDestroy, AfterViewInit {
     signup: FR.signup,
   };
   loginWith = signal<"phone" | "email">("phone");
+  /** "J'ai un code" as a member of the school staff (Équipe) instead of a student. */
+  staff = signal(false);
   step = signal(1);
   busy = signal(false);
   error = signal("");
@@ -274,9 +287,12 @@ export class AuthPageComponent implements OnDestroy, AfterViewInit {
     if (location.pathname.endsWith("/inscription")) this.mode.set("signup");
     if (location.pathname.endsWith("/activation") || params.get("code")) {
       this.mode.set("activate");
+      // Links from the Équipe page: ?staff=1&email=…
+      this.staff.set(params.get("staff") === "1");
       this.form.patchValue({
         code: params.get("code") || "",
         phone: params.get("tel") || "",
+        email: params.get("email") || "",
       });
     }
     void this.api
@@ -343,6 +359,11 @@ export class AuthPageComponent implements OnDestroy, AfterViewInit {
           this.loginWith() === "phone" ? this.t.phoneInvalid : this.t.loginEmailInvalid,
         );
       if (!v.password) return this.error.set(this.t.loginPasswordMissing);
+    } else if (mode === "activate" && this.staff()) {
+      if (this.form.controls.email.invalid) return this.error.set(this.t.loginEmailInvalid);
+      if (v.code.replace(/[^A-Za-z0-9]/g, "").length < 6)
+        return this.error.set(this.t.activationCodeInvalid);
+      if (!v.password) return this.error.set(this.t.loginPasswordMissing);
     } else if (mode === "activate") {
       if (!PHONE.test(phone)) return this.error.set(this.t.phoneInvalid);
       if (v.code.replace(/[^A-Za-z0-9]/g, "").length < 6)
@@ -366,6 +387,8 @@ export class AuthPageComponent implements OnDestroy, AfterViewInit {
       if (mode === "login") {
         if (this.loginWith() === "phone") await this.auth.loginWithPhone(phone, v.password);
         else await this.auth.login(v.email, v.password);
+      } else if (mode === "activate" && this.staff()) {
+        await this.auth.activateStaff(v.email, v.code, v.password, v.name);
       } else if (mode === "activate") {
         await this.auth.activate(phone, v.code, v.password);
       } else {
@@ -415,6 +438,11 @@ export class AuthPageComponent implements OnDestroy, AfterViewInit {
     if (e.status === 403 && e.code === "ORIGIN_FORBIDDEN") return this.t.loginOriginRejected;
     if (e.code === "TURNSTILE_UNAVAILABLE") return this.t.captchaUnavailableRetry;
     if (e.status >= 500) return this.t.loginServerError;
+    if (mode === "activate" && this.staff()) {
+      if (e.status === 401) return this.t.staffExistingPassword;
+      if (e.code === "STAFF_EMAIL_IS_STUDENT") return this.t.staffEmailIsStudent;
+      if (e.code === "INVALID_INVITE" || e.status === 400) return this.t.staffActivationInvalid;
+    }
     if (mode === "activate" && (e.code === "INVALID_INVITE" || e.status === 400))
       return this.t.activationInvalid;
     if (mode === "login" && (e.status === 401 || e.code === "INVALID_EMAIL_OR_PASSWORD"))
