@@ -265,6 +265,166 @@ app.post("/api/platform/schools", async (c) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Front-desk student accounts: phone + password sign-in and activation codes.
+// Students activated at the desk have no usable email: their identity email is
+// a non-deliverable placeholder and password resets are issued by the desk.
+// ---------------------------------------------------------------------------
+const studentPassword = z.string().min(8).max(128);
+const activationCode = z.string().trim().min(8).max(40);
+
+function inSchool<T>(
+  pool: pg.Pool,
+  slug: string,
+  userId: string | null,
+  run: (db: pg.PoolClient) => Promise<T>,
+): Promise<T> {
+  return tenantTransaction(pool, "", userId, async (db) => {
+    const resolved = await db.query(
+      "select id,set_config('app.school_id',id::text,true) from school_app.resolve_school($1)",
+      [slug],
+    );
+    if (!resolved.rowCount) throw fail("SCHOOL_NOT_FOUND", 404);
+    return run(db);
+  });
+}
+
+async function limitPhoneAuth(env: TenantBindings, ip: string) {
+  if (!env.SIGNUP_LIMITER || !(await env.SIGNUP_LIMITER.limit({ key: "phone-auth:" + ip })).success)
+    throw fail("RATE_LIMITED", 429);
+}
+
+/** JSON response that carries the session cookies Better Auth issued. */
+function withSessionCookies(from: Response, body: unknown, status = 200) {
+  const res = new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+  for (const cookie of from.headers.getSetCookie()) res.headers.append("Set-Cookie", cookie);
+  return res;
+}
+
+async function signInAs(
+  auth: ReturnType<typeof createAuth>,
+  email: string,
+  password: string,
+  headers: Headers,
+): Promise<Response | null> {
+  try {
+    const res = (await auth.api.signInEmail({
+      body: { email, password },
+      headers,
+      asResponse: true,
+    })) as Response;
+    return res.ok ? res : null;
+  } catch {
+    return null;
+  }
+}
+
+app.post("/api/schools/:slug/auth/phone-sign-in", async (c) => {
+  await limitPhoneAuth(c.env, c.req.header("CF-Connecting-IP") || "unknown");
+  const b = z
+    .object({ phone, password: z.string().min(1).max(128) })
+    .parse(await c.req.json());
+  const slug = c.req.param("slug");
+  const pool = poolFor(c.env),
+    authPool = poolFor(c.env, true);
+  try {
+    const userId = await inSchool(pool, slug, null, async (db) =>
+      (await db.query("select school_app.phone_login_user($1) as id", [b.phone]))
+        .rows[0].id as string | null,
+    );
+    let session: Response | null = null;
+    if (userId) {
+      // Created only when used: its async init must finish before the pool closes.
+      const auth = createAuth(c.env, authPool);
+      const user = await (await auth.$context).internalAdapter.findUserById(userId);
+      if (user) session = await signInAs(auth, user.email, b.password, c.req.raw.headers);
+    }
+    // Recorded in its own transaction so failures count even though we reject.
+    await inSchool(pool, slug, null, (db) =>
+      db.query("select school_app.record_phone_login($1,$2)", [b.phone, !!session]),
+    );
+    if (!session) return c.json({ error: "INVALID_EMAIL_OR_PASSWORD" }, 401);
+    return withSessionCookies(session, { ok: true });
+  } finally {
+    await Promise.all([releaseRequestPool(c.env, pool), releaseRequestPool(c.env, authPool)]);
+  }
+});
+
+app.post("/api/schools/:slug/auth/activate", async (c) => {
+  await limitPhoneAuth(c.env, c.req.header("CF-Connecting-IP") || "unknown");
+  const b = z
+    .object({ phone, code: activationCode, password: studentPassword })
+    .parse(await c.req.json());
+  const slug = c.req.param("slug");
+  const pool = poolFor(c.env),
+    authPool = poolFor(c.env, true);
+  try {
+    const found = await inSchool(pool, slug, null, async (db) =>
+      (await db.query("select * from school_app.activation_lookup($1,$2)", [b.code, b.phone]))
+        .rows[0] as
+        | { invite_id: string; purpose: string; user_id: string | null; full_name: string }
+        | undefined,
+    );
+    if (!found) {
+      await inSchool(pool, slug, null, (db) =>
+        db.query("select school_app.record_phone_login($1,false)", [b.phone]),
+      );
+      throw fail("INVALID_INVITE", 400);
+    }
+    if (found.purpose === "activate" ? found.user_id : !found.user_id)
+      throw fail("INVALID_INVITE", 400);
+    const auth = createAuth(c.env, authPool);
+
+    if (found.purpose === "activate") {
+      const signUp = (await auth.api.signUpEmail({
+        body: {
+          name: found.full_name,
+          email: `student-${randomUUID()}@phone.invalid`,
+          password: b.password,
+        },
+        headers: c.req.raw.headers,
+        asResponse: true,
+      })) as Response;
+      if (!signUp.ok) throw fail("VALIDATION_ERROR", 400);
+      const newUserId = ((await signUp.clone().json()) as { user: { id: string } }).user.id;
+      try {
+        await inSchool(pool, slug, newUserId, async (db) => {
+          await db.query("select school_app.claim_invite($1,$2)", [b.code, b.phone]);
+          await db.query("select school_app.record_phone_login($1,true)", [b.phone]);
+        });
+      } catch (e) {
+        // Never leave an identity without a student behind (cascades sessions/accounts).
+        await authPool.query('delete from identity."user" where id=$1', [newUserId]);
+        throw e;
+      }
+      return withSessionCookies(signUp, { ok: true, activated: true }, 201);
+    }
+
+    {
+      const userId = await inSchool(pool, slug, null, async (db) => {
+        const r = await db.query("select school_app.consume_password_reset($1) as id", [
+          found.invite_id,
+        ]);
+        await db.query("select school_app.record_phone_login($1,true)", [b.phone]);
+        return r.rows[0].id as string;
+      });
+      const ctx = await auth.$context;
+      const user = await ctx.internalAdapter.findUserById(userId);
+      if (!user) throw fail("INVALID_INVITE", 400);
+      await ctx.internalAdapter.updatePassword(userId, await ctx.password.hash(b.password));
+      await ctx.internalAdapter.deleteUserSessions(userId);
+      const session = await signInAs(auth, user.email, b.password, c.req.raw.headers);
+      if (!session) throw fail("REQUEST_FAILED", 500);
+      return withSessionCookies(session, { ok: true, reset: true });
+    }
+  } finally {
+    await Promise.all([releaseRequestPool(c.env, pool), releaseRequestPool(c.env, authPool)]);
+  }
+});
+
 app.all("/api/schools/:slug/*", async (c) => {
   const pool = poolFor(c.env);
   const authPool = poolFor(c.env, true);
@@ -601,6 +761,16 @@ app.all("/api/schools/:slug/*", async (c) => {
       const student = /^admin\/students\/([0-9a-f-]+)$/.exec(path);
       if (student && method === "GET")
         return c.json(await dossier(db, uuid.parse(student[1])));
+
+      const resetCode = /^admin\/students\/([0-9a-f-]+)\/reset-code$/.exec(path);
+      if (resetCode && method === "POST")
+        return c.json({
+          resetCode: (
+            await db.query("select school_app.create_password_reset($1) as code", [
+              uuid.parse(resetCode[1]),
+            ])
+          ).rows[0].code,
+        });
 
       const invite = /^admin\/students\/([0-9a-f-]+)\/invite$/.exec(path);
       if (invite && method === "POST")
@@ -1267,6 +1437,8 @@ const statusByCode: Record<string, number> = {
   PHONE_ALREADY_REGISTERED: 409,
   STUDENT_ALREADY_REGISTERED: 409,
   STUDENT_ALREADY_ACTIVATED: 409,
+  STUDENT_NOT_ACTIVATED: 409,
+  LOGIN_LOCKED: 429,
   ENROLLMENT_ALREADY_EXISTS: 409,
   PAYMENT_ALREADY_CANCELLED: 409,
   SCHOOL_SLUG_CONFLICT: 409,

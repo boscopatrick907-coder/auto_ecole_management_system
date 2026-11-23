@@ -19,7 +19,8 @@ Les URLs de l'application commencent par `/s/<slug-de-l-école>` (ex. `/s/la-mar
 
 ## Fonctionnalités
 
-- **Élèves :** inscription ou code d'invitation remis par l'école, essai gratuit de 14 jours, accès débloqué dès un paiement valide, cours et quiz disponibles hors-ligne, suivi du solde et des reçus.
+- **Comptes élèves à l'accueil :** l'école inscrit l'élève (nom, téléphone, groupe) et lui remet un code de 8 caractères (`XXXX-XXXX`, valable 7 jours, envoyable par WhatsApp). L'élève ouvre « J'ai un code », saisit téléphone + code + mot de passe (8 caractères minimum), puis se connecte ensuite avec **téléphone + mot de passe**, sans email. Mot de passe oublié : l'accueil génère un nouveau code (valable 2 jours) depuis la fiche de l'élève. Après 5 échecs, le numéro est bloqué 15 minutes. Le personnel se connecte par email.
+- **Élèves :** inscription en ligne possible, essai gratuit de 14 jours, accès débloqué dès un paiement valide, cours et quiz disponibles hors-ligne, suivi du solde et des reçus.
 - **Direction / caisse :** tableau de bord, élèves, groupes, encaissements avec reçu PDF, annulation motivée (jamais de suppression), journal du jour et rapport mensuel, relances WhatsApp manuelles (`wa.me`).
 - **Contenus :** catégories de permis, supports privés (PDF, images, MP4 ≤ 25 Mo) et quiz, avec brouillon, aperçu et publication.
 - **Hors-ligne :** reçus provisoires `RC-<appareil>-<n>` confirmés au retour du réseau ; un refus du serveur n'est jamais compté comme un paiement.
@@ -68,6 +69,9 @@ L'écran de connexion affiche la cause exacte :
 | Message | Cause | Correction |
 |---|---|---|
 | « Email ou mot de passe incorrect. » | Identifiants erronés | Vérifier ou réinitialiser le mot de passe |
+| « Numéro ou mot de passe incorrect. » | Élève : téléphone ou mot de passe erroné | Vérifier le numéro ; sinon nouveau code depuis la fiche élève |
+| « Code ou numéro incorrect, déjà utilisé ou expiré. » | Code d'accueil invalide | Générer un nouveau code depuis la fiche élève |
+| « Trop d'essais pour ce numéro… » | 5 échecs pour ce numéro | Attendre 15 minutes ou donner un nouveau code |
 | « Connexion refusée… adresse non autorisée » | L'adresse du navigateur n'est pas dans `TRUSTED_ORIGINS` / `BETTER_AUTH_URL` | Mettre l'adresse exacte (en `https://` hors local) |
 | « Ce compte n'est pas encore rattaché à cette école » | Compte sans adhésion à l'école | Rattacher via `backend/src/tenant/link-admin.ts` |
 | « Impossible de joindre le serveur » | API arrêtée ou injoignable | Démarrer / vérifier le Worker |

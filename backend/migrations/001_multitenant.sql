@@ -452,3 +452,102 @@ begin
 end $$;
 revoke all on function school_app.quiz_metadata_version(),school_app.quiz_question_version(),school_app.submit_quiz_versioned(uuid,jsonb,uuid,timestamptz,integer) from public;
 grant execute on function school_app.submit_quiz_versioned(uuid,jsonb,uuid,timestamptz,integer) to aem_tenant_runtime;
+
+-- Front-desk activation (23 Nov 2026): short activation codes, phone + password
+-- sign-in for students and desk-issued password resets. Idempotent.
+alter table school_app.invites add column if not exists purpose text not null default 'activate';
+do $$ begin
+  alter table school_app.invites add constraint invites_purpose_check check (purpose in ('activate','reset'));
+exception when duplicate_object then null; end $$;
+create table if not exists school_app.phone_login_attempts (school_id uuid not null references school_app.schools(id), phone text not null, failures integer not null default 0, locked_until timestamptz, updated_at timestamptz not null default now(), primary key(school_id,phone));
+alter table school_app.phone_login_attempts enable row level security;
+-- Only the security-definer functions below read or write it; no runtime grant.
+grant select on school_app.phone_login_attempts to aem_backup_reader;
+drop policy if exists backup_read on school_app.phone_login_attempts;
+create policy backup_read on school_app.phone_login_attempts for select to aem_backup_reader using(true);
+
+-- 8 characters from an alphabet without 0/O/1/I: 32^8 ≈ 1.1e12 codes.
+create or replace function school_app.new_short_code() returns text language plpgsql volatile set search_path=pg_catalog,school_app,public as $$
+declare alphabet constant text := 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; b bytea := gen_random_bytes(8); v text := ''; i integer;
+begin
+ for i in 0..7 loop v := v || substr(alphabet, (get_byte(b,i) & 31) + 1, 1); end loop;
+ return v;
+end $$;
+create or replace function school_app.code_hash(p_code text) returns text language sql immutable set search_path=pg_catalog,public as $$
+ select encode(digest(upper(regexp_replace(coalesce(p_code,''),'[^A-Za-z0-9]','','g')),'sha256'),'hex') $$;
+
+create or replace function school_app.create_invite(p_student uuid) returns text language plpgsql security definer set search_path=pg_catalog,school_app,public as $$ declare code text;v_user text;begin
+ if not school_app.is_admin() then raise exception 'ADMIN_REQUIRED';end if;
+ select user_id into v_user from school_app.students where school_id=school_app.school_id() and id=p_student;
+ if not found then raise exception 'STUDENT_NOT_FOUND';end if;
+ if v_user is not null then raise exception 'STUDENT_ALREADY_ACTIVATED';end if;
+ code=school_app.new_short_code();
+ update school_app.invites set expires_at=now() where school_id=school_app.school_id() and student_id=p_student and used_at is null;
+ insert into school_app.invites(school_id,student_id,code_hash,expires_at,created_by,purpose) values(school_app.school_id(),p_student,school_app.code_hash(code),now()+interval '7 days',school_app.user_id(),'activate');
+ return code;
+end $$;
+
+create or replace function school_app.create_password_reset(p_student uuid) returns text language plpgsql security definer set search_path=pg_catalog,school_app,public as $$ declare code text;v_user text;begin
+ if not school_app.is_admin() then raise exception 'ADMIN_REQUIRED';end if;
+ select user_id into v_user from school_app.students where school_id=school_app.school_id() and id=p_student;
+ if not found then raise exception 'STUDENT_NOT_FOUND';end if;
+ if v_user is null then raise exception 'STUDENT_NOT_ACTIVATED';end if;
+ code=school_app.new_short_code();
+ update school_app.invites set expires_at=now() where school_id=school_app.school_id() and student_id=p_student and used_at is null;
+ insert into school_app.invites(school_id,student_id,code_hash,expires_at,created_by,purpose) values(school_app.school_id(),p_student,school_app.code_hash(code),now()+interval '2 days',school_app.user_id(),'reset');
+ insert into school_app.audit_log(school_id,actor,action,row_id,details) values(school_app.school_id(),school_app.user_id(),'ISSUE_PASSWORD_RESET',p_student,'{}'::jsonb);
+ return code;
+end $$;
+
+-- Online claim (signed-in user + code + phone) keeps working for old and new codes.
+create or replace function school_app.claim_invite(p_code text,p_phone text) returns uuid language plpgsql security definer set search_path=pg_catalog,school_app,public as $$ declare i school_app.invites;s uuid;begin
+ if school_app.user_id() is null then raise exception 'AUTH_REQUIRED';end if;
+ select * into i from school_app.invites where school_id=school_app.school_id() and code_hash=school_app.code_hash(p_code) and purpose='activate' and used_at is null and expires_at>now() for update;
+ if not found then raise exception 'INVALID_INVITE';end if;
+ if exists(select 1 from school_app.students where school_id=i.school_id and user_id=school_app.user_id() and id<>i.student_id) then raise exception 'STUDENT_ALREADY_REGISTERED';end if;
+ update school_app.students set user_id=school_app.user_id() where school_id=i.school_id and id=i.student_id and phone=p_phone and user_id is null returning id into s;
+ if s is null then raise exception 'INVALID_INVITE';end if;
+ insert into school_app.school_members values(i.school_id,school_app.user_id(),'student') on conflict do nothing;
+ update school_app.invites set used_at=now() where school_id=i.school_id and id=i.id;return s;
+end $$;
+
+-- Raises LOGIN_LOCKED after 5 failures for this school + phone, for 15 minutes.
+create or replace function school_app.assert_phone_not_locked(p_phone text) returns void language plpgsql security definer set search_path=pg_catalog,school_app as $$ begin
+ if exists(select 1 from school_app.phone_login_attempts where school_id=school_app.school_id() and phone=p_phone and locked_until>now()) then raise exception 'LOGIN_LOCKED'; end if;
+end $$;
+
+create or replace function school_app.record_phone_login(p_phone text,p_ok boolean) returns void language plpgsql security definer set search_path=pg_catalog,school_app as $$ declare v_failures integer;begin
+ if school_app.school_id() is null then raise exception 'SCHOOL_NOT_FOUND'; end if;
+ if p_ok then delete from school_app.phone_login_attempts where school_id=school_app.school_id() and phone=p_phone; return; end if;
+ insert into school_app.phone_login_attempts as a(school_id,phone,failures,updated_at) values(school_app.school_id(),p_phone,1,now())
+ on conflict(school_id,phone) do update set failures=case when a.locked_until is not null and a.locked_until<=now() then 1 else a.failures+1 end, locked_until=null, updated_at=now()
+ returning failures into v_failures;
+ if v_failures>=5 then update school_app.phone_login_attempts set locked_until=now()+interval '15 minutes' where school_id=school_app.school_id() and phone=p_phone; end if;
+end $$;
+
+-- Identity of an activated student for phone sign-in; null when none.
+create or replace function school_app.phone_login_user(p_phone text) returns text language plpgsql security definer set search_path=pg_catalog,school_app as $$ declare v_user text;begin
+ perform school_app.assert_phone_not_locked(p_phone);
+ select s.user_id into v_user from school_app.students s join school_app.school_members m on m.school_id=s.school_id and m.user_id=s.user_id and m.role='student' where s.school_id=school_app.school_id() and s.phone=p_phone and s.user_id is not null;
+ return v_user;
+end $$;
+
+-- Valid, unused code issued for the student with this phone. Does not consume it.
+create or replace function school_app.activation_lookup(p_code text,p_phone text) returns table(invite_id uuid,student_id uuid,purpose text,user_id text,full_name text) language plpgsql security definer set search_path=pg_catalog,school_app as $$ begin
+ perform school_app.assert_phone_not_locked(p_phone);
+ return query select i.id,s.id,i.purpose,s.user_id,s.full_name from school_app.invites i join school_app.students s on s.school_id=i.school_id and s.id=i.student_id
+  where i.school_id=school_app.school_id() and i.code_hash=school_app.code_hash(p_code) and i.used_at is null and i.expires_at>now() and s.phone=p_phone limit 1;
+end $$;
+
+-- Consume a reset code for an activated student; true when this call consumed it.
+create or replace function school_app.consume_password_reset(p_invite uuid) returns text language plpgsql security definer set search_path=pg_catalog,school_app as $$ declare v_student uuid;v_user text;begin
+ update school_app.invites set used_at=now() where school_id=school_app.school_id() and id=p_invite and purpose='reset' and used_at is null and expires_at>now() returning student_id into v_student;
+ if v_student is null then raise exception 'INVALID_INVITE'; end if;
+ select user_id into v_user from school_app.students where school_id=school_app.school_id() and id=v_student;
+ if v_user is null then raise exception 'INVALID_INVITE'; end if;
+ insert into school_app.audit_log(school_id,actor,action,row_id,details) values(school_app.school_id(),v_user,'PASSWORD_RESET_BY_CODE',v_student,'{}'::jsonb);
+ return v_user;
+end $$;
+
+revoke all on function school_app.new_short_code(),school_app.code_hash(text),school_app.create_password_reset(uuid),school_app.assert_phone_not_locked(text),school_app.record_phone_login(text,boolean),school_app.phone_login_user(text),school_app.activation_lookup(text,text),school_app.consume_password_reset(uuid) from public;
+grant execute on function school_app.create_invite(uuid),school_app.claim_invite(text,text),school_app.create_password_reset(uuid),school_app.record_phone_login(text,boolean),school_app.phone_login_user(text),school_app.activation_lookup(text,text),school_app.consume_password_reset(uuid) to aem_tenant_runtime;
