@@ -157,7 +157,7 @@ it("rejects SVG, disguised files and oversized images; only admins can change th
 
 it("removing the logo restores the default preview and the endpoint returns 404", async () => {
   expect((await call("admin/settings/logo", "DELETE", undefined, adminCookie)).status).toBe(200);
-  expect((await call("catalogue").then((r) => r.json())).school.logo).toBeNull();
+  expect((await (await call("catalogue")).json()).school.logo).toBeNull();
   expect((await get(`/api/schools/${slug}/logo`)).status).toBe(404);
   expect(await (await get(`/s/${slug}`)).text()).toContain('og:image" content="https://aem.example/og-default.png"');
   // Another school's logo is never served under this slug.
