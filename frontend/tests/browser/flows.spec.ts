@@ -890,3 +890,47 @@ test("pending payment review preserves rejected evidence and excludes other scho
     page.getByText("RC-LOCALTEST-000001", { exact: true }),
   ).toBeVisible();
 });
+
+test("online sign-up explains an email already in use and an unreachable anti-robot check", async ({ page }) => {
+  await fixtures(page, null);
+  const ctx = page.context();
+  // Turnstile stand-in: renders and immediately hands back a token.
+  await ctx.route("https://challenges.cloudflare.com/**", (r) =>
+    r.fulfill({
+      contentType: "text/javascript",
+      // Like the real widget, reset() runs the check again and issues a new token.
+      body: 'window.turnstile={render:(el,o)=>{el.textContent="ok";window.__ts=o;setTimeout(()=>o.callback("tok-"+Math.random()),20);return "w1"},reset:()=>setTimeout(()=>window.__ts.callback("tok-"+Math.random()),20),remove:()=>{}};',
+    }),
+  );
+  await ctx.route("**/api/config", (r) => r.fulfill({ json: { turnstileSiteKey: "1x00000000000000000000AA" } }));
+  await ctx.route("**/api/schools/horizon/catalogue", (r) =>
+    r.fulfill({
+      json: {
+        school: { id: "school-a", name: "École Horizon", slug: "horizon", colors: { primary: "#1f4e8c", accent: "#f5a623" } },
+        categories: [{ id: "cat-b", code: "B", name: "Permis B" }],
+        groups: [{ id: "group-b", name: "Matin", licence_category_id: "cat-b", schedule_text: "8h", total_fee: 150000, installments: [] }],
+      },
+    }),
+  );
+  const answers = [
+    { status: 422, json: { code: "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL", message: "User already exists. Use another email." } },
+    { status: 503, json: { error: "TURNSTILE_UNAVAILABLE" } },
+  ];
+  await ctx.route("**/api/auth/sign-up/email", (r) => r.fulfill(answers.shift()!));
+
+  await page.goto("/s/horizon/inscription");
+  await page.locator('[formcontrolname="name"]').fill("Awa Ngono");
+  await page.locator('[formcontrolname="email"]').fill("deja@exemple.cm");
+  await page.locator('[formcontrolname="password"]').fill("motdepasse1");
+  await page.locator("form .actions button.full").click();
+  await page.locator('[formcontrolname="phone"]').fill("6 99 12 34 56");
+  await page.locator('[formcontrolname="category"]').selectOption("cat-b");
+  await page.locator('[formcontrolname="group"]').selectOption("group-b");
+  await page.locator("form .actions button.full").click();
+  await expect(page.getByText("ok")).toBeVisible();
+  await page.locator("form .actions button.full").click();
+  await expect(page.getByRole("alert")).toContainText("Un compte existe déjà avec cet email");
+  await page.waitForTimeout(200); // fresh anti-robot token after the reset
+  await page.locator("form .actions button.full").click();
+  await expect(page.getByRole("alert")).toContainText("ne répond pas pour le moment");
+});

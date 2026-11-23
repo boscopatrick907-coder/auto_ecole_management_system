@@ -164,18 +164,25 @@ app.all("/api/auth/*", async (c) => {
         return c.json({ error: "TURNSTILE_FAILED" }, 403);
       }
 
-      const response = await fetch(
-        "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-        {
-          method: "POST",
-          body: new URLSearchParams({
-            secret: c.env.TURNSTILE_SECRET_KEY,
-            response: token,
-            remoteip: ip,
-          }),
-        },
-      );
-      const result = (await response.json()) as { success: boolean };
+      let result: { success: boolean };
+      try {
+        const response = await fetch(
+          "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+          {
+            method: "POST",
+            body: new URLSearchParams({
+              secret: c.env.TURNSTILE_SECRET_KEY,
+              response: token,
+              remoteip: ip,
+            }),
+            signal: AbortSignal.timeout(8000),
+          },
+        );
+        result = (await response.json()) as { success: boolean };
+      } catch {
+        // Cloudflare unreachable: say so instead of a generic server error.
+        return c.json({ error: "TURNSTILE_UNAVAILABLE" }, 503);
+      }
       if (!result.success) return c.json({ error: "TURNSTILE_FAILED" }, 403);
 
       await pool.query(

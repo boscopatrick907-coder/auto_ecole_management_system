@@ -20,6 +20,7 @@ declare global {
     turnstile?: {
       render(el: HTMLElement, options: Record<string, unknown>): string;
       remove(id: string): void;
+      reset(id?: string): void;
     };
     __TURNSTILE_SITE_KEY__?: string;
   }
@@ -394,6 +395,11 @@ export class AuthPageComponent implements OnDestroy, AfterViewInit {
       ]);
     } catch (e) {
       this.error.set(this.errorMessage(e, mode));
+      // A Turnstile token is single-use: get a fresh one before the next try.
+      if (mode === "signup" && this.widget) {
+        this.token = "";
+        window.turnstile?.reset(this.widget);
+      }
     } finally {
       this.busy.set(false);
     }
@@ -401,17 +407,26 @@ export class AuthPageComponent implements OnDestroy, AfterViewInit {
 
   private errorMessage(e: unknown, mode: Mode) {
     if (e instanceof Error && e.message === "TURNSTILE_REQUIRED")
-      return this.t.captchaUnavailable;
+      // Widget shown but not finished yet: ask to wait, not to call the school.
+      return this.widget ? this.t.captchaPending : this.t.captchaUnavailable;
     if (!(e instanceof RequestError)) return this.t.networkError;
     if (e.code === "LOGIN_LOCKED") return this.t.loginLocked;
     if (e.status === 429) return this.t.loginRateLimited;
     if (e.status === 403 && e.code === "ORIGIN_FORBIDDEN") return this.t.loginOriginRejected;
+    if (e.code === "TURNSTILE_UNAVAILABLE") return this.t.captchaUnavailableRetry;
     if (e.status >= 500) return this.t.loginServerError;
     if (mode === "activate" && (e.code === "INVALID_INVITE" || e.status === 400))
       return this.t.activationInvalid;
     if (mode === "login" && (e.status === 401 || e.code === "INVALID_EMAIL_OR_PASSWORD"))
       return this.loginWith() === "phone" ? this.t.phoneLoginInvalid : this.t.loginInvalid;
     if (e.code === "PHONE_ALREADY_REGISTERED") return this.t.phoneTaken;
+    if (mode === "signup") {
+      if (e.code?.startsWith("USER_ALREADY_EXISTS") || e.status === 422) return this.t.emailTaken;
+      if (e.code === "TURNSTILE_FAILED" || e.code === "TURNSTILE_REQUIRED") return this.t.captchaFailed;
+      if (e.code === "STUDENT_ALREADY_REGISTERED") return this.t.alreadyStudent;
+      if (e.code === "GROUP_FULL") return this.t.groupFull;
+      if (e.code?.startsWith("PASSWORD_TOO")) return this.t.passwordRule;
+    }
     if (e.status === 403 && mode === "login") return this.t.loginOriginRejected;
     return this.t.conflict;
   }
