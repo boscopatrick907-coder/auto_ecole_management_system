@@ -583,6 +583,69 @@ app.post("/api/schools/:slug/auth/activate", async (c) => {
   }
 });
 
+// Staff activation: email + 6-digit code from the Équipe page + password.
+// A new email gets a new account; an existing account must prove its password.
+app.post("/api/schools/:slug/auth/staff-activate", async (c) => {
+  await limitPhoneAuth(c.env, c.req.header("CF-Connecting-IP") || "unknown");
+  const b = z
+    .object({
+      email: z.string().trim().toLowerCase().email().max(254),
+      code: activationCode,
+      password: z.string().min(1).max(128),
+      name: z.string().trim().max(150).optional(),
+    })
+    .parse(await c.req.json());
+  const slug = c.req.param("slug");
+  const lockKey = "email:" + b.email;
+  const pool = poolFor(c.env),
+    authPool = poolFor(c.env, true);
+  try {
+    const invite = await inSchool(pool, slug, null, async (db) =>
+      (await db.query("select * from school_app.staff_invite_lookup($1,$2)", [b.email, b.code])).rows[0] as
+        | { invite_id: string; name: string }
+        | undefined,
+    );
+    if (!invite) {
+      await inSchool(pool, slug, null, (db) => db.query("select school_app.record_phone_login($1,false)", [lockKey]));
+      throw fail("INVALID_INVITE", 400);
+    }
+    const auth = createAuth(c.env, authPool);
+    const existing = await (await auth.$context).internalAdapter.findUserByEmail(b.email);
+    let session: Response | null;
+    let createdUserId: string | null = null;
+    if (existing) {
+      session = await signInAs(auth, b.email, b.password, c.req.raw.headers);
+      if (!session) {
+        await inSchool(pool, slug, null, (db) => db.query("select school_app.record_phone_login($1,false)", [lockKey]));
+        return c.json({ error: "INVALID_EMAIL_OR_PASSWORD" }, 401);
+      }
+    } else {
+      studentPassword.parse(b.password);
+      const signUp = (await auth.api.signUpEmail({
+        body: { name: b.name || invite.name || b.email.split("@")[0], email: b.email, password: b.password },
+        headers: c.req.raw.headers,
+        asResponse: true,
+      })) as Response;
+      if (!signUp.ok) throw fail("VALIDATION_ERROR", 400);
+      createdUserId = ((await signUp.clone().json()) as { user: { id: string } }).user.id;
+      session = signUp;
+    }
+    const userId = existing?.user.id ?? createdUserId!;
+    try {
+      await inSchool(pool, slug, userId, async (db) => {
+        await db.query("select school_app.consume_staff_invite($1)", [invite.invite_id]);
+        await db.query("select school_app.record_phone_login($1,true)", [lockKey]);
+      });
+    } catch (e) {
+      if (createdUserId) await authPool.query('delete from identity."user" where id=$1', [createdUserId]);
+      throw e;
+    }
+    return withSessionCookies(session, { ok: true, role: "admin" }, existing ? 200 : 201);
+  } finally {
+    await Promise.all([releaseRequestPool(c.env, pool), releaseRequestPool(c.env, authPool)]);
+  }
+});
+
 app.all("/api/schools/:slug/*", async (c) => {
   const pool = poolFor(c.env);
   const authPool = poolFor(c.env, true);
@@ -919,6 +982,27 @@ app.all("/api/schools/:slug/*", async (c) => {
       const student = /^admin\/students\/([0-9a-f-]+)$/.exec(path);
       if (student && method === "GET")
         return c.json(await dossier(db, uuid.parse(student[1])));
+
+      // Équipe: school admins manage other admins.
+      if (path === "admin/staff" && method === "GET")
+        return c.json({ staff: (await db.query("select * from school_app.list_staff()")).rows });
+      if (path === "admin/staff/invite" && method === "POST") {
+        const b = z
+          .object({ email: z.string().trim().toLowerCase().email().max(254), name: z.string().trim().max(150).default("") })
+          .parse(await c.req.json());
+        const code = (await db.query("select school_app.create_staff_invite($1,$2) as code", [b.email, b.name])).rows[0].code;
+        return c.json({ code, email: b.email }, 201);
+      }
+      const staffMember = /^admin\/staff\/members\/([A-Za-z0-9_-]{1,64})$/.exec(path);
+      if (staffMember && method === "DELETE") {
+        await db.query("select school_app.remove_staff($1)", [staffMember[1]]);
+        return c.json({ ok: true });
+      }
+      const staffInvite = /^admin\/staff\/invites\/([0-9a-f-]+)$/.exec(path);
+      if (staffInvite && method === "DELETE") {
+        await db.query("select school_app.cancel_staff_invite($1)", [uuid.parse(staffInvite[1])]);
+        return c.json({ ok: true });
+      }
 
       const resetCode = /^admin\/students\/([0-9a-f-]+)\/reset-code$/.exec(path);
       if (resetCode && method === "POST")
@@ -1597,6 +1681,11 @@ const statusByCode: Record<string, number> = {
   STUDENT_ALREADY_ACTIVATED: 409,
   STUDENT_NOT_ACTIVATED: 409,
   LOGIN_LOCKED: 429,
+  ALREADY_STAFF: 409,
+  STAFF_EMAIL_IS_STUDENT: 409,
+  CANNOT_REMOVE_SELF: 409,
+  STAFF_NOT_FOUND: 404,
+  INVALID_EMAIL: 400,
   ENROLLMENT_ALREADY_EXISTS: 409,
   PAYMENT_ALREADY_CANCELLED: 409,
   SCHOOL_SLUG_CONFLICT: 409,
