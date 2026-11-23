@@ -28,5 +28,3 @@ namespace_id = "1001"
 simple = { limit = 10, period = 60 }
 [vars]
 ENVIRONMENT = "production"
-# The home page opens this school directly (no school code to type).
-DEFAULT_SCHOOL = "la-marseillaise"

@@ -16,7 +16,12 @@ export const routes: Routes = [
         loadComponent: () =>
           import("./pages/recovery").then((m) => m.RecoveryComponent),
       },
-      { path: "", pathMatch: "full", redirectTo: "connexion" },
+      {
+        path: "",
+        pathMatch: "full",
+        loadComponent: () =>
+          import("./pages/school-home").then((m) => m.SchoolHomeComponent),
+      },
       {
         path: "connexion",
         canActivate: [guestGuard],

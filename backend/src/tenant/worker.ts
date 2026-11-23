@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
@@ -19,6 +19,20 @@ import {
   verifyMaterial,
   MAX_MATERIAL_BYTES,
 } from "./material-storage.js";
+import {
+  esc,
+  homeBody,
+  homeMeta,
+  injectPage,
+  isSlug,
+  robotsTxt,
+  schoolBody,
+  schoolMeta,
+  schoolPathKind,
+  sitemapXml,
+  type PublicGroup,
+  type PublicSchool,
+} from "./seo.js";
 
 const app = new Hono<{ Bindings: TenantBindings }>();
 const uuid = z.string().uuid();
@@ -107,9 +121,6 @@ app.get("/api/health", (c) => c.json({ ok: true }));
 app.get("/api/config", (c) =>
   c.json({
     turnstileSiteKey: c.env.TURNSTILE_SITE_KEY || "",
-    defaultSchool: /^[a-z0-9][a-z0-9-]{1,62}$/.test(c.env.DEFAULT_SCHOOL || "")
-      ? c.env.DEFAULT_SCHOOL
-      : null,
     contractVersion: "2026-11-10.v1",
     authModes: {
       emailPassword: true,
@@ -267,6 +278,136 @@ app.post("/api/platform/schools", async (c) => {
     await Promise.all([releaseRequestPool(c.env, pool), releaseRequestPool(c.env, identity)]);
   }
 });
+
+// ---------------------------------------------------------------------------
+// Public directory, robots/sitemap and server-rendered public pages (SEO and
+// WhatsApp/Facebook link previews). Private app pages are served unchanged
+// with noindex. Rendered pages are cached at the edge for 5 minutes.
+// ---------------------------------------------------------------------------
+async function listedSchools(env: TenantBindings): Promise<PublicSchool[]> {
+  const pool = poolFor(env);
+  try {
+    return await tenantTransaction(pool, "", null, async (db) =>
+      (await db.query("select * from school_app.public_schools()")).rows as PublicSchool[],
+    );
+  } finally {
+    await releaseRequestPool(env, pool);
+  }
+}
+
+async function publicSchool(
+  env: TenantBindings,
+  slug: string,
+): Promise<{ school: PublicSchool; groups: PublicGroup[]; listed: boolean } | null> {
+  const pool = poolFor(env);
+  try {
+    return await tenantTransaction(pool, "", null, async (db) => {
+      const resolved = await db.query(
+        "select id,set_config('app.school_id',id::text,true),school_app.school_is_listed($1) as listed from school_app.resolve_school($1)",
+        [slug],
+      );
+      if (!resolved.rowCount) return null;
+      const [schoolRows, groupRows] = await queryBatch(db, [
+        "select slug,name,address,phone,whatsapp,logo from school_app.schools",
+        "select g.name,g.schedule_text,g.total_fee,lc.name as licence_name from school_app.groups g join school_app.licence_categories lc on lc.school_id=g.school_id and lc.id=g.licence_category_id where g.status='open' order by g.start_date, g.id",
+      ]);
+      if (!schoolRows.rowCount) return null;
+      return {
+        school: schoolRows.rows[0] as PublicSchool,
+        groups: groupRows.rows as PublicGroup[],
+        listed: Boolean(resolved.rows[0].listed),
+      };
+    });
+  } finally {
+    await releaseRequestPool(env, pool);
+  }
+}
+
+const edgeCache = () =>
+  (globalThis as { caches?: { default?: Cache } }).caches?.default;
+
+async function indexHtml(c: { env: TenantBindings; req: { url: string } }) {
+  const res = await c.env.ASSETS!.fetch(new Request(new URL("/", c.req.url)));
+  return res.text();
+}
+
+function htmlResponse(html: string, status: number, opts: { noindex: boolean; cacheable: boolean }) {
+  const headers = new Headers({ "Content-Type": "text/html; charset=utf-8" });
+  if (opts.noindex) headers.set("X-Robots-Tag", "noindex");
+  headers.set("Cache-Control", opts.cacheable ? "public, max-age=0, s-maxage=300" : "no-cache");
+  return new Response(html, { status, headers });
+}
+
+app.get("/api/schools", async (c) => {
+  const schools = await listedSchools(c.env);
+  c.header("Cache-Control", "public, max-age=300");
+  return c.json({ schools: schools.map(({ slug, name, address, logo }) => ({ slug, name, address, logo })) });
+});
+
+app.get("/robots.txt", (c) =>
+  c.text(robotsTxt(new URL(c.req.url).origin), 200, { "Cache-Control": "public, max-age=3600" }),
+);
+
+app.get("/sitemap.xml", async (c) => {
+  const body = sitemapXml(new URL(c.req.url).origin, await listedSchools(c.env));
+  return c.body(body, 200, {
+    "Content-Type": "application/xml; charset=utf-8",
+    "Cache-Control": "public, max-age=3600",
+  });
+});
+
+async function renderPublicPage(c: Context<{ Bindings: TenantBindings }>, path: string) {
+  if (!c.env.ASSETS) return c.notFound();
+  const url = new URL(c.req.url);
+  const origin = url.origin;
+  const match = /^\/s\/([^/]+)(\/.*)?$/.exec(path);
+  const slug = match?.[1] ?? "";
+  const kind = match ? schoolPathKind(match[2] ?? "") : "home";
+
+  // Private app pages: the plain app, never indexed, no database work.
+  if (match && kind === "private")
+    return htmlResponse(await indexHtml(c), 200, { noindex: true, cacheable: false });
+
+  const cache = edgeCache();
+  const key = new Request(origin + path, { method: "GET" });
+  const hit = await cache?.match(key);
+  if (hit) return hit;
+
+  let res: Response;
+  if (!match) {
+    const schools = await listedSchools(c.env);
+    res = htmlResponse(
+      injectPage(await indexHtml(c), homeMeta(origin), homeBody(origin, schools)),
+      200,
+      { noindex: false, cacheable: true },
+    );
+  } else {
+    const data = isSlug(slug) ? await publicSchool(c.env, slug) : null;
+    if (!data) {
+      return htmlResponse(
+        injectPage(
+          await indexHtml(c),
+          { ...homeMeta(origin), title: "Auto-école introuvable", noindex: true, jsonLd: undefined },
+          `<main class="seo-prerender"><h1>Auto-école introuvable</h1><p><a href="${esc(origin)}/">Voir les auto-écoles</a></p></main>`,
+        ),
+        404,
+        { noindex: true, cacheable: false },
+      );
+    }
+    const meta = schoolMeta(origin, data.school, data.groups, kind as "home" | "entry", data.listed);
+    res = htmlResponse(
+      injectPage(await indexHtml(c), meta, schoolBody(origin, data.school, data.groups)),
+      200,
+      { noindex: meta.noindex, cacheable: true },
+    );
+  }
+  if (cache) c.executionCtx.waitUntil(cache.put(key, res.clone()));
+  return res;
+}
+
+app.get("/", (c) => renderPublicPage(c, "/"));
+app.get("/s/:slug", (c) => renderPublicPage(c, c.req.path));
+app.get("/s/:slug/*", (c) => renderPublicPage(c, c.req.path));
 
 // ---------------------------------------------------------------------------
 // Front-desk student accounts: phone + password sign-in and activation codes.

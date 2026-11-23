@@ -57,7 +57,6 @@ export function developmentBindings(
     TRUSTED_ORIGINS:
       values.TRUSTED_ORIGINS || "http://localhost:4200,http://localhost:8788",
     TURNSTILE_SITE_KEY: values.TURNSTILE_SITE_KEY || "",
-    DEFAULT_SCHOOL: values.DEFAULT_SCHOOL || undefined,
     TURNSTILE_SECRET_KEY: values.TURNSTILE_SECRET_KEY || "test-only",
     R2_ACCOUNT_ID: values.R2_ACCOUNT_ID || "",
     R2_ACCESS_KEY_ID: values.R2_ACCESS_KEY_ID || "",

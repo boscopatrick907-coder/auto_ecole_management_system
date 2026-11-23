@@ -84,6 +84,10 @@ async function fixtures(
   await page.context().route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     const method = route.request().method();
+    if (path === "/api/schools")
+      return route.fulfill({
+        json: { schools: [{ slug: "horizon", name: "École Horizon", address: "Douala", logo: null }] },
+      });
     if (path.endsWith("/admin/categories") && method === "POST") {
       const b = route.request().postDataJSON();
       const category = { id: crypto.randomUUID(), code: b.code, name: b.name };
@@ -230,8 +234,11 @@ async function fixtures(
 test("school selection and unauthenticated guard", async ({ page }) => {
   await fixtures(page, null);
   await page.goto("/");
-  await page.getByRole("textbox").fill("horizon");
-  await page.getByRole("button", { name: "Ouvrir mon école" }).click();
+  // Visitors pick their school by name from the public directory.
+  await page.getByRole("textbox").fill("horiz");
+  await page.getByRole("link", { name: /École Horizon/ }).click();
+  await expect(page).toHaveURL(/\/s\/horizon$/);
+  await page.getByRole("link", { name: "Connexion", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Connexion", exact: true }),
   ).toBeVisible();

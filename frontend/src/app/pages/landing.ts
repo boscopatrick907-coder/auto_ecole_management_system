@@ -1,96 +1,100 @@
-import { Component, OnInit, inject, signal } from "@angular/core";
-import { FormControl, ReactiveFormsModule, Validators } from "@angular/forms";
-import { Router } from "@angular/router";
+import { Component, OnInit, computed, inject, signal } from "@angular/core";
+import { FormsModule } from "@angular/forms";
+import { RouterLink } from "@angular/router";
 import { FR } from "../core/fr";
 import { ApiService } from "../core/api.service";
 import { IconComponent } from "../shared/ui";
-import { forgetSchool, isSlug, rememberedSchool, slugify } from "../core/school-memory";
+import { forgetSchool, rememberedSchool, slugify } from "../core/school-memory";
+
+interface DirectorySchool {
+  slug: string;
+  name: string;
+  address: string | null;
+  logo: string | null;
+}
 
 /**
- * Home page. Nobody should have to know a technical school code:
- * 1. a school opened before on this device is reopened directly;
- * 2. otherwise the deployment's default school (DEFAULT_SCHOOL) opens directly;
- * 3. only then do we ask, and the school's name can be typed as written.
+ * Public home page: the list of partner schools (also pre-rendered by the
+ * Worker for search engines). Nobody types a technical code: people pick their
+ * school by name, and the school opened last on this device is offered first.
  */
 @Component({
   standalone: true,
-  imports: [ReactiveFormsModule, IconComponent],
+  imports: [FormsModule, RouterLink, IconComponent],
   template: `<main id="main" class="auth-page">
     <section class="auth-brand">
       <app-icon name="directions_car" />
       <h1>{{ t.app }}</h1>
-      <p>{{ t.brand }}</p>
+      <p>{{ t.directoryIntro }}</p>
     </section>
-    @if (checking()) {
-      <section class="card"><p role="status">{{ t.loading }}</p></section>
-    } @else {
+    @if (remembered(); as r) {
       <section class="card">
-        <h2>{{ t.schoolAccess }}</h2>
-        <p class="muted">{{ t.schoolNameHelp }}</p>
-        <form (submit)="open($event)">
-          <label
-            >{{ t.landingSchoolName
-            }}<input
-              [formControl]="name"
-              autocomplete="organization"
-              placeholder="La Marseillaise" /></label
-          >
-          @if (notFound()) {
-            <p class="error-box" role="alert">{{ t.schoolNotFoundHelp }}</p>
-          }
-          <button class="btn full" [disabled]="name.invalid || opening()" [attr.aria-busy]="opening()">
-            {{ opening() ? t.loading : t.selectSchool }}<app-icon name="arrow_forward" />
-          </button>
-        </form>
+        <a class="btn full" [routerLink]="['/s', r.slug]"
+          >{{ t.continueWith }} {{ r.name || r.slug }}<app-icon name="arrow_forward"
+        /></a>
       </section>
     }
+    <section class="card">
+      <h2>{{ t.findSchool }}</h2>
+      <label
+        >{{ t.landingSchoolName
+        }}<input
+          [(ngModel)]="query"
+          name="query"
+          autocomplete="organization"
+          placeholder="La Marseillaise"
+      /></label>
+      @if (loading()) {
+        <p role="status">{{ t.loading }}</p>
+      } @else if (error()) {
+        <p class="error-box" role="alert">{{ t.networkError }}</p>
+      } @else {
+        @for (s of filtered(); track s.slug) {
+          <a class="list-row" [routerLink]="['/s', s.slug]">
+            <div class="grow">
+              <strong>{{ s.name }}</strong>
+              @if (s.address) {
+                <p>{{ s.address }}</p>
+              }
+            </div>
+            <app-icon name="chevron_right" />
+          </a>
+        } @empty {
+          <p class="muted">{{ t.schoolNotFoundHelp }}</p>
+        }
+      }
+    </section>
   </main>`,
 })
 export class LandingComponent implements OnInit {
   t = FR;
-  router = inject(Router);
   api = inject(ApiService);
-  checking = signal(true);
-  opening = signal(false);
-  notFound = signal(false);
-  name = new FormControl("", { nonNullable: true, validators: [Validators.required] });
+  schools = signal<DirectorySchool[]>([]);
+  loading = signal(true);
+  error = signal(false);
+  query = "";
+  private rememberedSlug = signal<string | null>(null);
+
+  remembered = computed(() => {
+    const slug = this.rememberedSlug();
+    return slug ? (this.schools().find((s) => s.slug === slug) ?? { slug, name: "" }) : null;
+  });
+
+  filtered() {
+    const q = slugify(this.query);
+    return this.schools().filter((s) => !q || slugify(s.name).includes(q) || s.slug.includes(q));
+  }
 
   async ngOnInit() {
-    // ?changer=1 lets someone pick another school instead of being sent back.
-    const choosing = new URLSearchParams(location.search).has("changer");
-    if (choosing) forgetSchool();
-    const remembered = choosing ? null : rememberedSchool();
-    if (remembered) return this.go(remembered);
+    // ?changer=1 (from "Choisir une autre auto-école") forgets the last school.
+    if (new URLSearchParams(location.search).has("changer")) forgetSchool();
+    this.rememberedSlug.set(rememberedSchool());
     try {
-      const config = await this.api.request<{ defaultSchool?: string | null }>("/config");
-      if (!choosing && isSlug(config.defaultSchool)) return this.go(config.defaultSchool);
+      this.schools.set((await this.api.request<{ schools?: DirectorySchool[] }>("/schools")).schools ?? []);
     } catch {
-      /* offline or API down: let the person type the school */
-    }
-    this.checking.set(false);
-  }
-
-  private async go(slug: string) {
-    await this.router.navigate(["/s", slug, "connexion"], { replaceUrl: true });
-  }
-
-  async open(e: Event) {
-    e.preventDefault();
-    const slug = slugify(this.name.value);
-    if (!isSlug(slug) || this.opening()) {
-      this.notFound.set(true);
-      return;
-    }
-    this.opening.set(true);
-    this.notFound.set(false);
-    try {
-      // Check the school exists before leaving the page, so a typo gets a clear message.
-      await this.api.request(`/schools/${encodeURIComponent(slug)}/catalogue`);
-      await this.go(slug);
-    } catch {
-      this.notFound.set(true);
+      this.error.set(true);
     } finally {
-      this.opening.set(false);
+      this.loading.set(false);
     }
   }
 }

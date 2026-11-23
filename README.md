@@ -27,6 +27,15 @@ Les URLs de l'application commencent par `/s/<slug-de-l-école>` (ex. `/s/la-mar
 
 Hors périmètre du lancement : envoi automatique WhatsApp/SMS, paiement en ligne, moniteurs/planning, facturation SaaS. La connexion par OTP SMS n'est pas implémentée.
 
+## Pages publiques et référencement (SEO)
+
+- **Accueil `/`** : liste des auto-écoles partenaires avec recherche par nom (personne ne tape de code technique). L'école ouverte en dernier sur l'appareil est proposée en premier (« Continuer avec … »).
+- **Page d'une école `/s/<école>`** : nom, adresse, formations et tarifs, boutons S'inscrire / Connexion / J'ai un code / WhatsApp.
+- Le Worker génère côté serveur, pour ces pages : titre, description, aperçu WhatsApp/Facebook (`og:*`, image `og-default.png` ou logo https de l'école), données `DrivingSchool` (schema.org), `robots.txt` et `sitemap.xml`. Les pages privées (tableau de bord, paiements, fiche élève…) sont servies telles quelles avec `X-Robots-Tag: noindex` ; les pages de connexion aussi.
+- **Une école n'apparaît dans la liste publique et le sitemap que si `schools.listed = true`** (désactivé par défaut ; `tenant:bootstrap` l'active sauf `SCHOOL_LISTED=false`). Une école non listée reste accessible par son lien direct, sans être indexée.
+- Ces pages nécessitent le déploiement **même origine** (Worker + fichiers Angular, binding `ASSETS`, voir `wrangler.staging.toml`). En local : `SERVE_FRONTEND=1 npm run dev:tenant:node` après `npm run build --prefix frontend`, puis `http://localhost:8788/` (ajouter `http://localhost:8788` à `TRUSTED_ORIGINS`).
+- Le plus important pour être trouvé localement reste la **fiche Google Business Profile** de chaque école, avec un lien vers sa page `/s/<école>`.
+
 ## Démarrage local
 
 Prérequis : Node 24, npm, PostgreSQL 16+.
