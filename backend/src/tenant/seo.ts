@@ -177,7 +177,9 @@ export function schoolBody(origin: string, school: PublicSchool, groups: PublicG
   }<p><a href="${esc(base)}/inscription">S’inscrire</a> · <a href="${esc(base)}/connexion">Se connecter</a> · <a href="${esc(base)}/activation">J’ai un code</a></p></main>`;
 }
 
-export function robotsTxt(origin: string): string {
+/** Staging and development must never be indexed (test data, duplicate content). */
+export function robotsTxt(origin: string, indexable = true): string {
+  if (!indexable) return "User-agent: *\nDisallow: /\n";
   return `User-agent: *\nDisallow: /api/\nAllow: /\n\nSitemap: ${origin}/sitemap.xml\n`;
 }
 

@@ -27,7 +27,8 @@ const env: TenantBindings = {
   TRUSTED_ORIGINS: "http://localhost:4200",
   TURNSTILE_SECRET_KEY: "test-only",
   OFFLINE_PRIVATE_KEY_PEM: generateKeyPairSync("ed25519").privateKey.export({ type: "pkcs8", format: "pem" }).toString(),
-  ENVIRONMENT: "development",
+  // Indexing rules below describe production; staging is covered separately.
+  ENVIRONMENT: "production",
   SIGNUP_LIMITER: { limit: async () => ({ success: true }) },
   R2_ACCOUNT_ID: "",
   R2_ACCESS_KEY_ID: "",
@@ -158,4 +159,16 @@ it("unknown schools get a 404 with noindex; robots and sitemap are served", asyn
 it("without an ASSETS binding (API-only deploy) page routes are not served", async () => {
   const r = await app.request("https://aem.example/", {}, { ...env, ASSETS: undefined });
   expect(r.status).toBe(404);
+});
+
+it("staging and development are never indexed: robots disallows all and pages are noindex", async () => {
+  const staging = { ...env, ENVIRONMENT: "staging" };
+  const robots = await (await app.request("https://staging.example/robots.txt", {}, staging)).text();
+  expect(robots).toBe("User-agent: *\nDisallow: /\n");
+  for (const path of ["/", `/s/${listedSlug}`]) {
+    const r = await app.request("https://staging.example" + path, {}, staging);
+    expect(r.status).toBe(200);
+    expect(r.headers.get("X-Robots-Tag")).toBe("noindex");
+    expect(await r.text()).toContain('<meta name="robots" content="noindex">');
+  }
 });
