@@ -9,7 +9,7 @@ compatibility_flags = ["nodejs_compat"]
 # Run the Worker next to the Neon database: each request makes several
 # sequential queries, so database latency dominates response time.
 [placement]
-region = "aws:us-east-2"
+region = "aws:eu-central-1"
 # Recommended: pooled, low-latency connections. Create with
 #   wrangler hyperdrive create aem-app --connection-string="<restricted app login URL>"
 #   wrangler hyperdrive create aem-auth --connection-string="<restricted identity login URL>"
