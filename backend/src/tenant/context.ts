@@ -11,6 +11,8 @@ export interface TenantBindings {
   TRUSTED_ORIGINS: string;
   TURNSTILE_SECRET_KEY: string;
   TURNSTILE_SITE_KEY?: string;
+  /** Slug opened directly from the home page (single-school deployments). */
+  DEFAULT_SCHOOL?: string;
   OFFLINE_PRIVATE_KEY_PEM: string;
   R2_ACCOUNT_ID: string;
   R2_ACCESS_KEY_ID: string;

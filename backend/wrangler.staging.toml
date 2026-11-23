@@ -28,6 +28,8 @@ simple = { limit = 10, period = 60 }
 
 [vars]
 ENVIRONMENT = "staging"
+# The home page opens this school directly (no school code to type).
+DEFAULT_SCHOOL = "la-marseillaise"
 # Add secrets/bindings securely to this worker before using authenticated flows.
 # DATABASE_URL and AUTH_DATABASE_URL must use separate restricted Neon logins.
 # BETTER_AUTH_URL and TRUSTED_ORIGINS must match the deployed HTTPS origin.

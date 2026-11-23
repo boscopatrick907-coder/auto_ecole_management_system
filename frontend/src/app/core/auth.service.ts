@@ -1,3 +1,4 @@
+import { rememberSchool } from "./school-memory";
 import { Injectable, inject, signal } from "@angular/core";
 import { ApiService, RequestError } from "./api.service";
 import { database, accountScope } from "./database";
@@ -145,6 +146,7 @@ export class AuthService {
 
       ensureCurrent();
       this.school.set(cat.school);
+      rememberSchool(slug);
       this.applyBrand(cat.school);
 
       if (!useCachedIdentity && session) {

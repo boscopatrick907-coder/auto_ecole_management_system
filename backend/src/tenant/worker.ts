@@ -107,6 +107,9 @@ app.get("/api/health", (c) => c.json({ ok: true }));
 app.get("/api/config", (c) =>
   c.json({
     turnstileSiteKey: c.env.TURNSTILE_SITE_KEY || "",
+    defaultSchool: /^[a-z0-9][a-z0-9-]{1,62}$/.test(c.env.DEFAULT_SCHOOL || "")
+      ? c.env.DEFAULT_SCHOOL
+      : null,
     contractVersion: "2026-11-10.v1",
     authModes: {
       emailPassword: true,

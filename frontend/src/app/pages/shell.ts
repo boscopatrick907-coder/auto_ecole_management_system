@@ -78,7 +78,7 @@ import { BottomNavComponent, IconComponent } from "../shared/ui";
             <button class="btn" type="button" (click)="auth.openSchool(api.slug, true)">
               {{ t.retry }}
             </button>
-            <a class="btn ghost" routerLink="/">{{ t.back }}</a>
+            <a class="btn ghost" routerLink="/" [queryParams]="{ changer: 1 }">{{ t.changeSchool }}</a>
           </div>
         </div>
       } @else {
