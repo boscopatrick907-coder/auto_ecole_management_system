@@ -1,15 +1,23 @@
 import { Injectable, inject, signal } from "@angular/core";
 import { SwUpdate } from "@angular/service-worker";
+import { FR } from "./fr";
+
 interface InstallEvent extends Event {
   prompt(): Promise<void>;
   userChoice: Promise<{ outcome: string }>;
 }
+
 @Injectable({ providedIn: "root" })
 export class PwaService {
   private updates = inject(SwUpdate);
-  private readonly bootedAt = Date.now();
   private lastCheckAt = 0;
+  private failedRetryCount = 0;
+  readonly swEnabled = this.updates.isEnabled;
   readonly updateAvailable = signal(false);
+  readonly updateDismissed = signal(false);
+  readonly updating = signal(false);
+  readonly checking = signal(false);
+  readonly updateStatus = signal("");
   readonly installAvailable = signal(false);
   readonly dismissed = signal(
     sessionStorage.getItem("install-dismissed") === "true",
@@ -18,6 +26,7 @@ export class PwaService {
   readonly ios =
     /iPad|iPhone|iPod/.test(navigator.userAgent) &&
     !(navigator as Navigator & { standalone?: boolean }).standalone;
+
   constructor() {
     window.addEventListener("beforeinstallprompt", (e) => {
       e.preventDefault();
@@ -27,16 +36,13 @@ export class PwaService {
     if (this.updates.isEnabled) {
       this.updates.versionUpdates.subscribe((e) => {
         if (e.type === "VERSION_READY") {
-          const hash = e.latestVersion.hash;
-          const alreadyReloaded = sessionStorage.getItem("pwa-reloaded-hash") === hash;
-          if (Date.now() - this.bootedAt < 15_000 && !alreadyReloaded) {
-            sessionStorage.setItem("pwa-reloaded-hash", hash);
-            void this.reload();
-          } else {
-            this.updateAvailable.set(true);
-          }
-        } else if (e.type === "VERSION_INSTALLATION_FAILED") {
-          void this.checkForUpdate(true);
+          this.failedRetryCount = 0;
+          this.updateAvailable.set(true);
+          this.updateDismissed.set(false);
+          this.updateStatus.set(FR.update);
+        } else if (e.type === "VERSION_INSTALLATION_FAILED" && this.failedRetryCount < 2) {
+          this.failedRetryCount++;
+          setTimeout(() => void this.checkForUpdate(true), 5000);
         }
       });
       this.updates.unrecoverable.subscribe(() => {
@@ -50,35 +56,62 @@ export class PwaService {
         if (document.visibilityState === "visible") void this.checkForUpdate();
       });
       window.addEventListener("online", () => void this.checkForUpdate(true));
-      setTimeout(() => void this.checkForUpdate(true), 4000);
+      setTimeout(() => void this.checkForUpdate(true), 3000);
+      setInterval(() => void this.checkForUpdate(), 10 * 60_000);
     }
   }
-  async checkForUpdate(force = false) {
-    if (!this.updates.isEnabled) return;
+
+  async checkForUpdate(force = false, manual = false): Promise<boolean> {
+    if (!this.updates.isEnabled) {
+      if (manual) this.updateStatus.set(FR.appUpToDate);
+      return false;
+    }
+    if (manual && !navigator.onLine) {
+      this.updateStatus.set(FR.updateCheckOffline);
+      return false;
+    }
     const now = Date.now();
-    if (!force && now - this.lastCheckAt < 30_000) return;
+    if (!force && !manual && now - this.lastCheckAt < 30_000) return false;
     this.lastCheckAt = now;
+    if (manual) {
+      this.checking.set(true);
+      this.updateStatus.set("");
+      this.updateDismissed.set(false);
+    }
     try {
-      await this.updates.checkForUpdate();
+      const found = await this.updates.checkForUpdate();
+      if (manual) {
+        this.updateStatus.set(found || this.updateAvailable() ? FR.update : FR.appUpToDate);
+      }
+      return found;
     } catch {
-      /* offline or SW not ready yet */
+      if (manual) this.updateStatus.set(FR.updateCheckOffline);
+      return false;
+    } finally {
+      if (manual) this.checking.set(false);
     }
   }
+
   async install() {
     await this.promptEvent?.prompt();
     this.installAvailable.set(false);
   }
+
   dismiss() {
     sessionStorage.setItem("install-dismissed", "true");
     this.dismissed.set(true);
   }
+
+  dismissUpdate() {
+    this.updateDismissed.set(true);
+  }
+
   async reload() {
-    if (this.updates.isEnabled) {
-      try {
-        await this.updates.activateUpdate();
-      } catch {
-        /* fallback to hard reload */
-      }
+    this.updating.set(true);
+    try {
+      if (this.updates.isEnabled) await this.updates.activateUpdate();
+    } catch {
+      /* fallback to hard reload */
     }
     location.reload();
   }

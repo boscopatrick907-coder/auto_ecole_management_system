@@ -1,4 +1,5 @@
 import { Component, inject, signal, OnInit, OnDestroy } from "@angular/core";
+import { DatePipe } from "@angular/common";
 import { ReactiveFormsModule, FormBuilder, Validators } from "@angular/forms";
 import { ActivatedRoute } from "@angular/router";
 import { AuthService } from "../core/auth.service";
@@ -9,13 +10,13 @@ import { ReceiptService } from "../core/receipt.service";
 import { WhatsAppService } from "../core/whatsapp.service";
 import { FR } from "../core/fr";
 import { MoneyPipe, formatMoney } from "../shared/money.pipe";
-import { IconComponent } from "../shared/ui";
-import type { Dossier, Payment } from "../core/models";
+import { IconComponent, BadgeComponent, installmentLabel } from "../shared/ui";
+import type { Dossier, Installment, Payment } from "../core/models";
 import { nextOfflineReceipt } from "../core/database";
 
 @Component({
   standalone: true,
-  imports: [ReactiveFormsModule, MoneyPipe, IconComponent],
+  imports: [ReactiveFormsModule, DatePipe, MoneyPipe, IconComponent, BadgeComponent],
   template: `<div class="page-heading">
       <div>
         <span class="eyebrow">{{ t.admin }}</span>
@@ -61,6 +62,8 @@ import { nextOfflineReceipt } from "../core/database";
               />
             </label>
 
+            <p class="muted small">{{ t.partialPaymentAllowed }}</p>
+
             <div class="chips">
               <button
                 type="button"
@@ -69,13 +72,22 @@ import { nextOfflineReceipt } from "../core/database";
                 {{ t.nextInstallment }} · {{ nextAmount() | fcfa }}
               </button>
 
+              @if (nextAmount() >= 2) {
+                <button
+                  type="button"
+                  (click)="form.controls.amount.setValue(partialAmount())"
+                >
+                  {{ t.partialHalf }} · {{ partialAmount() | fcfa }}
+                </button>
+              }
+
               <button
                 type="button"
                 (click)="
                   form.controls.amount.setValue(number(d.enrollment?.balance))
                 "
               >
-                {{ t.remaining }}
+                {{ t.remaining }} · {{ number(d.enrollment?.balance) | fcfa }}
               </button>
             </div>
 
@@ -107,6 +119,30 @@ import { nextOfflineReceipt } from "../core/database";
               {{ busy() ? t.loading : t.confirm }}
             </button>
           </form>
+
+          @if (d.installments.length) {
+            <div style="margin-top: 20px">
+              <h3>{{ t.tranchesStatus }}</h3>
+              @for (i of d.installments; track i.id) {
+                <div class="list-row">
+                  <div>
+                    <strong>{{ i.label }}</strong>
+                    <p>{{ i.due_date | date: "dd/MM/yyyy" }}</p>
+                    @if (number(i.paid_amount || 0) > 0 && i.status !== "paid") {
+                      <p class="muted small">
+                        {{ t.paidOf }} : {{ i.paid_amount | fcfa }} ·
+                        {{ t.leftToPay }} : {{ remainingOf(i) | fcfa }}
+                      </p>
+                    }
+                  </div>
+                  <div class="align-right">
+                    <strong>{{ i.amount | fcfa }}</strong>
+                    <app-badge [kind]="i.status" [label]="badgeLabel(i)" />
+                  </div>
+                </div>
+              }
+            </div>
+          }
         </section>
 
         <aside class="card receipt-preview">
@@ -242,6 +278,21 @@ export class PaymentComponent implements OnInit, OnDestroy {
       : Number(this.data()?.enrollment?.balance || 0);
   }
 
+  partialAmount() {
+    return Math.max(1, Math.floor(this.nextAmount() / 2));
+  }
+
+  remainingOf(i: Installment) {
+    return Math.max(0, Number(i.amount) - Number(i.paid_amount || 0));
+  }
+
+  badgeLabel(i: Installment) {
+    if (i.status === "overdue" && Number(i.paid_amount || 0) > 0) {
+      return this.t.overduePartial;
+    }
+    return this.t[installmentLabel(i.status)];
+  }
+
   private async restorePayment() {
     const d = this.data();
     const enrollment = d?.enrollment;
@@ -328,7 +379,7 @@ export class PaymentComponent implements OnInit, OnDestroy {
     const v = this.form.getRawValue();
 
     if (v.amount > Number(d.enrollment.balance)) {
-      this.error.set(this.t.conflict);
+      this.error.set(this.t.exceedsBalance);
       return;
     }
 

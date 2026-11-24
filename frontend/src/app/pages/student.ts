@@ -218,12 +218,19 @@ import type { Dossier, Payment, StudentAnnouncement } from "../core/models";
                   <div>
                     <strong>{{ i.label }}</strong>
                     <p>{{ i.due_date | date: "dd/MM/yyyy" }}</p>
+                    @if (number(i.paid_amount || 0) > 0 && i.status !== "paid") {
+                      <p class="muted small">
+                        {{ t.paidOf }} : {{ i.paid_amount | fcfa }} ·
+                        {{ t.leftToPay }} :
+                        {{ (number(i.amount) - number(i.paid_amount || 0)) | fcfa }}
+                      </p>
+                    }
                   </div>
                   <div class="align-right">
                     <strong>{{ i.amount | fcfa }}</strong
                     ><app-badge
                       [kind]="i.status"
-                      [label]="t[statusLabel(i.status)]"
+                      [label]="i.status === 'overdue' && number(i.paid_amount || 0) > 0 ? t.overduePartial : t[statusLabel(i.status)]"
                     />
                   </div>
                 </div>
@@ -273,6 +280,7 @@ import type { Dossier, Payment, StudentAnnouncement } from "../core/models";
 })
 export class StudentPageComponent implements OnInit, OnDestroy {
   t = FR;
+  number = Number;
   auth = inject(AuthService);
   api = inject(ApiService);
   store = inject(DataService);

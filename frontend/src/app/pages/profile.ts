@@ -60,7 +60,19 @@ import type { Dossier } from "../core/models";
       @if (pwa.installAvailable()) {
         <button type="button" (click)="pwa.install()"><app-icon name="install_mobile" /><span>{{ t.installApp }}</span><app-icon name="chevron_right" /></button>
       }
+      @if (pwa.updateAvailable()) {
+        <button type="button" [disabled]="pwa.updating()" (click)="pwa.reload()">
+          <app-icon name="system_update" /><span>{{ pwa.updating() ? t.updating : t.reload }}</span><b class="count">1</b><app-icon name="chevron_right" />
+        </button>
+      } @else {
+        <button type="button" [disabled]="pwa.checking()" (click)="pwa.checkForUpdate(true, true)">
+          <app-icon name="system_update" /><span>{{ pwa.checking() ? t.checkingUpdate : t.checkUpdate }}</span><app-icon name="chevron_right" />
+        </button>
+      }
       <a routerLink="/" [queryParams]="{ changer: 1 }"><app-icon name="swap_horiz" /><span>{{ t.switchSchool }}</span><app-icon name="chevron_right" /></a>
+      @if (pwa.updateStatus()) {
+        <p class="muted small" role="status" style="margin: 10px 4px 0">{{ pwa.updateStatus() }}</p>
+      }
     </section>
 
     @if (auth.role() === "student") {

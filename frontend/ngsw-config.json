@@ -15,15 +15,26 @@
           "/icon-512.png",
           "/index.html",
           "/manifest.webmanifest",
-          "/*.css",
-          "/*.js"
+          "/styles-*.css",
+          "/main-*.js",
+          "/polyfills-*.js"
+        ]
+      }
+    },
+    {
+      "name": "chunks-lazy",
+      "installMode": "lazy",
+      "updateMode": "lazy",
+      "resources": {
+        "files": [
+          "/chunk-*.js"
         ]
       }
     },
     {
       "name": "assets-lazy",
       "installMode": "lazy",
-      "updateMode": "prefetch",
+      "updateMode": "lazy",
       "resources": {
         "files": [
           "/**/*.(svg|cur|jpg|jpeg|png|apng|webp|avif|gif|otf|ttf|woff|woff2)"

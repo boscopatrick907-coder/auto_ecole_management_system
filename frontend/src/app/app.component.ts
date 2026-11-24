@@ -2,19 +2,44 @@ import { Component, inject } from "@angular/core";
 import { RouterOutlet } from "@angular/router";
 import { FR } from "./core/fr";
 import { PwaService } from "./core/pwa.service";
+import { IconComponent } from "./shared/ui";
+
 @Component({
   selector: "app-root",
   standalone: true,
-  imports: [RouterOutlet],
-  template: `<a class="skip-link" href="#main">{{ t.next }}</a
-    ><router-outlet />
-    @if (pwa.updateAvailable()) {
-      <aside class="install-prompt" role="status">
-        <p>{{ t.update }}</p>
-        <button class="btn" (click)="pwa.reload()">{{ t.reload }}</button>
+  imports: [RouterOutlet, IconComponent],
+  template: `<a class="skip-link" href="#main">{{ t.next }}</a>
+    @if (pwa.updateAvailable() && !pwa.updateDismissed()) {
+      <aside class="update-banner" role="status" aria-live="polite">
+        <div class="update-banner-text">
+          <app-icon name="system_update" [size]="20" />
+          <div>
+            <strong>{{ t.updateTitle }}</strong>
+            <p>{{ t.updateBody }}</p>
+          </div>
+        </div>
+        <div class="update-banner-actions">
+          <button
+            class="btn small"
+            type="button"
+            [disabled]="pwa.updating()"
+            (click)="pwa.reload()"
+          >
+            {{ pwa.updating() ? t.updating : t.reload }}
+          </button>
+          <button
+            class="btn ghost small"
+            type="button"
+            [disabled]="pwa.updating()"
+            (click)="pwa.dismissUpdate()"
+          >
+            {{ t.later }}
+          </button>
+        </div>
       </aside>
     }
-    @if (!pwa.dismissed() && (pwa.installAvailable() || pwa.ios)) {
+    <router-outlet />
+    @if (!(pwa.updateAvailable() && !pwa.updateDismissed()) && !pwa.dismissed() && (pwa.installAvailable() || pwa.ios)) {
       <aside class="install-prompt">
         <strong>{{ t.install }}</strong>
         @if (pwa.ios) {
