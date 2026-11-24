@@ -257,7 +257,7 @@ test("student dashboard follows design and has no merchant checkout", async ({
   await expect(
     page.getByRole("heading", { name: "Bonjour, Alice" }),
   ).toBeVisible();
-  await expect(page.getByText("#LM-1000")).toBeVisible();
+  await expect(page.getByText("N° 1000")).toBeVisible();
   await expect(
     page.getByRole("link", { name: "Cours", exact: true }),
   ).toBeVisible();
@@ -287,7 +287,7 @@ test("dashboard stays usable while an offline lease is pending or fails", async 
     await expect(page.getByRole("heading", { name: "Tableau de bord" })).toBeVisible();
     await expect(page.locator(".primary-kpi strong")).toHaveText("50\u202f000 FCFA");
     release();
-    await expect(page.getByText("L’accès hors ligne n’a pas pu être actualisé. Restez connecté et réessayez.")).toBeVisible();
+    await expect(page.getByText("L’accès hors ligne n’est pas disponible pour le moment. Tout fonctionne en ligne.")).toBeVisible();
     await expect(page.locator(".primary-kpi strong")).toHaveText("50\u202f000 FCFA");
     await expect(page.getByRole("heading", { name: "École introuvable ou indisponible." })).toHaveCount(0);
   } finally { release(); }
@@ -393,7 +393,7 @@ test("downloaded school shell and cached profile reopen offline", async ({
     page.getByRole("heading", { name: "Bonjour, Alice" }),
   ).toBeVisible();
   await expect(
-    page.getByText("Mode hors ligne — Synchronisation au retour du réseau."),
+    page.getByText("Hors ligne — vos actions seront envoyées au retour du réseau."),
   ).toBeVisible();
 });
 

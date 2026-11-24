@@ -12,6 +12,13 @@ import {
   questionValid,
 } from "../core/content";
 
+interface ExamKey {
+  resource_id: string;
+  answers: string[];
+  choices: number;
+  duration_minutes: number;
+  question_count: number;
+}
 @Component({
   standalone: true,
   imports: [FormsModule],
@@ -125,6 +132,14 @@ export class ContentComponent implements OnInit, OnDestroy {
   duration = 20;
   questions: AuthorQuestion[] = [];
   categoryEditor = false;
+  // Exam answer keys (a PDF + its key = an épreuve students sit with a timer).
+  exams = signal<Record<string, ExamKey>>({});
+  examFor = signal<AdminResource | null>(null);
+  examCount = 40;
+  examChoices = 4;
+  examMinutes = 60;
+  examAnswers = signal<string[]>([]);
+  examQuick = "";
   newCategoryCode = "";
   newCategoryName = "";
   async addCategory() {
@@ -177,12 +192,14 @@ export class ContentComponent implements OnInit, OnDestroy {
     this.loading.set(true);
     this.error.set("");
     try {
-      const [catalogue, resources, quizzes] = await Promise.all([
+      const [catalogue, resources, quizzes, exams] = await Promise.all([
         this.api.catalogue(true),
         this.api.adminResources(),
         this.api.adminQuizzes(),
+        this.api.tenant<{ exams: ExamKey[] }>("admin/exams").catch(() => ({ exams: [] as ExamKey[] })),
       ]);
       if (!this.current()) return;
+      this.exams.set(Object.fromEntries((exams?.exams ?? []).map((e) => [e.resource_id, e])));
       this.categories.set(catalogue.categories);
       this.resources.set(resources.resources);
       this.quizzes.set(quizzes.quizzes);
@@ -215,6 +232,90 @@ export class ContentComponent implements OnInit, OnDestroy {
     this.preview = false;
     this.error.set("");
     this.success.set("");
+  }
+  letters() {
+    return "ABCDEF".slice(0, this.examChoices).split("");
+  }
+  openExam(r: AdminResource) {
+    const k = this.exams()[r.id];
+    this.examFor.set(r);
+    this.examChoices = k?.choices ?? 4;
+    this.examMinutes = k?.duration_minutes ?? 60;
+    this.examCount = k?.question_count ?? 40;
+    this.examAnswers.set(k ? [...k.answers] : Array.from({ length: this.examCount }, () => ""));
+    this.examQuick = "";
+    this.error.set("");
+    this.success.set("");
+    window.scrollTo({ top: 0 });
+  }
+  resizeExam() {
+    const n = Math.max(1, Math.min(200, Math.floor(Number(this.examCount) || 1)));
+    this.examCount = n;
+    this.examAnswers.update((a) => Array.from({ length: n }, (_, i) => a[i] ?? ""));
+  }
+  toggleKey(i: number, l: string) {
+    this.examAnswers.update((a) => {
+      const next = [...a];
+      const set = new Set(next[i].split(""));
+      if (set.has(l)) set.delete(l);
+      else set.add(l);
+      next[i] = [...set].sort().join("");
+      return next;
+    });
+  }
+  /** "A B CD D" or "A,B,CD,D": fills the sheet in one go. */
+  applyQuick() {
+    const parts = this.examQuick.toUpperCase().split(/[\s,;]+/).filter(Boolean);
+    if (!parts.length) return;
+    this.examCount = parts.length;
+    this.examAnswers.set(parts.map((p) => [...new Set(p.replace(/[^A-F]/g, "").split(""))].sort().join("")));
+  }
+  examMissing() {
+    return this.examAnswers().filter((a) => !a).length;
+  }
+  async saveExam() {
+    const r = this.examFor();
+    if (!r || this.busy() || this.examMissing()) return;
+    this.busy.set(true);
+    this.error.set("");
+    try {
+      const max = "ABCDEF"[this.examChoices - 1];
+      const answers = this.examAnswers().map((a) => a.split("").filter((l) => l <= max).join(""));
+      const { exam } = await this.api.tenant<{ exam: { answers: string[]; choices: number; duration_minutes: number } }>(
+        "admin/exams/" + encodeURIComponent(r.id),
+        "PUT",
+        { answers, choices: Number(this.examChoices), durationMinutes: Number(this.examMinutes) },
+      );
+      this.exams.update((m) => ({
+        ...m,
+        [r.id]: { resource_id: r.id, answers: exam.answers, choices: exam.choices, duration_minutes: exam.duration_minutes, question_count: exam.answers.length },
+      }));
+      this.examFor.set(null);
+      this.success.set(r.is_published ? "Corrigé enregistré : l’épreuve est disponible pour les élèves." : "Corrigé enregistré. Publiez le support pour que les élèves voient l’épreuve.");
+    } catch (e) {
+      this.report(e);
+    } finally {
+      this.busy.set(false);
+    }
+  }
+  async removeExam() {
+    const r = this.examFor();
+    if (!r || this.busy()) return;
+    this.busy.set(true);
+    try {
+      await this.api.tenant("admin/exams/" + encodeURIComponent(r.id), "DELETE");
+      this.exams.update((m) => {
+        const next = { ...m };
+        delete next[r.id];
+        return next;
+      });
+      this.examFor.set(null);
+      this.success.set("Corrigé retiré : ce PDF redevient un simple cours.");
+    } catch (e) {
+      this.report(e);
+    } finally {
+      this.busy.set(false);
+    }
   }
   create() {
     this.id = "";

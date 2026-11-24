@@ -102,7 +102,7 @@ export class DataService {
   }
 
   async file(id: string, download = false): Promise<string> {
-    if (this.api.online()) await this.auth.refreshLease();
+    if (this.api.online()) await this.auth.refreshLease().catch(() => {});
 
     if (!(await this.auth.offlineAllowed())) {
       throw new Error("ACCESS_EXPIRED");

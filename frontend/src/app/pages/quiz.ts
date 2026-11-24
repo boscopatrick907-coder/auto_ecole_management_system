@@ -134,6 +134,14 @@ import {
           </button>
         }
       } @else {
+        <a class="card promo-link" [routerLink]="'/s/' + api.slug + '/epreuves'">
+          <span class="feature-icon"><app-icon name="assignment" /></span>
+          <div class="grow">
+            <strong>{{ t.exams }}</strong>
+            <p>{{ t.examsTeaser }}</p>
+          </div>
+          <app-icon name="chevron_right" />
+        </a>
         <div class="grid-two">
           @for (q of quizzes(); track q.id) {
             <article class="card">
@@ -159,9 +167,6 @@ import {
           }
         </div>
       }
-      <a class="text-link" [routerLink]="'/s/' + api.slug + '/synchronisation'"
-        >Suivre mes envois</a
-      >
       @if (history().length) {
         <section class="card">
           <h2>Mes envois de quiz sur cet appareil</h2>

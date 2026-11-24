@@ -31,7 +31,7 @@ import { nextOfflineReceipt } from "../core/database";
             <div>
               <h2>{{ d.student.full_name }}</h2>
               <p>
-                #LM-{{ d.student.student_number }} ·
+                N° {{ d.student.student_number }} ·
                 {{ d.enrollment?.group_name }}
               </p>
             </div>

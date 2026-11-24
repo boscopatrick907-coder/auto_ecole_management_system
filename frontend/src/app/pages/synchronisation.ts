@@ -56,7 +56,7 @@ export function syncError(code?: string) {
       @for (item of items(); track item.id) {
         <section class="card" style="margin-bottom:16px">
           <span class="eyebrow"
-            >{{ item.kind === "payment" ? "Paiement" : "Quiz" }} ·
+            >{{ item.kind === "payment" ? "Paiement" : item.kind === "exam" ? "Épreuve" : "Quiz" }} ·
             {{ item.state === "blocked" ? "À vérifier" : "En attente" }}</span
           >
           <h2>

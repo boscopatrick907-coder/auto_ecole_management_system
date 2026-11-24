@@ -38,7 +38,7 @@ export class ReceiptService {
       `${this.t.date} : ${new Date(payment.paid_at).toLocaleString("fr-FR", { timeZone: "Africa/Douala" })}`,
     );
     line(`${this.t.name} : ${dossier.student.full_name}`);
-    line(`#LM-${dossier.student.student_number}`);
+    line(`N° élève ${dossier.student.student_number}`);
     line(`${this.t.phone} : ${dossier.student.phone}`);
     line(`${this.t.group} : ${dossier.enrollment?.group_name || ""}`);
     line(`${this.t.amount} : ${formatMoney(payment.amount)}`, 14);

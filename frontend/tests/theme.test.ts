@@ -20,8 +20,8 @@ it("derives theme variables and falls back on invalid colors", () => {
   expect(v["--on-primary"]).toBe("#ffffff");
   expect(contrast(v["--primary-ink"], "#ffffff")).toBeGreaterThanOrEqual(4.5);
   const bad = themeVariables({ primary: "red; background:url(x)", accent: "" });
-  expect(bad["--primary"]).toBe("#1f4e8c");
-  expect(bad["--accent"]).toBe("#f5a623");
+  expect(bad["--primary"]).toBe("#1f5fae");
+  expect(bad["--accent"]).toBe("#f7931e");
 });
 
 it("every preset gives readable buttons and readable text", () => {
@@ -30,6 +30,6 @@ it("every preset gives readable buttons and readable text", () => {
     expect(contrast(v["--on-primary"], p.primary)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(v["--primary-ink"], "#ffffff")).toBeGreaterThanOrEqual(4.5);
   }
-  expect(PRESETS[0].name).toBe("Bleu Marseillaise");
+  expect(PRESETS[0].name).toBe("Bleu & orange");
   expect(mix("#000000", "#ffffff", 0.5)).toBe("#808080");
 });

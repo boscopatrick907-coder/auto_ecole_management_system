@@ -48,6 +48,11 @@ export const routes: Routes = [
           import("./pages/student").then((m) => m.StudentPageComponent),
       })),
       {
+        path: "profil",
+        canActivate: [authGuard],
+        loadComponent: () => import("./pages/profile").then((m) => m.ProfileComponent),
+      },
+      {
         path: "synchronisation",
         canActivate: [authGuard],
         loadComponent: () =>
@@ -61,6 +66,12 @@ export const routes: Routes = [
         data: { role: "student" },
         loadComponent: () =>
           import("./pages/courses").then((m) => m.CoursesComponent),
+      },
+      {
+        path: "epreuves",
+        canActivate: [authGuard, roleGuard],
+        data: { role: "student" },
+        loadComponent: () => import("./pages/exams").then((m) => m.ExamsComponent),
       },
       {
         path: "quiz",

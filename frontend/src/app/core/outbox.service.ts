@@ -349,7 +349,7 @@ export class OutboxService {
 
         try {
           const result = await this.api.tenant(
-            item.kind === "payment" ? "admin/payments" : "quiz-attempts",
+            item.kind === "payment" ? "admin/payments" : item.kind === "exam" ? "exam-attempts" : "quiz-attempts",
             "POST",
             item.body,
           );
@@ -394,7 +394,7 @@ export class OutboxService {
               error: code,
               nextAt: Date.now() + retryDelay(item.attempts + 1),
               state:
-                code === "QUIZ_FORBIDDEN" || code === "RESOURCE_FORBIDDEN"
+                code === "QUIZ_FORBIDDEN" || code === "EXAM_FORBIDDEN" || code === "RESOURCE_FORBIDDEN"
                   ? "blocked"
                   : "pending",
             });

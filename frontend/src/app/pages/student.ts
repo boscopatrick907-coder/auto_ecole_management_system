@@ -37,7 +37,6 @@ import type { Dossier, Payment } from "../core/models";
             <span class="eyebrow">{{ t.progress }}</span>
             <h1>{{ t.welcome }}, {{ d.student.full_name.split(" ")[0] }}</h1>
           </div>
-          <span class="avatar">{{ d.student.full_name.charAt(0) }}</span>
         </div>
         @if (!d.student.has_paid) {
           <section class="trial-card">
@@ -65,7 +64,7 @@ import type { Dossier, Payment } from "../core/models";
             />
           </div>
           <p>{{ d.enrollment?.group_name }}</p>
-          <span class="muted">#LM-{{ d.student.student_number }}</span>
+          <span class="muted">N° {{ d.student.student_number }}</span>
         </section>
         <div class="grid-two">
           <a class="card feature" [routerLink]="base + '/cours'"
@@ -80,6 +79,13 @@ import type { Dossier, Payment } from "../core/models";
             <p>{{ t.serverGrade }}</p>
             <span class="btn accent full"
               >{{ t.start }}<app-icon name="arrow_forward" /></span
+          ></a
+          ><a class="card feature" [routerLink]="base + '/epreuves'"
+            ><span class="feature-icon"><app-icon name="assignment" /></span>
+            <h2>{{ t.exams }}</h2>
+            <p>{{ t.examsTeaser }}</p>
+            <span class="btn secondary full"
+              >{{ t.open }}<app-icon name="arrow_forward" /></span
           ></a>
         </div>
       }
@@ -227,7 +233,8 @@ export class StudentPageComponent implements OnInit, OnDestroy {
           (cached) => this.data.set(cached),
         ),
       );
-      if (this.api.online()) await this.auth.refreshLease();
+      // Offline access refresh is best-effort; it must never hide the student's data.
+      if (this.api.online()) void this.auth.refreshLease().catch(() => {});
     } catch {
       this.error.set(true);
     }

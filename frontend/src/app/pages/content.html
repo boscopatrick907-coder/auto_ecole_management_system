@@ -100,12 +100,64 @@
 >
   Actualiser les contenus
 </button>
-@if (!editing && !loading()) {
+@if (examFor(); as r) {
+<section class="card key-editor">
+  <span class="eyebrow">Épreuve d’examen</span>
+  <h2>Corrigé — {{ r.title }}</h2>
+  <p class="muted">
+    Les élèves téléchargent ce PDF, le font en temps limité (même hors ligne) et
+    cochent leurs réponses. Le serveur les corrige avec ce corrigé, qui reste
+    invisible pour eux jusqu’à l’envoi.
+  </p>
+  <div class="row">
+    <label>Nombre de questions<input type="number" min="1" max="200" [(ngModel)]="examCount" (change)="resizeExam()" /></label>
+    <label>Choix par question<select [(ngModel)]="examChoices">
+      @for (n of [2,3,4,5,6]; track n) {<option [ngValue]="n">{{ 'ABCDEF'.slice(0, n).split('').join(', ') }}</option>}
+    </select></label>
+    <label>Durée (minutes)<input type="number" min="5" max="240" [(ngModel)]="examMinutes" /></label>
+  </div>
+  <label>Saisie rapide (facultatif)
+    <input [(ngModel)]="examQuick" placeholder="Ex. : A B CD D A …" (keydown.enter)="applyQuick()" />
+  </label>
+  <button class="btn small ghost" type="button" (click)="applyQuick()">Remplir la grille</button>
+  <ol class="answer-sheet">
+    @for (a of examAnswers(); track $index; let i = $index) {
+    <li [class.done]="!!a">
+      <span class="qn">{{ i + 1 }}</span>
+      <div class="letters">
+        @for (l of letters(); track l) {
+        <button type="button" class="letter" [class.on]="a.includes(l)" [attr.aria-pressed]="a.includes(l)" (click)="toggleKey(i, l)">{{ l }}</button>
+        }
+      </div>
+    </li>
+    }
+  </ol>
+  @if (examMissing()) {
+  <p class="muted">{{ examMissing() }} question(s) sans bonne réponse.</p>
+  }
+  <div class="actions">
+    <button class="btn" type="button" [disabled]="busy() || examMissing() > 0" (click)="saveExam()">Enregistrer le corrigé</button>
+    @if (exams()[r.id]) {
+    <button class="btn ghost" type="button" [disabled]="busy()" (click)="removeExam()">Retirer le corrigé</button>
+    }
+    <button class="btn ghost" type="button" (click)="examFor.set(null)">Annuler</button>
+  </div>
+</section>
+}
+@if (!editing && !loading() && !examFor()) {
+@if (tab === 'courses') {
+<p class="soft-note">
+  Pour créer une épreuve d’examen : ajoutez le sujet en PDF, puis « Ajouter le corrigé ». Les élèves la trouvent dans Quiz → Épreuves d’examen.
+</p>
+}
 <div class="content-list">
   @if (tab === 'courses') { @for (r of filteredResources(); track r.id) {
   <article class="card content-item">
     <div>
       <span class="badge">{{ r.is_published ? 'Publié' : 'Brouillon' }}</span>
+      @if (exams()[r.id]; as k) {
+      <span class="badge paid">Épreuve · {{ k.question_count }} questions · {{ k.duration_minutes }} min</span>
+      }
       <h2>{{ r.title }}</h2>
       <p>
         {{ categoryName(r.licence_category_id) }} · {{ r.type === 'pdf' ? 'PDF'
@@ -127,7 +179,13 @@
         (click)="editResource(r)"
       >
         Modifier</button
-      ><button class="btn" [disabled]="busy()" (click)="publish(r)">
+      >@if (r.type === 'pdf') {<button
+        class="btn secondary"
+        [disabled]="busy()"
+        (click)="openExam(r)"
+      >
+        {{ exams()[r.id] ? 'Modifier le corrigé' : 'Ajouter le corrigé (épreuve)' }}</button
+      >}<button class="btn" [disabled]="busy()" (click)="publish(r)">
         {{ r.is_published ? 'Dépublier' : 'Publier' }}
       </button>
     </div>
