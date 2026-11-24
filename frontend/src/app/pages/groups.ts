@@ -1,5 +1,6 @@
 import { Component, inject, signal, OnInit } from "@angular/core";
 import { DatePipe } from "@angular/common";
+import { RouterLink } from "@angular/router";
 import {
   ReactiveFormsModule,
   FormsModule,
@@ -22,6 +23,7 @@ import type { Group, Category, AdminAnnouncement } from "../core/models";
 @Component({
   standalone: true,
   imports: [
+    RouterLink,
     ReactiveFormsModule,
     FormsModule,
     DatePipe,
@@ -124,6 +126,7 @@ import type { Group, Category, AdminAnnouncement } from "../core/models";
           <p>{{ g.total_fee | fcfa }}</p>
           <progress [value]="g.confirmed_seats" [max]="g.capacity"></progress>
           <p>{{ g.confirmed_seats }} / {{ g.capacity }} · {{ t.capacity }}</p>
+          <a class="btn full" [routerLink]="g.id"><app-icon name="insights" />{{ t.viewGroup }}</a>
 
           <div class="row between" style="margin-top: 12px; gap: 8px">
             <button
