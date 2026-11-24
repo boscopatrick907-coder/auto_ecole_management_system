@@ -116,6 +116,10 @@ export const routes: Routes = [
               import("./pages/groups").then((m) => m.GroupsComponent),
           },
           {
+            path: "groupes/:id",
+            loadComponent: () => import("./pages/group-detail").then((m) => m.GroupDetailComponent),
+          },
+          {
             path: "journal",
             loadComponent: () =>
               import("./pages/reports").then((m) => m.ReportsComponent),

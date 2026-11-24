@@ -1429,15 +1429,148 @@ app.all("/api/schools/:slug/*", async (c) => {
 
       const group = /^admin\/groups\/([0-9a-f-]+)$/.exec(path);
       if (group && method === "PATCH") {
+        // Edit a group. Every field is optional; a status-only body still works.
         const b = z
-          .object({ status: z.enum(["open", "closed", "finished"]) })
+          .object({
+            status: z.enum(["open", "closed", "finished"]).optional(),
+            name: z.string().trim().min(2).max(100).optional(),
+            licenceCategoryId: uuid.optional(),
+            startDate: z.iso.date().optional(),
+            scheduleText: z.string().max(200).optional(),
+            capacity: z.number().int().min(1).max(1000).optional(),
+            totalFee: money.optional(),
+            installments: z
+              .array(z.object({ label: z.string().trim().min(1).max(100), amount: money, dueDate: z.iso.date() }))
+              .min(1)
+              .max(12)
+              .optional(),
+          })
           .parse(await c.req.json());
-        const updated = await db.query(
-          "update school_app.groups set status=$2 where id=$1 returning id",
-          [uuid.parse(group[1]), b.status],
-        );
-        if (!updated.rowCount) throw fail("GROUP_NOT_FOUND", 404);
-        return c.json({ ok: true });
+        const groupId = uuid.parse(group[1]);
+        const before = (await db.query("select * from school_app.groups where id=$1 for update", [groupId])).rows[0];
+        if (!before) throw fail("GROUP_NOT_FOUND", 404);
+        const usage = (
+          await db.query(
+            `select count(*) filter(where e.status<>'cancelled')::int as enrolled,
+                    coalesce(max(b.paid) filter(where e.status<>'cancelled'),0)::bigint as max_paid
+               from school_app.enrollments e
+               left join school_app.enrollment_balances b on b.school_id=e.school_id and b.enrollment_id=e.id
+              where e.school_id=$1 and e.group_id=$2`,
+            [schoolId, groupId],
+          )
+        ).rows[0] as { enrolled: number; max_paid: string };
+        if (b.capacity !== undefined && b.capacity < usage.enrolled)
+          throw fail("CAPACITY_BELOW_ENROLLED", 409);
+        if (b.licenceCategoryId && b.licenceCategoryId !== before.licence_category_id) {
+          if (usage.enrolled > 0) throw fail("GROUP_HAS_STUDENTS", 409);
+          if (!(await db.query("select 1 from school_app.licence_categories where id=$1 and is_active", [b.licenceCategoryId])).rowCount)
+            throw fail("INVALID_GROUP", 400);
+        }
+        // Price and tranches change together, and never below what a student already paid.
+        if ((b.totalFee === undefined) !== (b.installments === undefined)) throw fail("INVALID_INSTALLMENTS", 400);
+        if (b.installments && b.totalFee !== undefined) {
+          if (
+            b.installments.reduce((n, x) => n + x.amount, 0) !== b.totalFee ||
+            b.installments.some((x, i) => i > 0 && x.dueDate < b.installments![i - 1].dueDate)
+          )
+            throw fail("INVALID_INSTALLMENTS", 400);
+          if (b.totalFee < Number(usage.max_paid)) throw fail("FEE_BELOW_PAID", 409);
+        }
+        const after = (
+          await db.query(
+            `update school_app.groups set
+               name=coalesce($2,name), licence_category_id=coalesce($3,licence_category_id),
+               start_date=coalesce($4::date,start_date), schedule_text=coalesce($5,schedule_text),
+               capacity=coalesce($6,capacity), total_fee=coalesce($7,total_fee), status=coalesce($8,status)
+             where id=$1 returning *`,
+            [groupId, b.name ?? null, b.licenceCategoryId ?? null, b.startDate ?? null, b.scheduleText ?? null,
+             b.capacity ?? null, b.totalFee ?? null, b.status ?? null],
+          )
+        ).rows[0];
+        if (b.installments) {
+          await db.query("delete from school_app.installments where school_id=$1 and group_id=$2", [schoolId, groupId]);
+          await db.query(
+            `insert into school_app.installments(school_id,group_id,position,label,amount,due_date)
+             select $1,$2,ordinality::int,item->>'label',(item->>'amount')::bigint,(item->>'dueDate')::date
+             from jsonb_array_elements($3::jsonb) with ordinality as x(item,ordinality)`,
+            [schoolId, groupId, JSON.stringify(b.installments)],
+          );
+        }
+        const changed = Object.keys(b);
+        if (changed.length)
+          await db.query(
+            "insert into school_app.audit_log(school_id,actor,action,row_id,details) values($1,$2,'UPDATE_GROUP',$3,$4)",
+            [schoolId, userId, groupId, JSON.stringify({
+              fields: changed,
+              before: { name: before.name, capacity: before.capacity, total_fee: before.total_fee, status: before.status },
+              after: { name: after.name, capacity: after.capacity, total_fee: after.total_fee, status: after.status },
+            })],
+          );
+        const installments = (await db.query("select * from school_app.installments where school_id=$1 and group_id=$2 order by position", [schoolId, groupId])).rows;
+        return c.json({ ok: true, group: { ...after, installments } });
+      }
+
+      const groupStats = /^admin\/groups\/([0-9a-f-]+)\/stats$/.exec(path);
+      if (groupStats && method === "GET") {
+        const groupId = uuid.parse(groupStats[1]);
+        const [g, students, tranches, learning, recent] = await Promise.all([
+          db.query(`select g.*, to_char(g.start_date,'YYYY-MM-DD') as start_date, l.name as licence_name from school_app.groups g
+                   join school_app.licence_categories l on l.school_id=g.school_id and l.id=g.licence_category_id
+                   where g.school_id=$1 and g.id=$2`, [schoolId, groupId]),
+          db.query(`select s.id, s.full_name, s.phone, s.student_number, (s.user_id is not null) as activated,
+                          b.paid::bigint, b.balance::bigint, e.status as enrollment_status,
+                          (select count(*)::int from school_app.installment_status st where st.school_id=e.school_id and st.enrollment_id=e.id and st.status='overdue') as overdue_count,
+                          (select coalesce(sum(st.amount-st.paid_amount),0)::bigint from school_app.installment_status st where st.school_id=e.school_id and st.enrollment_id=e.id and st.status='overdue') as overdue_amount,
+                          (select min(st.due_date) from school_app.installment_status st where st.school_id=e.school_id and st.enrollment_id=e.id and st.status<>'paid') as next_due
+                     from school_app.enrollments e
+                     join school_app.students s on s.school_id=e.school_id and s.id=e.student_id
+                     join school_app.enrollment_balances b on b.school_id=e.school_id and b.enrollment_id=e.id
+                    where e.school_id=$1 and e.group_id=$2 and e.status<>'cancelled'
+                    order by s.full_name, s.id`, [schoolId, groupId]),
+          db.query(`select i.id, i.position, i.label, i.amount::bigint, to_char(i.due_date,'YYYY-MM-DD') as due_date,
+                          count(st.enrollment_id) filter(where st.status='paid')::int as paid,
+                          count(st.enrollment_id) filter(where st.status='partial')::int as partial,
+                          count(st.enrollment_id) filter(where st.status='overdue')::int as overdue,
+                          count(st.enrollment_id) filter(where st.status='upcoming')::int as upcoming
+                     from school_app.installments i
+                     left join school_app.installment_status st on st.school_id=i.school_id and st.id=i.id
+                      and exists(select 1 from school_app.enrollments e where e.school_id=st.school_id and e.id=st.enrollment_id and e.status<>'cancelled')
+                    where i.school_id=$1 and i.group_id=$2
+                    group by i.id order by i.position`, [schoolId, groupId]),
+          db.query(`with members as (select e.student_id from school_app.enrollments e where e.school_id=$1 and e.group_id=$2 and e.status<>'cancelled')
+                   select (select count(*)::int from school_app.quiz_attempts q where q.school_id=$1 and q.student_id in (select student_id from members)) as quiz_attempts,
+                          (select round(avg(100.0*q.score/nullif(q.total,0)))::int from school_app.quiz_attempts q where q.school_id=$1 and q.student_id in (select student_id from members)) as quiz_average,
+                          (select count(*)::int from school_app.exam_attempts x where x.school_id=$1 and x.student_id in (select student_id from members)) as exam_attempts,
+                          (select round(avg(100.0*x.score/nullif(x.total,0)))::int from school_app.exam_attempts x where x.school_id=$1 and x.student_id in (select student_id from members)) as exam_average`, [schoolId, groupId]),
+          db.query(`select coalesce(sum(p.amount),0)::bigint as last30
+                     from school_app.payments p join school_app.enrollments e on e.school_id=p.school_id and e.id=p.enrollment_id
+                    where p.school_id=$1 and e.group_id=$2 and p.cancelled_at is null and p.paid_at >= now() - interval '30 days'`, [schoolId, groupId]),
+        ]);
+        const info = g.rows[0];
+        if (!info) throw fail("GROUP_NOT_FOUND", 404);
+        const list = students.rows.map((r) => ({ ...r, paid: Number(r.paid), balance: Number(r.balance), overdue_amount: Number(r.overdue_amount) }));
+        const expected = Number(info.total_fee) * list.length;
+        const collected = list.reduce((n, r) => n + r.paid, 0);
+        const installments = (await db.query("select *, to_char(due_date,'YYYY-MM-DD') as due_date from school_app.installments where school_id=$1 and group_id=$2 order by position", [schoolId, groupId])).rows;
+        return c.json({
+          group: { ...info, installments },
+          summary: {
+            enrolled: list.length,
+            capacity: info.capacity,
+            activated: list.filter((r) => r.activated).length,
+            paying: list.filter((r) => r.paid > 0).length,
+            fully_paid: list.filter((r) => r.balance <= 0).length,
+            late: list.filter((r) => r.overdue_count > 0).length,
+            expected,
+            collected,
+            outstanding: expected - collected,
+            overdue_amount: list.reduce((n, r) => n + r.overdue_amount, 0),
+            collected_last_30_days: Number(recent.rows[0].last30),
+          },
+          tranches: tranches.rows.map((t) => ({ ...t, amount: Number(t.amount) })),
+          learning: learning.rows[0],
+          students: list,
+        });
       }
 
       if (group && method === "DELETE") {
@@ -2095,6 +2228,9 @@ app.all("/api/schools/:slug/*", async (c) => {
 
 const statusByCode: Record<string, number> = {
   STUDENT_HAS_PAYMENTS: 409,
+  CAPACITY_BELOW_ENROLLED: 409,
+  GROUP_HAS_STUDENTS: 409,
+  FEE_BELOW_PAID: 409,
   GROUP_HAS_PAYMENTS: 409,
   QUIZ_HAS_ATTEMPTS: 409,
   QUIZ_VERSION_CHANGED: 409,
