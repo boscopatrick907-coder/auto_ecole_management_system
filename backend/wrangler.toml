@@ -2,26 +2,30 @@ name = "driving-schools-api"
 main = "src/tenant/worker.ts"
 compatibility_date = "2026-11-01"
 compatibility_flags = ["nodejs_compat"]
+workers_dev = true
 # Secrets: DATABASE_URL, AUTH_DATABASE_URL, BETTER_AUTH_SECRET, BETTER_AUTH_URL,
-# TRUSTED_ORIGINS, TURNSTILE_SECRET_KEY, OFFLINE_PRIVATE_KEY_PEM,
+# TRUSTED_ORIGINS, TURNSTILE_SECRET_KEY, OFFLINE_PRIVATE_KEY_PEM, VAPID_PRIVATE_JWK,
 # R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME.
 # Restricted application and identity logins only; never the migration owner.
 # Run the Worker next to the Neon database: each request makes several
 # sequential queries, so database latency dominates response time.
 [placement]
 region = "aws:eu-central-1"
-# Recommended: pooled, low-latency connections. Create with
-#   wrangler hyperdrive create aem-app --connection-string="<restricted app login URL>"
-#   wrangler hyperdrive create aem-auth --connection-string="<restricted identity login URL>"
-# then uncomment; context.ts uses APP_DB / AUTH_DB automatically when present.
-# Production needs its OWN Hyperdrive configs pointing at the production
-# database. Never reuse the staging IDs from wrangler.staging.toml here.
-# [[hyperdrive]]
-# binding = "APP_DB"
-# id = "<production aem-app id>"
-# [[hyperdrive]]
-# binding = "AUTH_DB"
-# id = "<production aem-auth id>"
+
+[[hyperdrive]]
+binding = "APP_DB"
+id = "c211fe1f1ea8432da5eb6aa1c5d0c896"
+
+[[hyperdrive]]
+binding = "AUTH_DB"
+id = "b7eba021d71b48019b065b27afec2e03"
+
+[assets]
+directory = "../frontend/dist/auto-ecole-la-marseillaise-pwa/browser"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*", "/", "/s/*", "/robots.txt", "/sitemap.xml"]
+
 [[ratelimits]]
 name = "SIGNUP_LIMITER"
 namespace_id = "1001"
