@@ -7,7 +7,7 @@ import { DataService } from "../core/data.service";
 import { OutboxService } from "../core/outbox.service";
 import { database } from "../core/database";
 import { FR } from "../core/fr";
-import { EmptyComponent, IconComponent } from "../shared/ui";
+import { EmptyComponent, IconComponent, SkeletonComponent } from "../shared/ui";
 import { clock, timeLeft, toggleLetter } from "../core/exam-sheet";
 
 export interface ExamPaper {
@@ -51,7 +51,7 @@ const LETTERS = "ABCDEF";
  */
 @Component({
   standalone: true,
-  imports: [RouterLink, DatePipe, IconComponent, EmptyComponent],
+  imports: [RouterLink, DatePipe, IconComponent, EmptyComponent, SkeletonComponent],
   template: `
     @if (sitting(); as s) {
       <div class="exam-bar" [class.urgent]="left() < 300000">
@@ -70,7 +70,7 @@ const LETTERS = "ABCDEF";
         } @else if (pdfError()) {
           <p class="error-box">{{ t.paperUnavailable }}</p>
         } @else {
-          <p role="status">{{ t.loading }}</p>
+          <app-skeleton variant="detail" [count]="1" />
         }
         <p class="muted small">{{ t.examHowTo }}</p>
       </section>

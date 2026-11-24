@@ -4,11 +4,11 @@ import { AuthService } from "../core/auth.service";
 import { ApiService } from "../core/api.service";
 import { DataService } from "../core/data.service";
 import { FR } from "../core/fr";
-import { BadgeComponent, IconComponent, EmptyComponent } from "../shared/ui";
+import { BadgeComponent, IconComponent, EmptyComponent, SkeletonComponent } from "../shared/ui";
 import type { Resource } from "../core/models";
 @Component({
   standalone: true,
-  imports: [RouterLink, BadgeComponent, IconComponent, EmptyComponent],
+  imports: [RouterLink, BadgeComponent, IconComponent, EmptyComponent, SkeletonComponent],
   template: `<div class="page-heading">
       <div>
         <span class="eyebrow">{{ auth.school()?.name }}</span>
@@ -16,7 +16,9 @@ import type { Resource } from "../core/models";
       </div>
       <app-icon name="menu_book" />
     </div>
-    @if (denied()) {
+    @if (loading()) {
+      <app-skeleton variant="cards" [count]="4" />
+    } @else if (denied()) {
       <section class="card">
         <h2>{{ t.accessCheck }}</h2>
         <a class="btn" [routerLink]="'/s/' + api.slug + '/acces-expire'">{{
@@ -74,6 +76,7 @@ export class CoursesComponent implements OnInit, OnDestroy {
   auth = inject(AuthService);
   api = inject(ApiService);
   store = inject(DataService);
+  loading = signal(true);
   resources = signal<Resource[]>([]);
   saved = signal<Record<string, boolean>>({});
   denied = signal(false);
@@ -94,6 +97,8 @@ export class CoursesComponent implements OnInit, OnDestroy {
       await this.refresh();
     } catch {
       this.error.set(true);
+    } finally {
+      this.loading.set(false);
     }
   }
   async refresh() {

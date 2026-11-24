@@ -75,13 +75,7 @@ export const MIN_PASSWORD = 8;
               }}<input formControlName="email" type="email" autocomplete="email"
             /></label>
           }
-          <label
-            >{{ t.password
-            }}<input
-              formControlName="password"
-              type="password"
-              autocomplete="current-password"
-          /></label>
+          <label>{{ t.password }}<div class="pw-field"><input formControlName="password" [type]="showPassword() ? 'text' : 'password'" autocomplete="current-password" /><button type="button" class="pw-toggle" [attr.aria-label]="showPassword() ? t.hidePassword : t.showPassword" [attr.aria-pressed]="showPassword()" (click)="showPassword.set(!showPassword())"><app-icon [name]="showPassword() ? 'visibility_off' : 'visibility'" [size]="18" /></button></div></label>
         }
 
         @if (mode() === "activate") {
@@ -116,13 +110,7 @@ export const MIN_PASSWORD = 8;
               spellcheck="false"
               placeholder="123 456"
           /></label>
-          <label
-            >{{ t.newPassword
-            }}<input
-              formControlName="password"
-              type="password"
-              autocomplete="new-password"
-          /></label>
+          <label>{{ t.newPassword }}<div class="pw-field"><input formControlName="password" [type]="showPassword() ? 'text' : 'password'" autocomplete="new-password" /><button type="button" class="pw-toggle" [attr.aria-label]="showPassword() ? t.hidePassword : t.showPassword" [attr.aria-pressed]="showPassword()" (click)="showPassword.set(!showPassword())"><app-icon [name]="showPassword() ? 'visibility_off' : 'visibility'" [size]="18" /></button></div></label>
           <p class="muted">{{ staff() ? t.staffPasswordRule : t.passwordRule }}</p>
         }
 
@@ -141,13 +129,7 @@ export const MIN_PASSWORD = 8;
               >{{ t.email
               }}<input formControlName="email" type="email" autocomplete="email"
             /></label>
-            <label
-              >{{ t.password
-              }}<input
-                formControlName="password"
-                type="password"
-                autocomplete="new-password"
-            /></label>
+            <label>{{ t.password }}<div class="pw-field"><input formControlName="password" [type]="showPassword() ? 'text' : 'password'" autocomplete="new-password" /><button type="button" class="pw-toggle" [attr.aria-label]="showPassword() ? t.hidePassword : t.showPassword" [attr.aria-pressed]="showPassword()" (click)="showPassword.set(!showPassword())"><app-icon [name]="showPassword() ? 'visibility_off' : 'visibility'" [size]="18" /></button></div></label>
             <p class="muted">{{ t.passwordRule }}</p>
           }
           @if (step() === 2) {
@@ -256,6 +238,7 @@ export class AuthPageComponent implements OnDestroy, AfterViewInit {
   /** "J'ai un code" as a member of the school staff (Équipe) instead of a student. */
   staff = signal(false);
   step = signal(1);
+  showPassword = signal(false);
   busy = signal(false);
   error = signal("");
   catalogue = signal<Catalogue | null>(null);
@@ -311,10 +294,12 @@ export class AuthPageComponent implements OnDestroy, AfterViewInit {
   setMode(m: Mode) {
     this.mode.set(m);
     this.step.set(1);
+    this.showPassword.set(false);
     this.error.set("");
   }
   setLoginWith(way: "phone" | "email") {
     this.loginWith.set(way);
+    this.showPassword.set(false);
     this.error.set("");
   }
   ngAfterViewInit() {

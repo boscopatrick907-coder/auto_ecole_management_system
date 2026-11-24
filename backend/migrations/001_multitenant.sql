@@ -894,3 +894,190 @@ end $$;
 
 revoke all on function school_app.exam_norm(text),school_app.set_exam_key(uuid,text[],integer,integer),school_app.clear_exam_key(uuid),school_app.exam_papers(),school_app.submit_exam(uuid,jsonb,uuid,timestamptz,timestamptz),school_app.exam_results(uuid) from public;
 grant execute on function school_app.exam_norm(text),school_app.set_exam_key(uuid,text[],integer,integer),school_app.clear_exam_key(uuid),school_app.exam_papers(),school_app.submit_exam(uuid,jsonb,uuid,timestamptz,timestamptz),school_app.exam_results(uuid) to aem_tenant_runtime;
+
+-- Group announcements, announcement reads, push subscriptions, and payment reminders (24 Nov 2026).
+create table if not exists school_app.announcements (
+  id uuid primary key default gen_random_uuid(),
+  school_id uuid not null references school_app.schools(id) on delete cascade,
+  group_id uuid references school_app.groups(id) on delete cascade,
+  author_id text references identity."user"(id) on delete set null,
+  title text not null,
+  body text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists announcements_school_created on school_app.announcements(school_id, created_at desc);
+create index if not exists announcements_school_group on school_app.announcements(school_id, group_id, created_at desc);
+
+create table if not exists school_app.announcement_reads (
+  announcement_id uuid not null references school_app.announcements(id) on delete cascade,
+  user_id text not null references identity."user"(id) on delete cascade,
+  read_at timestamptz not null default now(),
+  primary key (announcement_id, user_id)
+);
+
+create table if not exists school_app.push_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  school_id uuid not null references school_app.schools(id) on delete cascade,
+  user_id text not null references identity."user"(id) on delete cascade,
+  endpoint text not null unique,
+  p256dh text not null,
+  auth text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists push_subscriptions_school_user on school_app.push_subscriptions(school_id, user_id);
+
+create table if not exists school_app.payment_reminder_logs (
+  id uuid primary key default gen_random_uuid(),
+  school_id uuid not null references school_app.schools(id) on delete cascade,
+  installment_id uuid not null references school_app.installments(id) on delete cascade,
+  milestone text not null check (milestone in ('d7', 'd3', 'd1')),
+  sent_at timestamptz not null default now(),
+  unique (installment_id, milestone)
+);
+
+alter table school_app.announcements enable row level security;
+alter table school_app.announcement_reads enable row level security;
+alter table school_app.push_subscriptions enable row level security;
+alter table school_app.payment_reminder_logs enable row level security;
+
+grant select on school_app.announcements, school_app.announcement_reads, school_app.push_subscriptions, school_app.payment_reminder_logs to aem_backup_reader;
+
+drop policy if exists backup_read on school_app.announcements;
+create policy backup_read on school_app.announcements for select to aem_backup_reader using(true);
+
+drop policy if exists backup_read on school_app.announcement_reads;
+create policy backup_read on school_app.announcement_reads for select to aem_backup_reader using(true);
+
+drop policy if exists backup_read on school_app.push_subscriptions;
+create policy backup_read on school_app.push_subscriptions for select to aem_backup_reader using(true);
+
+drop policy if exists backup_read on school_app.payment_reminder_logs;
+create policy backup_read on school_app.payment_reminder_logs for select to aem_backup_reader using(true);
+
+drop policy if exists tenant_isolation on school_app.announcements;
+drop policy if exists announcements_read on school_app.announcements;
+create policy announcements_read on school_app.announcements
+  for select to aem_tenant_runtime
+  using(school_id=school_app.school_id());
+drop policy if exists announcements_admin on school_app.announcements;
+create policy announcements_admin on school_app.announcements
+  for all to aem_tenant_runtime
+  using(school_id=school_app.school_id() and school_app.is_admin())
+  with check(school_id=school_app.school_id() and school_app.is_admin());
+
+drop policy if exists tenant_isolation on school_app.announcement_reads;
+drop policy if exists announcement_reads_own on school_app.announcement_reads;
+create policy announcement_reads_own on school_app.announcement_reads
+  for all to aem_tenant_runtime
+  using((user_id=school_app.user_id() or school_app.is_admin()) and exists(select 1 from school_app.announcements a where a.id=announcement_id and a.school_id=school_app.school_id()))
+  with check((user_id=school_app.user_id() or school_app.is_admin()) and exists(select 1 from school_app.announcements a where a.id=announcement_id and a.school_id=school_app.school_id()));
+
+drop policy if exists tenant_isolation on school_app.push_subscriptions;
+drop policy if exists push_subscriptions_access on school_app.push_subscriptions;
+create policy push_subscriptions_access on school_app.push_subscriptions
+  for all to aem_tenant_runtime
+  using(school_id=school_app.school_id() and (user_id=school_app.user_id() or school_app.is_admin() or school_app.user_id() is null))
+  with check(school_id=school_app.school_id() and (user_id=school_app.user_id() or school_app.is_admin() or school_app.user_id() is null));
+
+drop policy if exists tenant_isolation on school_app.payment_reminder_logs;
+drop policy if exists payment_reminder_logs_access on school_app.payment_reminder_logs;
+create policy payment_reminder_logs_access on school_app.payment_reminder_logs
+  for all to aem_tenant_runtime
+  using(school_id=school_app.school_id() and (school_app.is_admin() or school_app.user_id() is null))
+  with check(school_id=school_app.school_id() and (school_app.is_admin() or school_app.user_id() is null));
+
+drop policy if exists admin_delete on school_app.invites;
+create policy admin_delete on school_app.invites
+  for delete to aem_tenant_runtime
+  using(school_id=school_app.school_id() and school_app.is_admin());
+
+drop policy if exists admin_delete on school_app.quiz_attempts;
+create policy admin_delete on school_app.quiz_attempts
+  for delete to aem_tenant_runtime
+  using(school_id=school_app.school_id() and school_app.is_admin());
+
+drop policy if exists admin_read on school_app.exam_attempts;
+create policy admin_read on school_app.exam_attempts
+  for select to aem_tenant_runtime
+  using(school_id=school_app.school_id() and school_app.is_admin());
+
+drop policy if exists admin_delete on school_app.exam_attempts;
+create policy admin_delete on school_app.exam_attempts
+  for delete to aem_tenant_runtime
+  using(school_id=school_app.school_id() and school_app.is_admin());
+
+drop policy if exists admin_delete on school_app.school_members;
+create policy admin_delete on school_app.school_members
+  for delete to aem_tenant_runtime
+  using(school_id=school_app.school_id() and school_app.is_admin() and role='student');
+
+drop policy if exists admin_insert on school_app.audit_log;
+create policy admin_insert on school_app.audit_log
+  for insert to aem_tenant_runtime
+  with check(school_id=school_app.school_id() and school_app.is_admin());
+
+create or replace function school_app.active_school_ids() returns table(id uuid, slug text, name text) language sql stable security definer set search_path=pg_catalog,school_app as $$
+ select id, slug, name from school_app.schools where status='active' order by id $$;
+revoke all on function school_app.active_school_ids() from public;
+grant execute on function school_app.active_school_ids() to aem_tenant_runtime;
+
+grant select on school_app.exam_attempts to aem_tenant_runtime;
+grant insert on school_app.audit_log to aem_tenant_runtime;
+grant delete on school_app.students, school_app.enrollments, school_app.installments, school_app.groups, school_app.invites, school_app.school_members, school_app.exam_attempts, school_app.quiz_attempts to aem_tenant_runtime;
+grant select, insert, update, delete on school_app.announcements, school_app.announcement_reads, school_app.push_subscriptions, school_app.payment_reminder_logs to aem_tenant_runtime;
+
+-- Review fixes (24 Nov 2026).
+-- 1) Payment reminders are per student: tranches belong to a group, so one log
+--    per (tranche, enrollment, milestone), not per tranche.
+alter table school_app.payment_reminder_logs add column if not exists enrollment_id uuid;
+alter table school_app.payment_reminder_logs drop constraint if exists payment_reminder_logs_installment_id_milestone_key;
+create unique index if not exists payment_reminder_logs_once on school_app.payment_reminder_logs(installment_id, enrollment_id, milestone);
+do $$ begin
+ alter table school_app.payment_reminder_logs add constraint payment_reminder_logs_enrollment_fk foreign key(enrollment_id) references school_app.enrollments(id) on delete cascade;
+exception when duplicate_object then null; end $$;
+
+-- 2) The daily job and announcement pushes run without a signed-in user, so row
+--    security hides every student from them. These reviewed functions return
+--    only what each needs: due tranches for the system job (never for a signed-in
+--    caller), and an admin's own school subscribers for announcements.
+create or replace function school_app.due_reminder_targets(p_today date) returns table(enrollment_id uuid, installment_id uuid, label text, remaining bigint, due_date date, milestone text, endpoint text, p256dh text, auth text)
+language sql stable security definer set search_path=pg_catalog,school_app as $$
+ select st.enrollment_id, st.id, st.label, (st.amount - st.paid_amount)::bigint, st.due_date,
+        case st.due_date - p_today when 7 then 'd7' when 3 then 'd3' else 'd1' end,
+        p.endpoint, p.p256dh, p.auth
+   from school_app.installment_status st
+   join school_app.enrollments e on e.school_id=st.school_id and e.id=st.enrollment_id and e.status='active'
+   join school_app.students s on s.school_id=e.school_id and s.id=e.student_id and s.user_id is not null
+   join school_app.push_subscriptions p on p.school_id=s.school_id and p.user_id=s.user_id
+  where st.school_id=school_app.school_id() and school_app.user_id() is null
+    and st.status<>'paid' and st.due_date - p_today in (7,3,1)
+    and not exists(select 1 from school_app.payment_reminder_logs l
+                    where l.installment_id=st.id and l.enrollment_id=st.enrollment_id
+                      and l.milestone=(case st.due_date - p_today when 7 then 'd7' when 3 then 'd3' else 'd1' end)) $$;
+
+create or replace function school_app.announcement_push_targets(p_group uuid) returns table(endpoint text, p256dh text, auth text)
+language sql stable security definer set search_path=pg_catalog,school_app as $$
+ select distinct p.endpoint, p.p256dh, p.auth
+   from school_app.push_subscriptions p
+   join school_app.students s on s.school_id=p.school_id and s.user_id=p.user_id
+  where p.school_id=school_app.school_id() and school_app.is_admin()
+    and (p_group is null or exists(select 1 from school_app.enrollments e
+          where e.school_id=s.school_id and e.student_id=s.id and e.group_id=p_group and e.status<>'cancelled')) $$;
+
+revoke all on function school_app.due_reminder_targets(date), school_app.announcement_push_targets(uuid) from public;
+grant execute on function school_app.due_reminder_targets(date), school_app.announcement_push_targets(uuid) to aem_tenant_runtime;
+
+-- 3) A phone has one push endpoint for the whole site. When another account
+--    subscribes on the same phone, it takes the endpoint over, so nobody keeps
+--    receiving someone else's reminders (and the save no longer fails).
+create or replace function school_app.save_push_subscription(p_endpoint text, p_p256dh text, p_auth text) returns void
+language plpgsql security definer set search_path=pg_catalog,school_app as $$
+begin
+ if school_app.user_id() is null or school_app.school_id() is null then raise exception 'AUTH_REQUIRED'; end if;
+ delete from school_app.push_subscriptions where endpoint=p_endpoint;
+ insert into school_app.push_subscriptions(school_id,user_id,endpoint,p256dh,auth,updated_at)
+ values(school_app.school_id(),school_app.user_id(),p_endpoint,p_p256dh,p_auth,now());
+end $$;
+revoke all on function school_app.save_push_subscription(text,text,text) from public;
+grant execute on function school_app.save_push_subscription(text,text,text) to aem_tenant_runtime;

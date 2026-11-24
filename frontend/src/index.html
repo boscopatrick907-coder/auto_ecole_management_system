@@ -16,8 +16,102 @@
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
   <!-- iOS ignores SVG touch icons: a 180x180 PNG is required for the home screen. -->
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <style>
+    .seo-prerender {
+      display: none !important;
+    }
+    html:not(.fonts-ready) .material-symbols-outlined,
+    html:not(.fonts-ready) .material-symbols-rounded {
+      color: transparent !important;
+      display: inline-block;
+      width: 1em;
+      height: 1em;
+      overflow: hidden;
+    }
+    .app-boot-skeleton {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-sizing: border-box;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .skeleton-bar {
+      border-radius: 8px;
+      background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+      background-size: 200% 100%;
+      animation: aem-shimmer 1.5s infinite linear;
+    }
+    @keyframes aem-shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    .skeleton-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      height: 48px;
+    }
+    .skeleton-pill {
+      width: 140px;
+      height: 28px;
+    }
+    .skeleton-circle {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+    }
+    .skeleton-hero {
+      height: 110px;
+      border-radius: 16px;
+    }
+    .skeleton-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .skeleton-card {
+      height: 72px;
+      border-radius: 12px;
+    }
+    @media (prefers-color-scheme: dark) {
+      .skeleton-bar {
+        background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+        background-size: 200% 100%;
+      }
+    }
+  </style>
+  <script>
+    if ('fonts' in document) {
+      Promise.all([
+        document.fonts.load('20px "Material Symbols Outlined"'),
+        document.fonts.load('20px "Material Symbols Rounded"')
+      ]).then(function() {
+        document.documentElement.classList.add('fonts-ready');
+      }).catch(function() {
+        document.documentElement.classList.add('fonts-ready');
+      });
+      setTimeout(function() { document.documentElement.classList.add('fonts-ready'); }, 1500);
+    } else {
+      document.documentElement.classList.add('fonts-ready');
+    }
+  </script>
 </head>
 <body class="bg-surface text-on-surface font-sans antialiased selection:bg-aem-blue/20 selection:text-primary">
+  <div id="app-boot-skeleton" aria-hidden="true" class="app-boot-skeleton">
+    <div class="skeleton-header">
+      <div class="skeleton-bar skeleton-pill"></div>
+      <div class="skeleton-bar skeleton-circle"></div>
+    </div>
+    <div class="skeleton-bar skeleton-hero"></div>
+    <div class="skeleton-grid">
+      <div class="skeleton-bar skeleton-card"></div>
+      <div class="skeleton-bar skeleton-card"></div>
+      <div class="skeleton-bar skeleton-card"></div>
+    </div>
+  </div>
   <app-root></app-root>
   <noscript>Veuillez activer JavaScript pour utiliser votre espace auto-école.</noscript>
 </body>

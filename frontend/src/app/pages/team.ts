@@ -4,7 +4,7 @@ import { ApiService, RequestError } from "../core/api.service";
 import { AuthService } from "../core/auth.service";
 import { FR } from "../core/fr";
 import { formatCode } from "../core/activation";
-import { IconComponent } from "../shared/ui";
+import { IconComponent, SkeletonComponent } from "../shared/ui";
 
 interface StaffRow {
   kind: "member" | "invite";
@@ -17,7 +17,7 @@ interface StaffRow {
 /** Équipe: school admins add and remove other admins, without a developer. */
 @Component({
   standalone: true,
-  imports: [ReactiveFormsModule, IconComponent],
+  imports: [ReactiveFormsModule, IconComponent, SkeletonComponent],
   template: `<div class="page-heading">
       <div>
         <span class="eyebrow">{{ auth.school()?.name }}</span>
@@ -29,7 +29,7 @@ interface StaffRow {
       <section class="card">
         <h2>{{ t.teamAdmins }}</h2>
         @if (loading()) {
-          <p role="status">{{ t.loading }}</p>
+          <app-skeleton variant="list" [count]="3" />
         }
         @for (m of members(); track m.id) {
           <div class="list-row">

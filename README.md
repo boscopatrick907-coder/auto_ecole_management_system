@@ -107,6 +107,23 @@ npm run test:tenant --prefix backend
 
 `test:tenant` exige une base PostgreSQL locale jetable (`TENANT_TEST_DATABASE_URL`, par défaut `127.0.0.1:55436`) et refuse tout hôte distant. Ne lancez jamais les tests sur une base d'école.
 
+## Mise en service d’une école : effacer les données de test
+
+Avant que l’école saisisse ses vraies données, on retire les essais (élèves, paiements, reçus, résultats de quiz et d’épreuves, groupes). Restent : l’école, ses paramètres, logo et couleurs, l’Équipe, les catégories de permis, les cours/quiz/épreuves et le journal d’audit (une entrée `RESET_TEST_DATA` y est ajoutée). Le compteur de reçus repart à 1. Les autres écoles ne sont pas touchées.
+
+1. **Sauvegarde** : lancer l’action GitHub « PostgreSQL backup to R2 » (Run workflow) et vérifier qu’elle est verte.
+2. **Vérification (rien n’est supprimé)** :
+   ```bash
+   MIGRATION_DATABASE_URL=… SCHOOL_SLUG=la-marseillaise npm run tenant:reset-test-data --prefix backend
+   ```
+3. **Suppression**, une fois les chiffres vérifiés :
+   ```bash
+   MIGRATION_DATABASE_URL=… SCHOOL_SLUG=la-marseillaise RESET_CONFIRM=la-marseillaise:BACKED_UP npm run tenant:reset-test-data --prefix backend
+   ```
+   Options : `KEEP_GROUPS=1` garde les groupes et tranches ; `RESET_CONTENT=1` efface aussi cours, quiz et épreuves (les fichiers restent dans R2).
+
+Tout se fait dans une seule transaction : en cas d’erreur, rien n’est supprimé. À n’utiliser **qu’avant** la mise en service — ensuite, une erreur de paiement se corrige par une annulation motivée.
+
 ## Production
 
 Frontend et Worker sont servis sur la **même origine HTTPS** (`/api/*` routé vers le Worker) pour que les cookies de session fonctionnent. Secrets via `wrangler secret put`. Pour des temps de réponse corrects :

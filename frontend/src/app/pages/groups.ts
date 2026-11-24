@@ -1,24 +1,35 @@
 import { Component, inject, signal, OnInit } from "@angular/core";
+import { DatePipe } from "@angular/common";
 import {
   ReactiveFormsModule,
+  FormsModule,
   FormBuilder,
   Validators,
-  FormArray,
 } from "@angular/forms";
-import { ApiService } from "../core/api.service";
+import { ApiService, RequestError } from "../core/api.service";
 import { DataService } from "../core/data.service";
+import { WhatsAppService } from "../core/whatsapp.service";
 import { FR } from "../core/fr";
 import { MoneyPipe } from "../shared/money.pipe";
-import { BadgeComponent, EmptyComponent, IconComponent } from "../shared/ui";
-import type { Group, Category } from "../core/models";
+import {
+  BadgeComponent,
+  EmptyComponent,
+  IconComponent,
+  SkeletonComponent,
+} from "../shared/ui";
+import type { Group, Category, AdminAnnouncement } from "../core/models";
+
 @Component({
   standalone: true,
   imports: [
     ReactiveFormsModule,
+    FormsModule,
+    DatePipe,
     MoneyPipe,
     BadgeComponent,
     EmptyComponent,
     IconComponent,
+    SkeletonComponent,
   ],
   template: `<div class="page-heading">
       <h1>{{ t.groups }}</h1>
@@ -29,8 +40,8 @@ import type { Group, Category } from "../core/models";
     @if (error()) {
       <p role="alert" class="error-box">{{ t.conflict }}</p>
     }
-    @if (loading()) {
-      <p role="status">{{ groups().length ? t.refreshing : t.loading }}</p>
+    @if (loading() && !groups().length) {
+      <app-skeleton variant="cards" [count]="3" />
     }
     @if (creating()) {
       <section class="card">
@@ -105,7 +116,7 @@ import type { Group, Category } from "../core/models";
             <span class="feature-icon"><app-icon name="groups" /></span
             ><app-badge
               [kind]="g.status === 'open' ? 'paid' : 'upcoming'"
-              [label]="g.status"
+              [label]="g.status === 'open' ? 'Ouvert' : g.status === 'closed' ? 'Fermé' : 'Terminé'"
             />
           </div>
           <h2>{{ g.name }}</h2>
@@ -113,23 +124,154 @@ import type { Group, Category } from "../core/models";
           <p>{{ g.total_fee | fcfa }}</p>
           <progress [value]="g.confirmed_seats" [max]="g.capacity"></progress>
           <p>{{ g.confirmed_seats }} / {{ g.capacity }} · {{ t.capacity }}</p>
-          <button
-            class="btn secondary full"
-            [disabled]="!api.online() || loading()"
-            (click)="toggle(g)"
-          >
-            {{ g.status === "open" ? t.close : t.open }}
-          </button>
+
+          <div class="row between" style="margin-top: 12px; gap: 8px">
+            <button
+              class="btn secondary small"
+              style="flex: 1"
+              [disabled]="!api.online() || loading() || busy()"
+              (click)="toggle(g)"
+            >
+              {{ g.status === "open" ? t.close : t.open }}
+            </button>
+            <button
+              class="btn ghost danger small"
+              [disabled]="!api.online() || loading() || busy()"
+              (click)="confirmDelete.set(confirmDelete() === g.id ? null : g.id); deleteErrorGroup.set(null)"
+            >
+              <app-icon name="delete" />{{ t.deleteGroup }}
+            </button>
+          </div>
+
+          @if (confirmDelete() === g.id) {
+            <div class="confirm-box danger">
+              <p>{{ t.deleteGroupConfirm }}</p>
+              <div class="confirm-box-actions">
+                <button class="btn danger small" [disabled]="busy()" (click)="deleteGroup(g)">
+                  {{ busy() ? t.deleting : t.yesDelete }}
+                </button>
+                <button class="btn secondary small" [disabled]="busy()" (click)="confirmDelete.set(null)">
+                  {{ t.cancel }}
+                </button>
+              </div>
+            </div>
+          }
+
+          @if (deleteErrorGroup() === g.id) {
+            <div class="confirm-box">
+              <p>{{ t.deleteGroupHasPayments }}</p>
+              <button class="btn secondary small" (click)="toggle(g); deleteErrorGroup.set(null)">
+                {{ t.closeGroupInstead }}
+              </button>
+            </div>
+          }
         </article>
       } @empty {
         @if (!loading() && !error()) { <app-empty /> }
       }
-    </div>`,
+    </div>
+
+    <!-- Annonces aux groupes (Admin) -->
+    <section class="card" style="margin-top: 32px">
+      <div class="row between">
+        <div>
+          <h2>{{ t.groupAnnouncements }}</h2>
+          <p class="muted small">Diffusez une annonce aux élèves d'un groupe ou de toute l'école.</p>
+        </div>
+        <button
+          class="btn small"
+          [disabled]="loading() || busy()"
+          (click)="announcing.set(!announcing())"
+        >
+          <app-icon [name]="announcing() ? 'close' : 'campaign'" />
+          {{ announcing() ? t.cancel : t.newAnnouncement }}
+        </button>
+      </div>
+
+      @if (announcing()) {
+        <form (submit)="postAnnouncement($event)" style="margin-top: 16px">
+          <label>
+            {{ t.announcementTarget }}
+            <select [ngModel]="announcementGroupId()" (ngModelChange)="announcementGroupId.set($event)" name="targetGroup">
+              <option value="">{{ t.allGroups }}</option>
+              @for (g of groups(); track g.id) {
+                <option [value]="g.id">{{ g.name }}</option>
+              }
+            </select>
+          </label>
+          <label>
+            {{ t.announcementTitle }}
+            <input
+              [ngModel]="announcementTitle()"
+              (ngModelChange)="announcementTitle.set($event)"
+              name="title"
+              required
+              placeholder="Ex : Séance pratique ce samedi"
+            />
+          </label>
+          <label>
+            {{ t.announcementBody }}
+            <textarea
+              [ngModel]="announcementBody()"
+              (ngModelChange)="announcementBody.set($event)"
+              name="body"
+              rows="3"
+              required
+              placeholder="Écrivez le message de l'annonce..."
+            ></textarea>
+          </label>
+          @if (announcementError()) {
+            <p class="error-box" role="alert">{{ t.announcementError }}</p>
+          }
+          <div class="actions">
+            <button
+              class="btn"
+              type="submit"
+              [disabled]="busy() || !announcementTitle().trim() || !announcementBody().trim() || !api.online()"
+            >
+              {{ busy() ? t.publishing : t.publish }}
+            </button>
+          </div>
+        </form>
+      }
+
+      <div style="margin-top: 20px">
+        @for (a of announcements(); track a.id) {
+          <article class="announcement-card">
+            <div class="row between">
+              <span class="badge ghost">{{ a.group_name || t.allGroups }}</span>
+              <span class="muted small">{{ a.created_at | date: "dd/MM/yyyy HH:mm" }}</span>
+            </div>
+            <h3>{{ a.title }}</h3>
+            <p class="announcement-body">{{ a.body }}</p>
+            <div class="announcement-actions">
+              <span class="muted small">{{ a.read_count || 0 }} {{ t.readCount }}</span>
+              <button class="btn small btn-wa" type="button" (click)="shareAnnouncementWhatsApp(a)">
+                <app-icon name="chat" />{{ t.shareWhatsApp }}
+              </button>
+              <button
+                class="btn small ghost danger"
+                type="button"
+                [disabled]="busy() || !api.online()"
+                (click)="removeAnnouncement(a.id)"
+              >
+                <app-icon name="delete" />{{ t.deleteAnnouncement }}
+              </button>
+            </div>
+          </article>
+        } @empty {
+          @if (!announcing()) {
+            <p class="muted" style="text-align: center; padding: 16px 0">{{ t.noAnnouncements }}</p>
+          }
+        }
+      </div>
+    </section>`,
 })
 export class GroupsComponent implements OnInit {
   t = FR;
   api = inject(ApiService);
   store = inject(DataService);
+  wa = inject(WhatsAppService);
   fb = inject(FormBuilder);
   groups = signal<Group[]>([]);
   categories = signal<Category[]>([]);
@@ -137,6 +279,16 @@ export class GroupsComponent implements OnInit {
   busy = signal(false);
   error = signal(false);
   loading = signal(true);
+  confirmDelete = signal<string | null>(null);
+  deleteErrorGroup = signal<string | null>(null);
+
+  announcements = signal<AdminAnnouncement[]>([]);
+  announcing = signal(false);
+  announcementGroupId = signal("");
+  announcementTitle = signal("");
+  announcementBody = signal("");
+  announcementError = signal(false);
+
   private loadVersion = 0;
   form = this.fb.nonNullable.group({
     name: ["", [Validators.required, Validators.minLength(2)]],
@@ -165,6 +317,7 @@ export class GroupsComponent implements OnInit {
   ngOnInit() {
     this.add();
     void this.load();
+    void this.loadAnnouncements();
   }
   async load() {
     const version = ++this.loadVersion;
@@ -217,6 +370,76 @@ export class GroupsComponent implements OnInit {
       await this.load();
     } catch {
       this.error.set(true);
+    }
+  }
+
+  async deleteGroup(g: Group) {
+    this.busy.set(true);
+    this.deleteErrorGroup.set(null);
+    try {
+      await this.api.deleteGroup(g.id);
+      this.confirmDelete.set(null);
+      this.groups.set(this.groups().filter((x) => x.id !== g.id));
+      await this.load();
+    } catch (e: unknown) {
+      if (
+        (e instanceof RequestError && e.status === 409) ||
+        (typeof e === "object" && e !== null && "status" in e && (e as { status: number }).status === 409)
+      ) {
+        this.deleteErrorGroup.set(g.id);
+      } else {
+        this.error.set(true);
+      }
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  async loadAnnouncements() {
+    try {
+      const res = await this.api.adminAnnouncements();
+      this.announcements.set(res?.announcements ?? []);
+    } catch {
+      // Offline or network error
+    }
+  }
+
+  async postAnnouncement(e: Event) {
+    e.preventDefault();
+    if (!this.announcementTitle().trim() || !this.announcementBody().trim()) return;
+    this.busy.set(true);
+    this.announcementError.set(false);
+    try {
+      await this.api.createAnnouncement({
+        groupId: this.announcementGroupId() || null,
+        title: this.announcementTitle().trim(),
+        body: this.announcementBody().trim(),
+      });
+      this.announcementTitle.set("");
+      this.announcementBody.set("");
+      this.announcing.set(false);
+      await this.loadAnnouncements();
+    } catch {
+      this.announcementError.set(true);
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  shareAnnouncementWhatsApp(a: AdminAnnouncement) {
+    const text = `*${a.title}*\n\n${a.body}\n\n— Auto-école`;
+    this.wa.open("", text);
+  }
+
+  async removeAnnouncement(id: string) {
+    this.busy.set(true);
+    try {
+      await this.api.deleteAnnouncement(id);
+      this.announcements.set(this.announcements().filter((x) => x.id !== id));
+    } catch {
+      this.announcementError.set(true);
+    } finally {
+      this.busy.set(false);
     }
   }
 }

@@ -7,11 +7,11 @@ import { ApiService } from "../core/api.service";
 import { DataService } from "../core/data.service";
 import { FR } from "../core/fr";
 import { MoneyPipe } from "../shared/money.pipe";
-import { IconComponent, EmptyComponent } from "../shared/ui";
+import { IconComponent, EmptyComponent, SkeletonComponent } from "../shared/ui";
 import type { Dashboard, Payment } from "../core/models";
 @Component({
   standalone: true,
-  imports: [RouterLink, DatePipe, MoneyPipe, IconComponent, EmptyComponent],
+  imports: [RouterLink, DatePipe, MoneyPipe, IconComponent, EmptyComponent, SkeletonComponent],
   template: `<div class="page-heading">
       <div>
         <span class="eyebrow">{{ auth.school()?.name }}</span>
@@ -28,8 +28,10 @@ import type { Dashboard, Payment } from "../core/models";
         }}<button class="btn small" (click)="load()">{{ t.retry }}</button>
       </p>
     }
-    @if (loading()) {
-      <p role="status">{{ dashboard() ? t.refreshing : t.loading }}</p>
+    @if (loading() && !dashboard()) {
+      <app-skeleton variant="dashboard" [count]="3" />
+    } @else if (loading()) {
+      <p role="status" class="muted">{{ t.refreshing }}</p>
     }
     @if (dashboard(); as d) {
       <div class="kpi-grid">

@@ -124,6 +124,41 @@ export interface Dashboard {
   overdue: number;
   recentPayments: Payment[];
 }
+export interface AppConfig {
+  turnstileSiteKey: string;
+  vapidPublicKey?: string;
+}
+export interface AdminAnnouncement {
+  id: string;
+  group_id: string | null;
+  group_name?: string | null;
+  title: string;
+  body: string;
+  created_at: string;
+  read_count?: number;
+  target_count?: number;
+}
+export interface StudentAnnouncement {
+  id: string;
+  group_id: string | null;
+  group_name?: string | null;
+  title: string;
+  body: string;
+  created_at: string;
+  read_at?: string | null;
+  is_read?: boolean;
+}
+export type ReminderMilestone = 7 | 3 | 1 | 0 | -1;
+export interface PaymentReminder {
+  installmentId: string;
+  label: string;
+  amount: number;
+  dueDate: string;
+  daysRemaining: number;
+  /** 7/3/1 = J-7/J-3/J-1, 0 = today, -1 = overdue, null = not an exact milestone */
+  milestone: ReminderMilestone | null;
+  urgent: boolean;
+}
 export interface ApiFailure {
   status: number;
   code: string;

@@ -20,11 +20,12 @@ import {
   EmptyComponent,
   BadgeComponent,
   installmentLabel,
+  SkeletonComponent,
 } from "../shared/ui";
 import type { Dossier, Student, Group, Payment } from "../core/models";
 @Component({
   standalone: true,
-  imports: [RouterLink, FormsModule, MoneyPipe, EmptyComponent, IconComponent],
+  imports: [RouterLink, FormsModule, MoneyPipe, EmptyComponent, IconComponent, SkeletonComponent],
   template: `@if (sameIdentity()) {
       <div class="page-heading">
         <div>
@@ -47,8 +48,8 @@ import type { Dossier, Student, Group, Payment } from "../core/models";
         @if (error()) {
           <p class="error-box" role="alert">{{ t.error }}</p>
         }
-        @if (loading()) {
-          <p role="status">{{ students().length ? t.refreshing : t.loading }}</p>
+        @if (loading() && !students().length) {
+          <app-skeleton variant="list" [count]="4" />
         }
         <p>{{ students().length }} élève(s) affiché(s) sur {{ total() }}</p>
         @for (s of students(); track s.id) {
@@ -325,6 +326,8 @@ interface ExamRow {
     DatePipe,
     BadgeComponent,
     EmptyComponent,
+    IconComponent,
+    SkeletonComponent,
   ],
   template: `@if (dossier(); as d) {
       <div class="page-heading">
@@ -477,6 +480,41 @@ interface ExamRow {
           </div>
         </section>
       }
+      <section class="card">
+        <h2>{{ t.actions }}</h2>
+        <div class="actions">
+          <button class="btn secondary" (click)="remind()">
+            <app-icon name="chat" />{{ t.whatsapp }}
+          </button>
+          <button
+            class="btn ghost danger"
+            [disabled]="busy() || !api.online()"
+            (click)="confirmDelete.set(!confirmDelete()); deleteHasPaymentsError.set(false)"
+          >
+            <app-icon name="delete" />{{ t.deleteStudent }}
+          </button>
+        </div>
+        @if (confirmDelete()) {
+          <div class="confirm-box danger">
+            <p>{{ t.deleteStudentConfirm }}</p>
+            <div class="confirm-box-actions">
+              <button class="btn danger small" [disabled]="busy()" (click)="deleteStudent()">
+                {{ busy() ? t.deleting : t.yesDelete }}
+              </button>
+              <button class="btn secondary small" [disabled]="busy()" (click)="confirmDelete.set(false)">
+                {{ t.cancel }}
+              </button>
+            </div>
+          </div>
+        }
+        @if (deleteHasPaymentsError()) {
+          <div class="confirm-box">
+            <p>{{ t.deleteStudentHasPayments }}</p>
+          </div>
+        }
+      </section>
+    } @else if (!error()) {
+      <app-skeleton variant="detail" [count]="3" />
     }
     @if (error()) {
       <p class="error-box" role="alert">{{ t.conflict }}</p>
@@ -490,9 +528,12 @@ export class DossierComponent implements OnInit {
   wa = inject(WhatsAppService);
   receipt = inject(ReceiptService);
   route = inject(ActivatedRoute);
+  router = inject(Router);
   id = this.route.snapshot.paramMap.get("id")!;
   dossier = signal<Dossier | null>(null);
   error = signal(false);
+  confirmDelete = signal(false);
+  deleteHasPaymentsError = signal(false);
   inviteCode = signal("");
   cancelling = signal("");
   busy = signal(false);
@@ -587,6 +628,25 @@ export class DossierComponent implements OnInit {
       await this.load();
     } catch {
       this.error.set(true);
+    } finally {
+      this.busy.set(false);
+    }
+  }
+  async deleteStudent() {
+    this.busy.set(true);
+    this.deleteHasPaymentsError.set(false);
+    try {
+      await this.api.deleteStudent(this.id);
+      await this.router.navigate(["/s", this.api.slug, "admin", "eleves"]);
+    } catch (e: unknown) {
+      if (
+        (e instanceof RequestError && e.status === 409) ||
+        (typeof e === "object" && e !== null && "status" in e && (e as { status: number }).status === 409)
+      ) {
+        this.deleteHasPaymentsError.set(true);
+      } else {
+        this.error.set(true);
+      }
     } finally {
       this.busy.set(false);
     }

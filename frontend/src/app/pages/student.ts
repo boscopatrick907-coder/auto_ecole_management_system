@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit, OnDestroy } from "@angular/core";
+import { Component, inject, signal, computed, OnInit, OnDestroy } from "@angular/core";
 import { DatePipe } from "@angular/common";
 import { RouterLink, ActivatedRoute } from "@angular/router";
 import { AuthService } from "../core/auth.service";
@@ -6,15 +6,18 @@ import { ApiService } from "../core/api.service";
 import { DataService } from "../core/data.service";
 import { WhatsAppService } from "../core/whatsapp.service";
 import { ReceiptService } from "../core/receipt.service";
+import { NotificationsService, computePaymentReminders, reminderText } from "../core/notifications.service";
 import { FR } from "../core/fr";
 import { MoneyPipe } from "../shared/money.pipe";
 import {
   BadgeComponent,
   IconComponent,
   EmptyComponent,
+  SkeletonComponent,
   installmentLabel,
 } from "../shared/ui";
-import type { Dossier, Payment } from "../core/models";
+import type { Dossier, Payment, StudentAnnouncement } from "../core/models";
+
 @Component({
   standalone: true,
   imports: [
@@ -24,6 +27,7 @@ import type { Dossier, Payment } from "../core/models";
     BadgeComponent,
     IconComponent,
     EmptyComponent,
+    SkeletonComponent,
   ],
   template: `@if (error()) {
       <div role="alert" class="error-box">
@@ -38,6 +42,73 @@ import type { Dossier, Payment } from "../core/models";
             <h1>{{ t.welcome }}, {{ d.student.full_name.split(" ")[0] }}</h1>
           </div>
         </div>
+
+        <!-- Rappels de paiement (J-7, J-3, J-1, en retard) -->
+        @for (r of reminders(); track r.installmentId) {
+          <div
+            class="reminder-banner"
+            [class.d7]="r.milestone === 7"
+            [class.d3]="r.milestone === 3"
+            [class.d1]="r.milestone === 1"
+            [class.overdue]="r.milestone === -1"
+          >
+            <app-icon [name]="r.urgent ? 'warning' : 'schedule'" />
+            <div class="grow">
+              <strong>{{ reminderText(r) }}</strong>
+              <p>{{ r.amount | fcfa }} — échéance le {{ r.dueDate | date: 'dd/MM/yyyy' }}</p>
+            </div>
+            <a class="btn small" [routerLink]="base + '/paiements'">{{ t.open }}</a>
+          </div>
+        }
+
+        @if (notifications.pushSupported() && notifications.permission() === 'default' && !notifications.subscribed()) {
+          <section class="card soft-note">
+            <div class="row between">
+              <div>
+                <strong>{{ t.reminderTitle }}</strong>
+                <p class="muted small">{{ t.remindersPrompt }}</p>
+              </div>
+              <button class="btn small" [disabled]="notifications.busy()" (click)="enablePush()">
+                {{ t.enableReminders }}
+              </button>
+            </div>
+            @if (notifications.message()) {
+              <p class="muted small" role="status" style="margin-top: 8px">{{ notifications.message() }}</p>
+            }
+          </section>
+        } @else if (notifications.message()) {
+          <p class="muted small" role="status">{{ notifications.message() }}</p>
+        }
+
+        <!-- Annonces du groupe ou de l'école -->
+        @if (announcements().length) {
+          <section class="card">
+            <div class="row between">
+              <h2>{{ t.announcements }}</h2>
+              @if (unreadAnnouncementsCount() > 0) {
+                <span class="badge upcoming">{{ unreadAnnouncementsCount() }} {{ t.unread }}</span>
+              }
+            </div>
+            @for (a of announcements(); track a.id) {
+              <article class="announcement-card" [class.unread]="!a.is_read">
+                <div class="row between">
+                  <span class="badge ghost">{{ a.group_name || t.allGroups }}</span>
+                  <span class="muted small">{{ a.created_at | date: "dd/MM/yyyy HH:mm" }}</span>
+                </div>
+                <h3>{{ a.title }}</h3>
+                <p class="announcement-body">{{ a.body }}</p>
+                @if (!a.is_read) {
+                  <div class="announcement-actions">
+                    <button class="btn small secondary" (click)="markRead(a)">
+                      <app-icon name="done" />{{ t.markRead }}
+                    </button>
+                  </div>
+                }
+              </article>
+            }
+          </section>
+        }
+
         @if (!d.student.has_paid) {
           <section class="trial-card">
             <div class="row">
@@ -197,7 +268,7 @@ import type { Dossier, Payment } from "../core/models";
         </section>
       }
     } @else if (!error()) {
-      <p role="status">{{ t.loading }}</p>
+      <app-skeleton variant="dashboard" [count]="3" />
     }`,
 })
 export class StudentPageComponent implements OnInit, OnDestroy {
@@ -207,15 +278,26 @@ export class StudentPageComponent implements OnInit, OnDestroy {
   store = inject(DataService);
   whatsapp = inject(WhatsAppService);
   receipt = inject(ReceiptService);
+  notifications = inject(NotificationsService);
   route = inject(ActivatedRoute);
+
   data = signal<Dossier | null>(null);
   error = signal(false);
+  announcements = signal<StudentAnnouncement[]>([]);
   view = this.route.snapshot.data["view"] as string;
   statusLabel = installmentLabel;
+
+  reminders = computed(() => computePaymentReminders(this.data()?.installments));
+  unreadAnnouncementsCount = computed(
+    () => this.announcements().filter((a) => !a.is_read).length,
+  );
+  reminderText = reminderText;
+
   get base() {
     return "/s/" + this.api.slug;
   }
   listener = () => void this.load();
+
   ngOnInit() {
     void this.load();
     window.addEventListener("school:sync", this.listener);
@@ -223,22 +305,55 @@ export class StudentPageComponent implements OnInit, OnDestroy {
   ngOnDestroy() {
     window.removeEventListener("school:sync", this.listener);
   }
+
   async load() {
     this.error.set(false);
     try {
-      this.data.set(
-        await this.store.read(
-          "me",
-          () => this.api.me(),
-          (cached) => this.data.set(cached),
-        ),
+      const d = await this.store.read(
+        "me",
+        () => this.api.me(),
+        (cached) => this.data.set(cached),
       );
-      // Offline access refresh is best-effort; it must never hide the student's data.
-      if (this.api.online()) void this.auth.refreshLease().catch(() => {});
+      this.data.set(d);
+
+      if (this.api.online()) {
+        void this.auth.refreshLease().catch(() => {});
+        void this.notifications.syncIfGranted(this.api.slug);
+        void this.api
+          .studentAnnouncements(this.api.slug)
+          .then((res) => this.announcements.set(res?.announcements ?? []))
+          .catch(() => {});
+
+        if (d?.student?.id) {
+          void this.notifications.fireLocalRemindersIfGranted(
+            d.student.id,
+            this.reminders(),
+            this.api.slug,
+          );
+        }
+      }
     } catch {
       this.error.set(true);
     }
   }
+
+  async enablePush() {
+    await this.notifications.enablePush(this.api.slug);
+  }
+
+  async markRead(a: StudentAnnouncement) {
+    try {
+      await this.api.markAnnouncementRead(a.id);
+      this.announcements.set(
+        this.announcements().map((x) =>
+          x.id === a.id ? { ...x, is_read: true } : x,
+        ),
+      );
+    } catch {
+      // Offline or network error
+    }
+  }
+
   remaining(end: string | null) {
     return end
       ? Math.max(0, Math.ceil((Date.parse(end) - Date.now()) / 86400000))

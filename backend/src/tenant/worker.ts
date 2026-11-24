@@ -33,6 +33,12 @@ import {
   type PublicGroup,
   type PublicSchool,
 } from "./seo.js";
+import {
+  deriveVapidPublicKey,
+  dueDateMilestone,
+  formatDoualaYmd,
+  sendWebPush,
+} from "./web-push.js";
 
 const app = new Hono<{ Bindings: TenantBindings }>();
 const uuid = z.string().uuid();
@@ -75,7 +81,7 @@ export function offlineKeys(raw: string | undefined) {
     try {
       const key = await importPKCS8(pem, "EdDSA");
       const spki = createPublicKey(pem).export({ type: "spki", format: "pem" }).toString();
-      return { key, pub: await exportJWK(await importSPKI(spki, "EdDSA")) };
+      return { key, pub: await exportJWK(await importSPKI(spki, "EdDSA", { extractable: true })) };
     } catch (e) {
       console.error("OFFLINE_PRIVATE_KEY_PEM is not a valid Ed25519 PKCS#8 key", e);
       return null;
@@ -155,6 +161,10 @@ app.get("/api/health", (c) => c.json({ ok: true }));
 app.get("/api/config", (c) =>
   c.json({
     turnstileSiteKey: c.env.TURNSTILE_SITE_KEY || "",
+    vapidPublicKey:
+      c.env.VAPID_PUBLIC_KEY ||
+      deriveVapidPublicKey(c.env.VAPID_PRIVATE_JWK ?? "") ||
+      "",
     contractVersion: "2026-11-10.v1",
     authModes: {
       emailPassword: true,
@@ -942,6 +952,89 @@ app.all("/api/schools/:slug/*", async (c) => {
         const rows = (await db.query("select school_app.exam_results() as e")).rows;
         return c.json({ results: rows.map((r) => r.e) });
       }
+
+      // Student announcements & push subscriptions
+      if (path === "announcements" && method === "GET") {
+        const rows = (
+          await db.query(
+            `select
+               a.id,
+               a.group_id,
+               g.name as group_name,
+               a.title,
+               a.body,
+               a.created_at,
+               exists(
+                 select 1 from school_app.announcement_reads r
+                 where r.announcement_id = a.id and r.user_id = $2
+               ) as is_read
+             from school_app.announcements a
+             left join school_app.groups g on g.school_id = a.school_id and g.id = a.group_id
+             where a.school_id = $1
+               and (
+                 a.group_id is null
+                 or a.group_id in (
+                   select e.group_id
+                   from school_app.enrollments e
+                   join school_app.students s on s.school_id = e.school_id and s.id = e.student_id
+                   where s.school_id = $1 and s.user_id = $2 and e.status <> 'cancelled'
+                 )
+               )
+             order by a.created_at desc
+             limit 30`,
+            [schoolId, userId],
+          )
+        ).rows;
+        return c.json({ announcements: rows });
+      }
+
+      const annReadMatch = /^announcements\/([0-9a-f-]+)\/read$/.exec(path);
+      if (annReadMatch && method === "POST") {
+        const annId = uuid.parse(annReadMatch[1]);
+        if (!userId) throw fail("AUTH_REQUIRED", 401);
+        const exists = (
+          await db.query(
+            "select 1 from school_app.announcements where school_id=$1 and id=$2",
+            [schoolId, annId],
+          )
+        ).rowCount;
+        if (!exists) throw fail("NOT_FOUND", 404);
+        await db.query(
+          "insert into school_app.announcement_reads(announcement_id, user_id, read_at) values($1, $2, now()) on conflict do nothing",
+          [annId, userId],
+        );
+        return c.json({ ok: true });
+      }
+
+      if (path === "push-subscriptions" && method === "POST") {
+        if (!userId) throw fail("AUTH_REQUIRED", 401);
+        const b = z
+          .object({
+            endpoint: z.string().url().max(1000),
+            keys: z.object({
+              p256dh: z.string().min(10).max(500),
+              auth: z.string().min(5).max(500),
+            }),
+          })
+          .parse(await c.req.json());
+        await db.query("select school_app.save_push_subscription($1,$2,$3)", [b.endpoint, b.keys.p256dh, b.keys.auth]);
+        return c.json({ ok: true }, 201);
+      }
+
+      if (path === "push-subscriptions" && method === "DELETE") {
+        if (!userId) throw fail("AUTH_REQUIRED", 401);
+        const b = z
+          .object({
+            endpoint: z.string().url().max(1000),
+          })
+          .parse(await c.req.json());
+        await db.query(
+          "delete from school_app.push_subscriptions where school_id=$1 and user_id=$2 and endpoint=$3",
+          [schoolId, userId, b.endpoint],
+        );
+        return c.json({ ok: true });
+      }
+
       if (role !== "admin") throw fail("ADMIN_REQUIRED", 403);
 
       if (path === "admin/dashboard") {
@@ -1067,6 +1160,51 @@ app.all("/api/schools/:slug/*", async (c) => {
       const student = /^admin\/students\/([0-9a-f-]+)$/.exec(path);
       if (student && method === "GET")
         return c.json(await dossier(db, uuid.parse(student[1])));
+
+      if (student && method === "DELETE") {
+        const studentId = uuid.parse(student[1]);
+        const sRow = (
+          await db.query(
+            "select id, user_id from school_app.students where id=$1",
+            [studentId],
+          )
+        ).rows[0];
+        if (!sRow) throw fail("STUDENT_NOT_FOUND", 404);
+
+        const hasPayments = (
+          await db.query(
+            `select 1 from school_app.payments p
+             join school_app.enrollments e on e.school_id=p.school_id and e.id=p.enrollment_id
+             where e.school_id=$1 and e.student_id=$2 limit 1`,
+            [schoolId, studentId],
+          )
+        ).rowCount;
+        if (hasPayments) {
+          return c.json(
+            {
+              error: "STUDENT_HAS_PAYMENTS",
+              message: "Impossible de supprimer cet élève car des paiements ou reçus sont associés à son dossier.",
+            },
+            409,
+          );
+        }
+
+        await db.query("delete from school_app.invites where school_id=$1 and student_id=$2", [schoolId, studentId]);
+        await db.query("delete from school_app.exam_attempts where school_id=$1 and student_id=$2", [schoolId, studentId]);
+        await db.query("delete from school_app.quiz_attempts where student_id=$1", [studentId]);
+        await db.query("delete from school_app.enrollments where school_id=$1 and student_id=$2", [schoolId, studentId]);
+        if (sRow.user_id) {
+          await db.query("delete from school_app.announcement_reads where user_id=$1", [sRow.user_id]);
+          await db.query("delete from school_app.push_subscriptions where school_id=$1 and user_id=$2", [schoolId, sRow.user_id]);
+          await db.query("delete from school_app.school_members where school_id=$1 and user_id=$2 and role='student'", [schoolId, sRow.user_id]);
+        }
+        await db.query("delete from school_app.students where school_id=$1 and id=$2", [schoolId, studentId]);
+        await db.query(
+          "insert into school_app.audit_log(school_id, actor, action, row_id, details) values($1, $2, 'DELETE_STUDENT', $3, '{}'::jsonb)",
+          [schoolId, userId, studentId],
+        );
+        return c.json({ ok: true });
+      }
 
       // Équipe: school admins manage other admins.
       if (path === "admin/staff" && method === "GET")
@@ -1299,6 +1437,179 @@ app.all("/api/schools/:slug/*", async (c) => {
           [uuid.parse(group[1]), b.status],
         );
         if (!updated.rowCount) throw fail("GROUP_NOT_FOUND", 404);
+        return c.json({ ok: true });
+      }
+
+      if (group && method === "DELETE") {
+        const groupId = uuid.parse(group[1]);
+        const gRow = (
+          await db.query("select id from school_app.groups where id=$1", [groupId])
+        ).rows[0];
+        if (!gRow) throw fail("GROUP_NOT_FOUND", 404);
+
+        const hasPayments = (
+          await db.query(
+            `select 1 from school_app.payments p
+             join school_app.enrollments e on e.school_id=p.school_id and e.id=p.enrollment_id
+             where e.school_id=$1 and e.group_id=$2 limit 1`,
+            [schoolId, groupId],
+          )
+        ).rowCount;
+        if (hasPayments) {
+          return c.json(
+            {
+              error: "GROUP_HAS_PAYMENTS",
+              message: "Impossible de supprimer ce groupe car des paiements ou reçus ont été émis. Vous pouvez le clôturer.",
+            },
+            409,
+          );
+        }
+
+        await db.query("delete from school_app.enrollments where school_id=$1 and group_id=$2", [schoolId, groupId]);
+        await db.query(
+          `delete from school_app.payment_reminder_logs where installment_id in (
+             select id from school_app.installments where school_id=$1 and group_id=$2
+           )`,
+          [schoolId, groupId],
+        );
+        await db.query("delete from school_app.installments where school_id=$1 and group_id=$2", [schoolId, groupId]);
+        await db.query("delete from school_app.announcements where school_id=$1 and group_id=$2", [schoolId, groupId]);
+        await db.query("delete from school_app.groups where school_id=$1 and id=$2", [schoolId, groupId]);
+        await db.query(
+          "insert into school_app.audit_log(school_id, actor, action, row_id, details) values($1, $2, 'DELETE_GROUP', $3, '{}'::jsonb)",
+          [schoolId, userId, groupId],
+        );
+        return c.json({ ok: true });
+      }
+
+      // Group announcements (admin)
+      if (path === "admin/announcements" && method === "GET") {
+        const gId = c.req.query("groupId") ? uuid.parse(c.req.query("groupId")!) : null;
+        const announcements = (
+          await db.query(
+            `select
+               a.id,
+               a.group_id,
+               g.name as group_name,
+               a.title,
+               a.body,
+               a.created_at,
+               (select count(*)::int from school_app.announcement_reads r where r.announcement_id = a.id) as read_count,
+               case
+                 when a.group_id is not null then (
+                   select count(distinct e.student_id)::int
+                   from school_app.enrollments e
+                   where e.school_id = a.school_id and e.group_id = a.group_id and e.status <> 'cancelled'
+                 )
+                 else (
+                   select count(distinct s.id)::int
+                   from school_app.students s
+                   where s.school_id = a.school_id
+                 )
+               end as target_count
+             from school_app.announcements a
+             left join school_app.groups g on g.school_id = a.school_id and g.id = a.group_id
+             where a.school_id = $1
+               and ($2::uuid is null or a.group_id = $2::uuid)
+             order by a.created_at desc
+             limit 100`,
+            [schoolId, gId],
+          )
+        ).rows;
+        return c.json({ announcements });
+      }
+
+      if (path === "admin/announcements" && method === "POST") {
+        const b = z
+          .object({
+            groupId: uuid.nullable().optional(),
+            title: z.string().trim().min(2).max(200),
+            body: z.string().trim().min(2).max(4000),
+          })
+          .parse(await c.req.json());
+
+        if (b.groupId) {
+          const validGroup = (
+            await db.query("select 1 from school_app.groups where school_id=$1 and id=$2", [
+              schoolId,
+              b.groupId,
+            ])
+          ).rowCount;
+          if (!validGroup) throw fail("INVALID_GROUP", 400);
+        }
+
+        const inserted = (
+          await db.query(
+            `insert into school_app.announcements(school_id, group_id, author_id, title, body)
+             values($1, $2, $3, $4, $5) returning *`,
+            [schoolId, b.groupId || null, userId, b.title, b.body],
+          )
+        ).rows[0];
+
+        const groupName = b.groupId
+          ? (
+              await db.query("select name from school_app.groups where id=$1", [b.groupId])
+            ).rows[0]?.name || null
+          : null;
+
+        if (c.env.VAPID_PRIVATE_JWK) {
+          // Recipients are read in this admin request (row security applies);
+          // delivery happens after the response.
+          const subs = (
+            await db.query("select * from school_app.announcement_push_targets($1)", [b.groupId || null])
+          ).rows as Array<{ endpoint: string; p256dh: string; auth: string }>;
+          const payload = JSON.stringify({
+            notification: {
+              title: `${school.name} — Annonce`,
+              body: b.title,
+              icon: "/icon-192.png",
+              badge: "/icon-192.png",
+              tag: `announcement-${inserted.id}`,
+              data: {
+                url: `/s/${c.req.param("slug")}`,
+                onActionClick: {
+                  default: { operation: "navigateLastFocusedOrOpen", url: `/s/${c.req.param("slug")}` },
+                },
+              },
+            },
+          });
+          const pushPromise = (async () => {
+            for (const sub of subs) {
+              try {
+                await sendWebPush(sub, payload, c.env.VAPID_PRIVATE_JWK!);
+              } catch (err) {
+                console.error("Announcement push error:", err);
+              }
+            }
+          })();
+          try {
+            c.executionCtx?.waitUntil(pushPromise);
+          } catch {
+            /* no execution context (tests, Node dev server) */
+          }
+        }
+
+        return c.json(
+          {
+            announcement: {
+              ...inserted,
+              group_name: groupName,
+              read_count: 0,
+              target_count: 0,
+            },
+          },
+          201,
+        );
+      }
+
+      const annDel = /^admin\/announcements\/([0-9a-f-]+)$/.exec(path);
+      if (annDel && method === "DELETE") {
+        const annId = uuid.parse(annDel[1]);
+        const deleted = await db.query(
+          "delete from school_app.announcements where school_id=$1 and id=$2 returning id",
+          [schoolId, annId],
+        );
+        if (!deleted.rowCount) throw fail("NOT_FOUND", 404);
         return c.json({ ok: true });
       }
 
@@ -1783,6 +2094,8 @@ app.all("/api/schools/:slug/*", async (c) => {
 });
 
 const statusByCode: Record<string, number> = {
+  STUDENT_HAS_PAYMENTS: 409,
+  GROUP_HAS_PAYMENTS: 409,
   QUIZ_HAS_ATTEMPTS: 409,
   QUIZ_VERSION_CHANGED: 409,
   AUTH_REQUIRED: 401,
@@ -1881,5 +2194,141 @@ app.onError((e, c) => {
     (e as { status?: number }).status || (code ? statusByCode[code] : 500);
   return c.json({ error: code || "REQUEST_FAILED" }, status as 400);
 });
+
+export async function runDuePaymentReminders(
+  env: TenantBindings,
+  now = new Date(),
+): Promise<{ sent: number; errors: number; cleaned: number }> {
+  if (!env.VAPID_PRIVATE_JWK) return { sent: 0, errors: 0, cleaned: 0 };
+  const pool = poolFor(env);
+  let sent = 0;
+  let errors = 0;
+  let cleaned = 0;
+  try {
+    const todayYmd = formatDoualaYmd(now);
+    const schools = await tenantTransaction(pool, "", null, async (db) =>
+      (await db.query("select id, slug, name from school_app.active_school_ids()")).rows as Array<{
+        id: string;
+        slug: string;
+        name: string;
+      }>,
+    );
+
+    for (const sc of schools) {
+      await tenantTransaction(pool, sc.id, null, async (client) => {
+        const rows = (
+          await client.query("select * from school_app.due_reminder_targets($1::date)", [todayYmd])
+        ).rows as Array<{
+          enrollment_id: string;
+          installment_id: string;
+          label: string;
+          remaining: string;
+          milestone: "d7" | "d3" | "d1";
+          endpoint: string;
+          p256dh: string;
+          auth: string;
+        }>;
+
+        // One reminder per student and tranche (a tranche belongs to a group).
+        const byInstallment = new Map<
+          string,
+          {
+            enrollment_id: string;
+            installment_id: string;
+            installment_label: string;
+            amount_remaining: number;
+            milestone: "d7" | "d3" | "d1";
+            subs: Array<{ endpoint: string; p256dh: string; auth: string }>;
+          }
+        >();
+        for (const r of rows) {
+          const k = r.enrollment_id + ":" + r.installment_id;
+          let group = byInstallment.get(k);
+          if (!group) {
+            group = {
+              enrollment_id: r.enrollment_id,
+              installment_id: r.installment_id,
+              installment_label: r.label,
+              amount_remaining: Number(r.remaining),
+              milestone: r.milestone,
+              subs: [],
+            };
+            byInstallment.set(k, group);
+          }
+          group.subs.push({ endpoint: r.endpoint, p256dh: r.p256dh, auth: r.auth });
+        }
+
+        for (const item of byInstallment.values()) {
+          const milestone = item.milestone;
+
+          const daysText =
+            milestone === "d1"
+              ? "demain"
+              : milestone === "d3"
+                ? "dans 3 jours"
+                : "dans 7 jours";
+
+          const formattedAmount = item.amount_remaining.toLocaleString("fr-FR");
+          const url = `/s/${sc.slug}/paiements`;
+          const payload = JSON.stringify({
+            notification: {
+              title: `Rappel paiement — ${sc.name}`,
+              body: `L'échéance "${item.installment_label}" (${formattedAmount} FCFA) arrive à terme ${daysText}.`,
+              icon: "/icon-192.png",
+              badge: "/icon-192.png",
+              tag: `payment-reminder-${item.installment_id}-${milestone}`,
+              renotify: true,
+              data: {
+                url,
+                onActionClick: {
+                  default: { operation: "navigateLastFocusedOrOpen", url },
+                },
+              },
+            },
+          });
+
+          let delivered = 0;
+          for (const sub of item.subs) {
+            const res = await sendWebPush(sub, payload, env.VAPID_PRIVATE_JWK!);
+            if (res.ok) {
+              sent++;
+              delivered++;
+            } else if (res.gone) {
+              await client.query(
+                "delete from school_app.push_subscriptions where endpoint=$1",
+                [sub.endpoint],
+              );
+              cleaned++;
+            } else {
+              errors++;
+            }
+          }
+
+          if (delivered > 0) {
+            await client.query(
+              `insert into school_app.payment_reminder_logs(school_id, installment_id, enrollment_id, milestone, sent_at)
+               values($1, $2, $3, $4, now())
+               on conflict(installment_id, enrollment_id, milestone) do nothing`,
+              [sc.id, item.installment_id, item.enrollment_id, milestone],
+            );
+          }
+        }
+      });
+    }
+  } catch (err) {
+    console.error("runDuePaymentReminders error:", err);
+  } finally {
+    await releaseRequestPool(env, pool);
+  }
+  return { sent, errors, cleaned };
+}
+
+(app as any).scheduled = async (
+  _event: unknown,
+  env: TenantBindings,
+  _ctx: unknown,
+) => {
+  await runDuePaymentReminders(env);
+};
 
 export default app;
