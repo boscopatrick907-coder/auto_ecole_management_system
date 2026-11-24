@@ -1026,3 +1026,58 @@ grant select on school_app.exam_attempts to aem_tenant_runtime;
 grant insert on school_app.audit_log to aem_tenant_runtime;
 grant delete on school_app.students, school_app.enrollments, school_app.installments, school_app.groups, school_app.invites, school_app.school_members, school_app.exam_attempts, school_app.quiz_attempts to aem_tenant_runtime;
 grant select, insert, update, delete on school_app.announcements, school_app.announcement_reads, school_app.push_subscriptions, school_app.payment_reminder_logs to aem_tenant_runtime;
+
+-- Review fixes (24 Nov 2026).
+-- 1) Payment reminders are per student: tranches belong to a group, so one log
+--    per (tranche, enrollment, milestone), not per tranche.
+alter table school_app.payment_reminder_logs add column if not exists enrollment_id uuid;
+alter table school_app.payment_reminder_logs drop constraint if exists payment_reminder_logs_installment_id_milestone_key;
+create unique index if not exists payment_reminder_logs_once on school_app.payment_reminder_logs(installment_id, enrollment_id, milestone);
+do $$ begin
+ alter table school_app.payment_reminder_logs add constraint payment_reminder_logs_enrollment_fk foreign key(enrollment_id) references school_app.enrollments(id) on delete cascade;
+exception when duplicate_object then null; end $$;
+
+-- 2) The daily job and announcement pushes run without a signed-in user, so row
+--    security hides every student from them. These reviewed functions return
+--    only what each needs: due tranches for the system job (never for a signed-in
+--    caller), and an admin's own school subscribers for announcements.
+create or replace function school_app.due_reminder_targets(p_today date) returns table(enrollment_id uuid, installment_id uuid, label text, remaining bigint, due_date date, milestone text, endpoint text, p256dh text, auth text)
+language sql stable security definer set search_path=pg_catalog,school_app as $$
+ select st.enrollment_id, st.id, st.label, (st.amount - st.paid_amount)::bigint, st.due_date,
+        case st.due_date - p_today when 7 then 'd7' when 3 then 'd3' else 'd1' end,
+        p.endpoint, p.p256dh, p.auth
+   from school_app.installment_status st
+   join school_app.enrollments e on e.school_id=st.school_id and e.id=st.enrollment_id and e.status='active'
+   join school_app.students s on s.school_id=e.school_id and s.id=e.student_id and s.user_id is not null
+   join school_app.push_subscriptions p on p.school_id=s.school_id and p.user_id=s.user_id
+  where st.school_id=school_app.school_id() and school_app.user_id() is null
+    and st.status<>'paid' and st.due_date - p_today in (7,3,1)
+    and not exists(select 1 from school_app.payment_reminder_logs l
+                    where l.installment_id=st.id and l.enrollment_id=st.enrollment_id
+                      and l.milestone=(case st.due_date - p_today when 7 then 'd7' when 3 then 'd3' else 'd1' end)) $$;
+
+create or replace function school_app.announcement_push_targets(p_group uuid) returns table(endpoint text, p256dh text, auth text)
+language sql stable security definer set search_path=pg_catalog,school_app as $$
+ select distinct p.endpoint, p.p256dh, p.auth
+   from school_app.push_subscriptions p
+   join school_app.students s on s.school_id=p.school_id and s.user_id=p.user_id
+  where p.school_id=school_app.school_id() and school_app.is_admin()
+    and (p_group is null or exists(select 1 from school_app.enrollments e
+          where e.school_id=s.school_id and e.student_id=s.id and e.group_id=p_group and e.status<>'cancelled')) $$;
+
+revoke all on function school_app.due_reminder_targets(date), school_app.announcement_push_targets(uuid) from public;
+grant execute on function school_app.due_reminder_targets(date), school_app.announcement_push_targets(uuid) to aem_tenant_runtime;
+
+-- 3) A phone has one push endpoint for the whole site. When another account
+--    subscribes on the same phone, it takes the endpoint over, so nobody keeps
+--    receiving someone else's reminders (and the save no longer fails).
+create or replace function school_app.save_push_subscription(p_endpoint text, p_p256dh text, p_auth text) returns void
+language plpgsql security definer set search_path=pg_catalog,school_app as $$
+begin
+ if school_app.user_id() is null or school_app.school_id() is null then raise exception 'AUTH_REQUIRED'; end if;
+ delete from school_app.push_subscriptions where endpoint=p_endpoint;
+ insert into school_app.push_subscriptions(school_id,user_id,endpoint,p256dh,auth,updated_at)
+ values(school_app.school_id(),school_app.user_id(),p_endpoint,p_p256dh,p_auth,now());
+end $$;
+revoke all on function school_app.save_push_subscription(text,text,text) from public;
+grant execute on function school_app.save_push_subscription(text,text,text) to aem_tenant_runtime;

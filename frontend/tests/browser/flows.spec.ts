@@ -269,7 +269,7 @@ test("student dashboard follows design and has no merchant checkout", async ({
     fullPage: true,
   });
   await page.getByRole("link", { name: "Paiements", exact: true }).click();
-  await expect(page.getByText("Première tranche")).toBeVisible();
+  await expect(page.getByText("Première tranche", { exact: true })).toBeVisible();
   await expect(
     page.getByRole("button", { name: /MoMo|Orange Money/ }),
   ).toHaveCount(0);

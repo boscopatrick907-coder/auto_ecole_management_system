@@ -30,6 +30,8 @@ import type { Dashboard, Payment } from "../core/models";
     }
     @if (loading() && !dashboard()) {
       <app-skeleton variant="dashboard" [count]="3" />
+    } @else if (loading()) {
+      <p role="status" class="muted">{{ t.refreshing }}</p>
     }
     @if (dashboard(); as d) {
       <div class="kpi-grid">

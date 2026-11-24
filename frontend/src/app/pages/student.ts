@@ -321,7 +321,7 @@ export class StudentPageComponent implements OnInit, OnDestroy {
         void this.notifications.syncIfGranted(this.api.slug);
         void this.api
           .studentAnnouncements(this.api.slug)
-          .then((res) => this.announcements.set(res.announcements))
+          .then((res) => this.announcements.set(res?.announcements ?? []))
           .catch(() => {});
 
         if (d?.student?.id) {

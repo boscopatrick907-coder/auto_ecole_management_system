@@ -1017,17 +1017,7 @@ app.all("/api/schools/:slug/*", async (c) => {
             }),
           })
           .parse(await c.req.json());
-        await db.query(
-          `insert into school_app.push_subscriptions(school_id, user_id, endpoint, p256dh, auth, updated_at)
-           values($1, $2, $3, $4, $5, now())
-           on conflict(endpoint) do update set
-             school_id = excluded.school_id,
-             user_id = excluded.user_id,
-             p256dh = excluded.p256dh,
-             auth = excluded.auth,
-             updated_at = now()`,
-          [schoolId, userId, b.endpoint, b.keys.p256dh, b.keys.auth],
-        );
+        await db.query("select school_app.save_push_subscription($1,$2,$3)", [b.endpoint, b.keys.p256dh, b.keys.auth]);
         return c.json({ ok: true }, 201);
       }
 
@@ -1563,56 +1553,40 @@ app.all("/api/schools/:slug/*", async (c) => {
           : null;
 
         if (c.env.VAPID_PRIVATE_JWK) {
+          // Recipients are read in this admin request (row security applies);
+          // delivery happens after the response.
+          const subs = (
+            await db.query("select * from school_app.announcement_push_targets($1)", [b.groupId || null])
+          ).rows as Array<{ endpoint: string; p256dh: string; auth: string }>;
+          const payload = JSON.stringify({
+            notification: {
+              title: `${school.name} — Annonce`,
+              body: b.title,
+              icon: "/icon-192.png",
+              badge: "/icon-192.png",
+              tag: `announcement-${inserted.id}`,
+              data: {
+                url: `/s/${c.req.param("slug")}`,
+                onActionClick: {
+                  default: { operation: "navigateLastFocusedOrOpen", url: `/s/${c.req.param("slug")}` },
+                },
+              },
+            },
+          });
           const pushPromise = (async () => {
-            try {
-              const pool = poolFor(c.env);
+            for (const sub of subs) {
               try {
-                const subs = await tenantTransaction(pool, schoolId, null, async (pushDb) => {
-                  const res = await pushDb.query(
-                    `select distinct p.endpoint, p.p256dh, p.auth
-                     from school_app.push_subscriptions p
-                     join school_app.students s on s.school_id = p.school_id and s.user_id = p.user_id
-                     ${
-                       b.groupId
-                         ? "join school_app.enrollments e on e.school_id = s.school_id and e.student_id = s.id and e.group_id = $2 and e.status <> 'cancelled'"
-                         : ""
-                     }
-                     where p.school_id = $1`,
-                    b.groupId ? [schoolId, b.groupId] : [schoolId],
-                  );
-                  return res.rows;
-                });
-                const payload = JSON.stringify({
-                  notification: {
-                    title: `${school.name} — Annonce`,
-                    body: b.title,
-                    icon: "/icon-192.png",
-                    badge: "/icon-192.png",
-                    tag: `announcement-${inserted.id}`,
-                    data: {
-                      url: `/s/${c.req.param("slug")}`,
-                      onActionClick: {
-                        default: {
-                          operation: "navigateLastFocusedOrOpen",
-                          url: `/s/${c.req.param("slug")}`,
-                        },
-                      },
-                    },
-                  },
-                });
-                for (const sub of subs) {
-                  await sendWebPush(sub, payload, c.env.VAPID_PRIVATE_JWK!);
-                }
-              } finally {
-                await releaseRequestPool(c.env, pool);
+                await sendWebPush(sub, payload, c.env.VAPID_PRIVATE_JWK!);
+              } catch (err) {
+                console.error("Announcement push error:", err);
               }
-            } catch (err) {
-              console.error("Announcement push error:", err);
             }
           })();
           try {
             c.executionCtx?.waitUntil(pushPromise);
-          } catch {}
+          } catch {
+            /* no execution context (tests, Node dev server) */
+          }
         }
 
         return c.json(
@@ -2243,70 +2217,49 @@ export async function runDuePaymentReminders(
     for (const sc of schools) {
       await tenantTransaction(pool, sc.id, null, async (client) => {
         const rows = (
-          await client.query(
-            `select
-               st.id as installment_id,
-               st.label as installment_label,
-               (st.amount - coalesce(st.paid_amount, 0)) as amount_remaining,
-               to_char(st.due_date, 'YYYY-MM-DD') as due_date_ymd,
-               s.user_id,
-               p.endpoint,
-               p.p256dh,
-               p.auth
-             from school_app.installment_status st
-             join school_app.enrollments e on e.school_id = st.school_id and e.id = st.enrollment_id and e.status = 'active'
-             join school_app.students s on s.school_id = e.school_id and s.id = e.student_id
-             join school_app.push_subscriptions p on p.school_id = s.school_id and p.user_id = s.user_id
-             where st.school_id = $1
-               and st.status <> 'paid'
-               and s.user_id is not null
-               and to_char(st.due_date, 'YYYY-MM-DD') in (
-                 to_char(date $2 + interval '7 days', 'YYYY-MM-DD'),
-                 to_char(date $2 + interval '3 days', 'YYYY-MM-DD'),
-                 to_char(date $2 + interval '1 day', 'YYYY-MM-DD')
-               )
-               and not exists (
-                 select 1 from school_app.payment_reminder_logs l
-                 where l.installment_id = st.id
-                   and l.milestone = case
-                     when (st.due_date - date $2) = 7 then 'd7'
-                     when (st.due_date - date $2) = 3 then 'd3'
-                     else 'd1'
-                   end
-               )`,
-            [sc.id, todayYmd],
-          )
-        ).rows;
+          await client.query("select * from school_app.due_reminder_targets($1::date)", [todayYmd])
+        ).rows as Array<{
+          enrollment_id: string;
+          installment_id: string;
+          label: string;
+          remaining: string;
+          milestone: "d7" | "d3" | "d1";
+          endpoint: string;
+          p256dh: string;
+          auth: string;
+        }>;
 
+        // One reminder per student and tranche (a tranche belongs to a group).
         const byInstallment = new Map<
           string,
           {
+            enrollment_id: string;
             installment_id: string;
             installment_label: string;
             amount_remaining: number;
-            due_date_ymd: string;
+            milestone: "d7" | "d3" | "d1";
             subs: Array<{ endpoint: string; p256dh: string; auth: string }>;
           }
         >();
-
         for (const r of rows) {
-          let group = byInstallment.get(r.installment_id);
+          const k = r.enrollment_id + ":" + r.installment_id;
+          let group = byInstallment.get(k);
           if (!group) {
             group = {
+              enrollment_id: r.enrollment_id,
               installment_id: r.installment_id,
-              installment_label: r.installment_label,
-              amount_remaining: Number(r.amount_remaining),
-              due_date_ymd: r.due_date_ymd,
+              installment_label: r.label,
+              amount_remaining: Number(r.remaining),
+              milestone: r.milestone,
               subs: [],
             };
-            byInstallment.set(r.installment_id, group);
+            byInstallment.set(k, group);
           }
           group.subs.push({ endpoint: r.endpoint, p256dh: r.p256dh, auth: r.auth });
         }
 
         for (const item of byInstallment.values()) {
-          const milestone = dueDateMilestone(item.due_date_ymd, todayYmd);
-          if (!milestone) continue;
+          const milestone = item.milestone;
 
           const daysText =
             milestone === "d1"
@@ -2353,10 +2306,10 @@ export async function runDuePaymentReminders(
 
           if (delivered > 0) {
             await client.query(
-              `insert into school_app.payment_reminder_logs(school_id, installment_id, milestone, sent_at)
-               values($1, $2, $3, now())
-               on conflict(installment_id, milestone) do nothing`,
-              [sc.id, item.installment_id, milestone],
+              `insert into school_app.payment_reminder_logs(school_id, installment_id, enrollment_id, milestone, sent_at)
+               values($1, $2, $3, $4, now())
+               on conflict(installment_id, enrollment_id, milestone) do nothing`,
+              [sc.id, item.installment_id, item.enrollment_id, milestone],
             );
           }
         }

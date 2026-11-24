@@ -116,7 +116,7 @@ import type { Group, Category, AdminAnnouncement } from "../core/models";
             <span class="feature-icon"><app-icon name="groups" /></span
             ><app-badge
               [kind]="g.status === 'open' ? 'paid' : 'upcoming'"
-              [label]="g.status"
+              [label]="g.status === 'open' ? 'Ouvert' : g.status === 'closed' ? 'Fermé' : 'Terminé'"
             />
           </div>
           <h2>{{ g.name }}</h2>
@@ -398,7 +398,7 @@ export class GroupsComponent implements OnInit {
   async loadAnnouncements() {
     try {
       const res = await this.api.adminAnnouncements();
-      this.announcements.set(res.announcements);
+      this.announcements.set(res?.announcements ?? []);
     } catch {
       // Offline or network error
     }
