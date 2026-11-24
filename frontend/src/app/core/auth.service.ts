@@ -398,7 +398,26 @@ export class AuthService {
     if (this.scope === scope && generation === this.initialization) this.leaseError.set(false);
   }
 
+  /**
+   * May this user learn now? A valid signed offline lease answers it without
+   * the network. When there is no usable lease but the device is online, the
+   * server answers instead (it enforces the same rule on every request), so a
+   * missing or broken offline key on the server never blocks courses or quizzes.
+   */
   async offlineAllowed(learning = true): Promise<boolean> {
+    if (await this.leaseAllows(learning)) return true;
+    if (!this.api.online() || !this.scope || !this.role()) return false;
+    if (!learning || this.role() === "admin") return true;
+    try {
+      const d = await this.api.me();
+      const s = d.student;
+      return s.has_access && (s.has_paid || (!!s.trial_ends_at && Date.parse(s.trial_ends_at) > Date.now()));
+    } catch {
+      return false;
+    }
+  }
+
+  private async leaseAllows(learning: boolean): Promise<boolean> {
     if (!this.scope || !this.role()) return false;
 
     const row = await database.snapshots.get(this.scope + ":lease");

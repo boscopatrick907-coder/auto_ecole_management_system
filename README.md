@@ -24,6 +24,8 @@ Les URLs de l'application commencent par `/s/<slug-de-l-école>` (ex. `/s/la-mar
 - **Élèves :** inscription en ligne possible, essai gratuit de 14 jours, accès débloqué dès un paiement valide, cours et quiz disponibles hors-ligne, suivi du solde et des reçus.
 - **Direction / caisse :** tableau de bord, élèves, groupes, encaissements avec reçu PDF, annulation motivée (jamais de suppression), journal du jour et rapport mensuel, relances WhatsApp manuelles (`wa.me`).
 - **Contenus :** catégories de permis, supports privés (PDF, images, MP4 ≤ 25 Mo) et quiz, avec brouillon, aperçu et publication.
+- **Épreuves d’examen (PDF) :** l’école ajoute un corrigé à un sujet PDF (Contenus → « Ajouter le corrigé (épreuve) » : nombre de questions, choix A–F, plusieurs lettres possibles, durée 60 min par défaut, saisie rapide « A B CD … »). L’élève ouvre Quiz → Épreuves d’examen, télécharge le sujet, fait l’épreuve avec un minuteur (même hors ligne, réponses conservées si l’application se ferme), puis envoie : le serveur corrige et affiche la note et la correction. Le corrigé n’est jamais envoyé avant la remise. Les notes apparaissent sur la fiche de l’élève côté école.
+- **Mon profil :** l’avatar en haut à droite ouvre le profil (informations, raccourcis, déconnexion) — il ne déconnecte plus d’un seul geste.
 - **Hors-ligne :** reçus provisoires `RC-<appareil>-<n>` confirmés au retour du réseau ; un refus du serveur n'est jamais compté comme un paiement.
 
 Hors périmètre du lancement : envoi automatique WhatsApp/SMS, paiement en ligne, moniteurs/planning, facturation SaaS. La connexion par OTP SMS n'est pas implémentée.
@@ -86,6 +88,7 @@ L'écran de connexion affiche la cause exacte :
 | « Connexion refusée… adresse non autorisée » | L'adresse du navigateur n'est pas dans `TRUSTED_ORIGINS` / `BETTER_AUTH_URL` | Mettre l'adresse exacte (en `https://` hors local) |
 | « Ce compte n'est pas encore rattaché à cette école » | Compte sans adhésion à l'école | Rattacher via `backend/src/tenant/link-admin.ts` |
 | « Impossible de joindre le serveur » | API arrêtée ou injoignable | Démarrer / vérifier le Worker |
+| « L’accès hors ligne n’est pas disponible pour le moment » | Secret `OFFLINE_PRIVATE_KEY_PEM` absent ou invalide sur le Worker (l’API répond `OFFLINE_KEY_MISSING`) | Tout fonctionne en ligne ; pour le hors-ligne, définir la clé avec `wrangler secret put OFFLINE_PRIVATE_KEY_PEM` |
 
 ## Tests
 
@@ -118,6 +121,5 @@ Détails : [mise en place](docs/FRONTEND_SETUP.md) · [staging](docs/STAGING_DEP
 
 - **Logo de la plateforme :** voiture futuriste sur un panneau de verre (`frontend/public/aem-icon.svg`, icônes PNG et `og-default.png` dérivées).
 - **Logo de chaque école :** Paramètres → « Logo de l'école » (PNG, JPEG ou WebP, redimensionné en 512×512 dans le navigateur, ≤ 300 Ko, SVG refusé). Il apparaît dans l'en-tête, la page de l'école, l'annuaire, l'aperçu WhatsApp et l'icône d'installation. Stocké en base (`school_logos`), servi par `/api/schools/<école>/logo`.
-- **Couleurs :** chaque école choisit ses couleurs principale et secondaire dans Paramètres. Par défaut :
-
-Bleu Marseillaise `#3D8BCD` (clair `#5BA4E5`, foncé `#2B6CA8`), corail `#D94E28`, or `#EAB308`, fond `#F4F7FB` avec cartes blanches. Maquettes dans `stitch-designs/`.
+- **Couleurs :** bleu avec une touche d’orange par défaut (`#1F5FAE` / `#F7931E`) ; chaque école peut changer ses couleurs principale et secondaire dans Paramètres.
+- Maquettes d’origine dans `stitch-designs/`.

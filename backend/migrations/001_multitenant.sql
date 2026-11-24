@@ -755,3 +755,142 @@ create or replace function school_app.school_logo(p_slug text) returns table(mim
 
 revoke all on function school_app.set_school_logo(text,bytea),school_app.clear_school_logo(),school_app.school_logo(text) from public;
 grant execute on function school_app.set_school_logo(text,bytea),school_app.clear_school_logo(),school_app.school_logo(text) to aem_tenant_runtime;
+
+-- Brand: blue with a touch of orange is the default palette. Schools still on
+-- an earlier default (old blue/amber or Marseillaise blue/coral) move to it;
+-- any color a school chose itself is left alone.
+alter table school_app.schools alter column colors set default '{"primary":"#1f5fae","accent":"#f7931e"}'::jsonb;
+update school_app.schools set colors='{"primary":"#1f5fae","accent":"#f7931e"}'::jsonb
+ where colors in ('{"primary":"#1f4e8c","accent":"#f5a623"}'::jsonb,'{"primary":"#2b6ca8","accent":"#d94e28"}'::jsonb);
+
+-- PDF exam papers ("épreuves"). A published PDF resource becomes an exam once
+-- the school adds its answer key. Students download the PDF, sit it offline
+-- against a timer (1 hour by default), fill an answer sheet (A-F per question,
+-- several letters allowed) and submit; the server grades. The key is never
+-- sent to a student before they submit.
+create table if not exists school_app.exam_keys (
+ school_id uuid not null references school_app.schools(id),
+ resource_id uuid not null,
+ answers text[] not null check(cardinality(answers) between 1 and 200),
+ choices integer not null default 4 check(choices between 2 and 6),
+ duration_minutes integer not null default 60 check(duration_minutes between 5 and 240),
+ updated_at timestamptz not null default now(),
+ primary key(school_id,resource_id),
+ foreign key(school_id,resource_id) references school_app.resources(school_id,id));
+create table if not exists school_app.exam_attempts (
+ id uuid primary key default gen_random_uuid(),
+ school_id uuid not null references school_app.schools(id),
+ student_id uuid not null,
+ resource_id uuid not null,
+ answers jsonb not null check(jsonb_typeof(answers)='array'),
+ score integer not null, total integer not null,
+ started_at timestamptz not null, submitted_at timestamptz not null,
+ client_id uuid not null,
+ unique(school_id,client_id),
+ foreign key(school_id,student_id) references school_app.students(school_id,id),
+ foreign key(school_id,resource_id) references school_app.resources(school_id,id));
+create index if not exists exam_attempts_student on school_app.exam_attempts(school_id,student_id,submitted_at desc);
+alter table school_app.exam_keys enable row level security;
+alter table school_app.exam_attempts enable row level security;
+grant select on school_app.exam_keys,school_app.exam_attempts to aem_backup_reader;
+drop policy if exists backup_read on school_app.exam_keys;
+create policy backup_read on school_app.exam_keys for select to aem_backup_reader using(true);
+drop policy if exists backup_read on school_app.exam_attempts;
+create policy backup_read on school_app.exam_attempts for select to aem_backup_reader using(true);
+
+-- "BD" == "DB": letters sorted, duplicates removed.
+create or replace function school_app.exam_norm(p text) returns text language sql immutable set search_path=pg_catalog as $$
+ select coalesce(string_agg(distinct x,'' order by x),'') from regexp_split_to_table(upper(coalesce(p,'')),'') x where x<>'' $$;
+
+create or replace function school_app.set_exam_key(p_resource uuid,p_answers text[],p_choices integer,p_duration integer) returns jsonb language plpgsql security definer set search_path=pg_catalog,school_app as $$
+declare v_school uuid := school_app.school_id(); v_max text; v_norm text[]; a text;
+begin
+ if not school_app.is_admin() then raise exception 'ADMIN_REQUIRED'; end if;
+ if not exists(select 1 from school_app.resources where school_id=v_school and id=p_resource and type='pdf') then raise exception 'EXAM_PDF_REQUIRED'; end if;
+ if p_choices is null or p_choices not between 2 and 6 then raise exception 'EXAM_KEY_INVALID'; end if;
+ if p_duration is null or p_duration not between 5 and 240 then raise exception 'EXAM_KEY_INVALID'; end if;
+ if p_answers is null or cardinality(p_answers) not between 1 and 200 then raise exception 'EXAM_KEY_INVALID'; end if;
+ v_max := substr('ABCDEF',p_choices,1);
+ v_norm := array[]::text[];
+ foreach a in array p_answers loop
+  a := school_app.exam_norm(a);
+  if a='' or a !~ ('^[A-'||v_max||']+$') then raise exception 'EXAM_KEY_INVALID'; end if;
+  v_norm := v_norm || a;
+ end loop;
+ insert into school_app.exam_keys(school_id,resource_id,answers,choices,duration_minutes,updated_at) values(v_school,p_resource,v_norm,p_choices,p_duration,now())
+  on conflict(school_id,resource_id) do update set answers=excluded.answers,choices=excluded.choices,duration_minutes=excluded.duration_minutes,updated_at=now();
+ insert into school_app.audit_log(school_id,actor,action,row_id,details) values(v_school,school_app.user_id(),'SET_EXAM_KEY',p_resource,jsonb_build_object('questions',cardinality(v_norm),'choices',p_choices,'minutes',p_duration));
+ return jsonb_build_object('resource_id',p_resource,'answers',to_jsonb(v_norm),'choices',p_choices,'duration_minutes',p_duration);
+end $$;
+
+create or replace function school_app.clear_exam_key(p_resource uuid) returns void language plpgsql security definer set search_path=pg_catalog,school_app as $$
+begin
+ if not school_app.is_admin() then raise exception 'ADMIN_REQUIRED'; end if;
+ delete from school_app.exam_keys where school_id=school_app.school_id() and resource_id=p_resource;
+ insert into school_app.audit_log(school_id,actor,action,row_id,details) values(school_app.school_id(),school_app.user_id(),'CLEAR_EXAM_KEY',p_resource,'{}'::jsonb);
+end $$;
+
+-- Exams visible to the caller: a student sees published papers of their licence
+-- (never the key); an admin sees every paper with its key.
+create or replace function school_app.exam_papers() returns setof jsonb language plpgsql stable security definer set search_path=pg_catalog,school_app as $$
+declare v_school uuid := school_app.school_id(); s school_app.students;
+begin
+ if school_app.is_admin() then
+  return query select jsonb_build_object('resource_id',r.id,'title',r.title,'description',r.description,'licence_category_id',r.licence_category_id,'is_published',r.is_published,
+   'question_count',cardinality(k.answers),'choices',k.choices,'duration_minutes',k.duration_minutes,'answers',to_jsonb(k.answers),
+   'attempts',(select count(*) from school_app.exam_attempts a where a.school_id=v_school and a.resource_id=r.id))
+   from school_app.exam_keys k join school_app.resources r on r.school_id=k.school_id and r.id=k.resource_id where k.school_id=v_school order by r.title,r.id;
+  return;
+ end if;
+ select * into s from school_app.students where school_id=v_school and user_id=school_app.user_id();
+ if not found then raise exception 'STUDENT_REQUIRED'; end if;
+ return query select jsonb_build_object('resource_id',r.id,'title',r.title,'description',r.description,
+   'question_count',cardinality(k.answers),'choices',k.choices,'duration_minutes',k.duration_minutes)
+  from school_app.exam_keys k join school_app.resources r on r.school_id=k.school_id and r.id=k.resource_id
+  where k.school_id=v_school and r.is_published and r.licence_category_id=s.licence_category_id order by r.title,r.id;
+end $$;
+
+create or replace function school_app.submit_exam(p_resource uuid,p_answers jsonb,p_client uuid,p_started timestamptz,p_submitted timestamptz) returns jsonb language plpgsql security definer set search_path=pg_catalog,school_app as $$
+declare s school_app.students; k school_app.exam_keys; r school_app.exam_attempts; v_norm jsonb := '[]'::jsonb; v_score integer := 0; i integer; v text;
+begin
+ select * into s from school_app.students where school_id=school_app.school_id() and user_id=school_app.user_id();
+ if not found then raise exception 'STUDENT_REQUIRED'; end if;
+ select k2.* into k from school_app.exam_keys k2 join school_app.resources res on res.school_id=k2.school_id and res.id=k2.resource_id
+  where k2.school_id=s.school_id and k2.resource_id=p_resource and res.is_published and res.licence_category_id=s.licence_category_id for share of k2;
+ if not found then raise exception 'EXAM_FORBIDDEN'; end if;
+ perform pg_advisory_xact_lock(hashtextextended(s.school_id::text||p_client::text,0));
+ select * into r from school_app.exam_attempts where school_id=s.school_id and client_id=p_client;
+ if found then
+  if r.student_id<>s.id or r.resource_id<>p_resource then raise exception 'IDEMPOTENCY_CONFLICT'; end if;
+  return to_jsonb(r)||jsonb_build_object('key',to_jsonb(k.answers));
+ end if;
+ if not school_app.student_has_access(s.id) then raise exception 'EXAM_FORBIDDEN'; end if;
+ if p_answers is null or jsonb_typeof(p_answers)<>'array' or jsonb_array_length(p_answers)<>cardinality(k.answers) then raise exception 'EXAM_ANSWERS_INVALID'; end if;
+ if p_started is null or p_submitted is null or p_submitted<p_started then raise exception 'EXAM_ANSWERS_INVALID'; end if;
+ for i in 1..cardinality(k.answers) loop
+  if jsonb_typeof(p_answers->(i-1)) not in ('string','null') then raise exception 'EXAM_ANSWERS_INVALID'; end if;
+  v := school_app.exam_norm(p_answers->>(i-1));
+  if v !~ '^[A-F]*$' then raise exception 'EXAM_ANSWERS_INVALID'; end if;
+  v_norm := v_norm || to_jsonb(v);
+  if v<>'' and v=k.answers[i] then v_score := v_score+1; end if;
+ end loop;
+ insert into school_app.exam_attempts(school_id,student_id,resource_id,answers,score,total,started_at,submitted_at,client_id)
+  values(s.school_id,s.id,p_resource,v_norm,v_score,cardinality(k.answers),p_started,least(p_submitted,now()),p_client) returning * into r;
+ return to_jsonb(r)||jsonb_build_object('key',to_jsonb(k.answers));
+end $$;
+
+-- Exam results: a student gets their own; an admin passes a student id.
+create or replace function school_app.exam_results(p_student uuid default null) returns setof jsonb language plpgsql stable security definer set search_path=pg_catalog,school_app as $$
+declare v_school uuid := school_app.school_id(); v_student uuid;
+begin
+ if school_app.is_admin() and p_student is not null then v_student := p_student;
+ else select id into v_student from school_app.students where school_id=v_school and user_id=school_app.user_id();
+  if v_student is null then raise exception 'STUDENT_REQUIRED'; end if;
+ end if;
+ return query select jsonb_build_object('id',a.id,'resource_id',a.resource_id,'title',r.title,'score',a.score,'total',a.total,'started_at',a.started_at,'submitted_at',a.submitted_at)
+  from school_app.exam_attempts a join school_app.resources r on r.school_id=a.school_id and r.id=a.resource_id
+  where a.school_id=v_school and a.student_id=v_student order by a.submitted_at desc limit 50;
+end $$;
+
+revoke all on function school_app.exam_norm(text),school_app.set_exam_key(uuid,text[],integer,integer),school_app.clear_exam_key(uuid),school_app.exam_papers(),school_app.submit_exam(uuid,jsonb,uuid,timestamptz,timestamptz),school_app.exam_results(uuid) from public;
+grant execute on function school_app.exam_norm(text),school_app.set_exam_key(uuid,text[],integer,integer),school_app.clear_exam_key(uuid),school_app.exam_papers(),school_app.submit_exam(uuid,jsonb,uuid,timestamptz,timestamptz),school_app.exam_results(uuid) to aem_tenant_runtime;

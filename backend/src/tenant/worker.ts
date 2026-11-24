@@ -8,7 +8,7 @@ import {
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { SignJWT, importPKCS8, exportJWK, importSPKI } from "jose";
+import { SignJWT, importPKCS8, exportJWK, importSPKI, type JWK, type KeyLike } from "jose";
 import { createHash, createPublicKey, randomUUID } from "node:crypto";
 import type pg from "pg";
 import { requestPoolFor as poolFor, releaseRequestPool, queryBatch, tenantTransaction, type TenantBindings } from "./context.js";
@@ -61,6 +61,30 @@ const offlineReceiptRegex = /^RC-(?![0-9]{4}-)[A-Z0-9]{4,32}-[0-9]{1,12}$/;
 
 const MAX_LOGO_BYTES = 300 * 1024;
 /** Image type from magic bytes (PNG, JPEG, WebP); SVG is deliberately not accepted. */
+/**
+ * Ed25519 key for offline leases. Accepts a PEM pasted with literal "\\n"
+ * (common with dashboard secrets). Returns null when the secret is missing
+ * or invalid so the API answers a clear OFFLINE_KEY_MISSING instead of a 500.
+ */
+let offlineKeyCache: { pem: string; value: Promise<{ key: KeyLike; pub: JWK } | null> } | undefined;
+export function offlineKeys(raw: string | undefined) {
+  const pem = (raw ?? "").replace(/\\n/g, "\n").trim();
+  if (offlineKeyCache?.pem === pem) return offlineKeyCache.value;
+  const value = (async () => {
+    if (!pem.includes("PRIVATE KEY")) return null;
+    try {
+      const key = await importPKCS8(pem, "EdDSA");
+      const spki = createPublicKey(pem).export({ type: "spki", format: "pem" }).toString();
+      return { key, pub: await exportJWK(await importSPKI(spki, "EdDSA")) };
+    } catch (e) {
+      console.error("OFFLINE_PRIVATE_KEY_PEM is not a valid Ed25519 PKCS#8 key", e);
+      return null;
+    }
+  })();
+  offlineKeyCache = { pem, value };
+  return value;
+}
+
 export function detectImage(b: Uint8Array): string | null {
   if (b.length > 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return "image/png";
   if (b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return "image/jpeg";
@@ -763,11 +787,9 @@ app.all("/api/schools/:slug/*", async (c) => {
         const d = role === "student" ? await dossier(db) : null;
         const now = Date.now();
         const max = now + 72 * 3600000;
-        const key = await importPKCS8(c.env.OFFLINE_PRIVATE_KEY_PEM, "EdDSA");
-        const pem = createPublicKey(c.env.OFFLINE_PRIVATE_KEY_PEM)
-          .export({ type: "spki", format: "pem" })
-          .toString();
-        const pub = await exportJWK(await importSPKI(pem, "EdDSA"));
+        const signing = await offlineKeys(c.env.OFFLINE_PRIVATE_KEY_PEM);
+        if (!signing) throw fail("OFFLINE_KEY_MISSING", 503);
+        const { key, pub } = signing;
         const token = await new SignJWT({
           schoolId,
           role,
@@ -892,6 +914,34 @@ app.all("/api/schools/:slug/*", async (c) => {
         );
       }
 
+      // PDF exam papers (épreuves): list without answer keys, submit, results.
+      if (path === "exams" && method === "GET") {
+        const rows = (await db.query("select school_app.exam_papers() as e")).rows;
+        return c.json({ exams: rows.map((r) => r.e) });
+      }
+      if (path === "exam-attempts" && method === "POST") {
+        const b = z
+          .object({
+            resourceId: uuid,
+            clientId: uuid,
+            answers: z.array(z.string().regex(/^[A-Fa-f]{0,6}$/)).min(1).max(200),
+            startedAt: z.string().datetime(),
+            submittedAt: z.string().datetime(),
+          })
+          .parse(await c.req.json());
+        const r = await db.query("select school_app.submit_exam($1,$2,$3,$4,$5) as a", [
+          b.resourceId,
+          JSON.stringify(b.answers),
+          b.clientId,
+          b.startedAt,
+          b.submittedAt,
+        ]);
+        return c.json({ attempt: r.rows[0].a }, 201);
+      }
+      if (path === "exam-results" && method === "GET") {
+        const rows = (await db.query("select school_app.exam_results() as e")).rows;
+        return c.json({ results: rows.map((r) => r.e) });
+      }
       if (role !== "admin") throw fail("ADMIN_REQUIRED", 403);
 
       if (path === "admin/dashboard") {
@@ -1513,6 +1563,36 @@ app.all("/api/schools/:slug/*", async (c) => {
         return c.json({ resource: r.rows[0] });
       }
 
+      if (path === "admin/exams" && method === "GET") {
+        const rows = (await db.query("select school_app.exam_papers() as e")).rows;
+        return c.json({ exams: rows.map((r) => r.e) });
+      }
+      const examKey = /^admin\/exams\/([0-9a-f-]+)$/.exec(path);
+      if (examKey && method === "PUT") {
+        const b = z
+          .object({
+            answers: z.array(z.string().regex(/^[A-Fa-f]{1,6}$/)).min(1).max(200),
+            choices: z.number().int().min(2).max(6).default(4),
+            durationMinutes: z.number().int().min(5).max(240).default(60),
+          })
+          .parse(await c.req.json());
+        const r = await db.query("select school_app.set_exam_key($1,$2,$3,$4) as e", [
+          uuid.parse(examKey[1]),
+          b.answers,
+          b.choices,
+          b.durationMinutes,
+        ]);
+        return c.json({ exam: r.rows[0].e });
+      }
+      if (examKey && method === "DELETE") {
+        await db.query("select school_app.clear_exam_key($1)", [uuid.parse(examKey[1])]);
+        return c.json({ ok: true });
+      }
+      const studentExams = /^admin\/students\/([0-9a-f-]+)\/exam-results$/.exec(path);
+      if (studentExams && method === "GET") {
+        const rows = (await db.query("select school_app.exam_results($1) as e", [uuid.parse(studentExams[1])])).rows;
+        return c.json({ results: rows.map((r) => r.e) });
+      }
       if (path === "admin/quizzes" && method === "GET") {
         const quizzes = (
           await db.query("select * from school_app.quizzes order by title, id")
@@ -1716,6 +1796,11 @@ const statusByCode: Record<string, number> = {
   STUDENT_REQUIRED: 403,
   RESOURCE_FORBIDDEN: 403,
   QUIZ_FORBIDDEN: 403,
+  EXAM_FORBIDDEN: 403,
+  EXAM_PDF_REQUIRED: 400,
+  EXAM_KEY_INVALID: 400,
+  EXAM_ANSWERS_INVALID: 400,
+  OFFLINE_KEY_MISSING: 503,
   SCHOOL_NOT_FOUND: 404,
   STUDENT_NOT_FOUND: 404,
   ENROLLMENT_NOT_FOUND: 404,

@@ -12,7 +12,7 @@ export interface ThemeColors {
 
 /** Ready-made palettes offered in Paramètres. The first one is La Marseillaise's. */
 export const PRESETS: ReadonlyArray<{ id: string; name: string } & ThemeColors> = [
-  { id: "marseillaise", name: "Bleu Marseillaise", primary: "#2b6ca8", accent: "#d94e28" },
+  { id: "marseillaise", name: "Bleu & orange", primary: "#1f5fae", accent: "#f7931e" },
   { id: "ocean", name: "Océan", primary: "#0f5e9c", accent: "#14b8a6" },
   { id: "foret", name: "Forêt", primary: "#166534", accent: "#eab308" },
   { id: "savane", name: "Savane", primary: "#9a3412", accent: "#f59e0b" },
@@ -21,7 +21,7 @@ export const PRESETS: ReadonlyArray<{ id: string; name: string } & ThemeColors> 
   { id: "cerise", name: "Cerise", primary: "#9f1239", accent: "#fb7185" },
 ];
 
-export const DEFAULT_THEME: ThemeColors = { primary: "#1f4e8c", accent: "#f5a623" };
+export const DEFAULT_THEME: ThemeColors = { primary: "#1f5fae", accent: "#f7931e" };
 
 const HEX = /^#[0-9a-f]{6}$/i;
 export const isHex = (v: unknown): v is string => typeof v === "string" && HEX.test(v);

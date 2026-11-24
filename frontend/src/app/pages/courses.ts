@@ -82,7 +82,7 @@ export class CoursesComponent implements OnInit, OnDestroy {
   urls: string[] = [];
   async ngOnInit() {
     try {
-      if (this.api.online()) await this.auth.refreshLease();
+      if (this.api.online()) await this.auth.refreshLease().catch(() => {});
       if (!(await this.auth.offlineAllowed())) {
         this.denied.set(true);
         return;

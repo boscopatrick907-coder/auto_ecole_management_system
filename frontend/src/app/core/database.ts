@@ -8,7 +8,7 @@ export interface Snapshot {
 export interface QueueAction {
   id: string;
   scope: string;
-  kind: "payment" | "quiz";
+  kind: "payment" | "quiz" | "exam";
   body: Record<string, unknown>;
   createdAt: number;
   attempts: number;

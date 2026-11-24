@@ -59,7 +59,12 @@ it("finishes online login without waiting for a lease and keeps identity on leas
   await auth.openSchool("school");
   expect(auth.ready()).toBe(true);
   expect(auth.role()).toBe("admin");
+  // No lease yet: online, the server's own check stands in for it…
+  expect(await auth.offlineAllowed(false)).toBe(true);
+  // …but offline, nothing proves access.
+  api.online.set(false);
   expect(await auth.offlineAllowed(false)).toBe(false);
+  api.online.set(true);
   lease.resolve(undefined as never);
   await vi.waitFor(() => expect(auth.leaseError()).toBe(true));
   expect(auth.error()).toBe("");

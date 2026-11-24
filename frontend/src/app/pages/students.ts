@@ -42,7 +42,7 @@ import type { Dossier, Student, Group, Payment } from "../core/models";
             name="query"
             [placeholder]="t.search"
             [attr.aria-label]="t.search"
-          /><button class="btn small">{{ t.search }}</button>
+          /><button class="btn small icon-only" [attr.aria-label]="t.search"><app-icon name="search" /></button>
         </form>
         @if (error()) {
           <p class="error-box" role="alert">{{ t.error }}</p>
@@ -56,7 +56,7 @@ import type { Dossier, Student, Group, Payment } from "../core/models";
             ><span class="avatar">{{ s.full_name.charAt(0) }}</span>
             <div class="grow">
               <strong>{{ s.full_name }}</strong>
-              <p>#LM-{{ s.student_number }} · {{ s.phone }}</p>
+              <p>N° {{ s.student_number }} · {{ s.phone }}</p>
               <span class="muted">{{ s.group_name }}</span>
             </div>
             <div class="align-right">
@@ -309,6 +309,13 @@ export class NewStudentComponent implements OnInit {
     window.print();
   }
 }
+interface ExamRow {
+  id: string;
+  title: string;
+  score: number;
+  total: number;
+  submitted_at: string;
+}
 @Component({
   standalone: true,
   imports: [
@@ -322,7 +329,7 @@ export class NewStudentComponent implements OnInit {
   template: `@if (dossier(); as d) {
       <div class="page-heading">
         <div>
-          <span class="eyebrow">#LM-{{ d.student.student_number }}</span>
+          <span class="eyebrow">N° {{ d.student.student_number }}</span>
           <h1>{{ d.student.full_name }}</h1>
           <p>{{ d.student.phone }}</p>
         </div>
@@ -338,7 +345,7 @@ export class NewStudentComponent implements OnInit {
           <p>{{ d.enrollment?.group_name }}</p>
           <p>
             {{ t.trialEnd }} :
-            {{ d.student.trial_ends_at | date: "dd/MM/yyyy" }}
+            {{ d.student.trial_ends_at ? (d.student.trial_ends_at | date: "dd/MM/yyyy") : t.trialAtActivation }}
           </p>
           <div class="money-grid">
             <div class="inset">
@@ -394,6 +401,30 @@ export class NewStudentComponent implements OnInit {
           }
         </section>
       </div>
+      <section class="card">
+        <h2>{{ t.learningResults }}</h2>
+        @for (r of examResults(); track r.id) {
+          <div class="list-row">
+            <div class="grow">
+              <strong>{{ r.title }}</strong>
+              <p>{{ t.exams }} · {{ r.submitted_at | date: "dd/MM/yyyy HH:mm" }}</p>
+            </div>
+            <strong>{{ r.score }} / {{ r.total }}</strong>
+          </div>
+        }
+        @for (a of d.attempts; track a.id) {
+          <div class="list-row">
+            <div class="grow">
+              <strong>{{ t.quiz }}</strong>
+              <p>{{ a.taken_at | date: "dd/MM/yyyy HH:mm" }}</p>
+            </div>
+            <strong>{{ a.score }} / {{ a.total }}</strong>
+          </div>
+        }
+        @if (!examResults().length && !d.attempts.length) {
+          <p class="muted">{{ t.noResultsYet }}</p>
+        }
+      </section>
       <section class="card">
         <h2>{{ t.receipts }}</h2>
         @for (p of d.payments; track p.id) {
@@ -467,10 +498,16 @@ export class DossierComponent implements OnInit {
   busy = signal(false);
   reason = "";
   statusLabel = installmentLabel;
+  examResults = signal<ExamRow[]>([]);
   ngOnInit() {
     void this.load();
   }
   async load() {
+    if (this.api.online())
+      void this.api
+        .tenant<{ results: ExamRow[] }>("admin/students/" + encodeURIComponent(this.id) + "/exam-results")
+        .then((r) => this.examResults.set(r.results))
+        .catch(() => {});
     try {
       this.dossier.set(
         await this.store.read("dossier:" + this.id, () =>
