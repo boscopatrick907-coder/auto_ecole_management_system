@@ -9,6 +9,10 @@
       "resources": {
         "files": [
           "/favicon.ico",
+          "/favicon-32.png",
+          "/aem-icon.svg",
+          "/icon-192.png",
+          "/icon-512.png",
           "/index.html",
           "/manifest.webmanifest",
           "/*.css",

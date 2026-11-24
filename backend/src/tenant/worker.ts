@@ -377,21 +377,58 @@ async function publicSchool(
 const edgeCache = () =>
   (globalThis as { caches?: { default?: Cache } }).caches?.default;
 
+export function shellVersion(html: string): string {
+  let h1 = 0x811c9dc5;
+  let h2 = 0x9e3779b9;
+  for (let i = 0; i < html.length; i++) {
+    const ch = html.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 0x01000193);
+    h2 = Math.imul(h2 ^ ch, 0x85ebca6b);
+  }
+  return (h1 >>> 0).toString(16).padStart(8, "0") + (h2 >>> 0).toString(16).padStart(8, "0");
+}
+
 async function indexHtml(c: { env: TenantBindings; req: { url: string } }) {
   const res = await c.env.ASSETS!.fetch(new Request(new URL("/", c.req.url)));
   return res.text();
 }
 
+function purgePublicSchoolCache(
+  c: { env: TenantBindings; req: { url: string }; executionCtx?: { waitUntil(p: Promise<unknown>): void } },
+  slug: string,
+) {
+  const cache = edgeCache();
+  if (!cache || !c.env.ASSETS) return;
+  const origin = new URL(c.req.url).origin;
+  const task = (async () => {
+    try {
+      const ver = shellVersion(await indexHtml(c));
+      const paths = ["/", `/s/${slug}`, `/s/${slug}/connexion`, `/s/${slug}/activation`, `/s/${slug}/inscription`, `/s/${slug}/reinitialiser`];
+      await Promise.all(paths.map((p) => cache.delete(new Request(`${origin}${p}?__v=${ver}`, { method: "GET" }))));
+    } catch {
+      /* cache purge is best-effort */
+    }
+  })();
+  try {
+    c.executionCtx?.waitUntil(task);
+  } catch {
+    /* no execution context in unit tests or Node dev server */
+  }
+}
+
 function htmlResponse(html: string, status: number, opts: { noindex: boolean; cacheable: boolean }) {
   const headers = new Headers({ "Content-Type": "text/html; charset=utf-8" });
   if (opts.noindex) headers.set("X-Robots-Tag", "noindex");
-  headers.set("Cache-Control", opts.cacheable ? "public, max-age=0, s-maxage=300" : "no-cache");
+  headers.set(
+    "Cache-Control",
+    opts.cacheable ? "public, max-age=0, must-revalidate, s-maxage=300" : "no-store, no-cache, must-revalidate",
+  );
   return new Response(html, { status, headers });
 }
 
 app.get("/api/schools", async (c) => {
   const schools = await listedSchools(c.env);
-  c.header("Cache-Control", "public, max-age=300");
+  c.header("Cache-Control", "public, max-age=0, must-revalidate, s-maxage=60");
   return c.json({ schools: schools.map(({ slug, name, address, logo }) => ({ slug, name, address, logo })) });
 });
 
@@ -419,13 +456,14 @@ async function renderPublicPage(c: Context<{ Bindings: TenantBindings }>, path: 
   const match = /^\/s\/([^/]+)(\/.*)?$/.exec(path);
   const slug = match?.[1] ?? "";
   const kind = match ? schoolPathKind(match[2] ?? "") : "home";
+  const shell = await indexHtml(c);
 
   // Private app pages: the plain app, never indexed, no database work.
   if (match && kind === "private")
-    return htmlResponse(await indexHtml(c), 200, { noindex: true, cacheable: false });
+    return htmlResponse(shell, 200, { noindex: true, cacheable: false });
 
   const cache = edgeCache();
-  const key = new Request(origin + path, { method: "GET" });
+  const key = new Request(`${origin}${path}?__v=${shellVersion(shell)}`, { method: "GET" });
   const hit = await cache?.match(key);
   if (hit) return hit;
 
@@ -434,7 +472,7 @@ async function renderPublicPage(c: Context<{ Bindings: TenantBindings }>, path: 
     const schools = await listedSchools(c.env);
     const meta = { ...homeMeta(origin), noindex: !indexable(c.env) };
     res = htmlResponse(
-      injectPage(await indexHtml(c), meta, homeBody(origin, schools)),
+      injectPage(shell, meta, homeBody(origin, schools)),
       200,
       { noindex: meta.noindex, cacheable: true },
     );
@@ -443,7 +481,7 @@ async function renderPublicPage(c: Context<{ Bindings: TenantBindings }>, path: 
     if (!data) {
       return htmlResponse(
         injectPage(
-          await indexHtml(c),
+          shell,
           { ...homeMeta(origin), title: "Auto-école introuvable", noindex: true, jsonLd: undefined },
           `<main class="seo-prerender"><h1>Auto-école introuvable</h1><p><a href="${esc(origin)}/">Voir les auto-écoles</a></p></main>`,
         ),
@@ -454,7 +492,7 @@ async function renderPublicPage(c: Context<{ Bindings: TenantBindings }>, path: 
     const meta = schoolMeta(origin, data.school, data.groups, kind as "home" | "entry", data.listed);
     if (!indexable(c.env)) meta.noindex = true;
     res = htmlResponse(
-      injectPage(await indexHtml(c), meta, schoolBody(origin, data.school, data.groups)),
+      injectPage(shell, meta, schoolBody(origin, data.school, data.groups)),
       200,
       { noindex: meta.noindex, cacheable: true },
     );
@@ -2185,10 +2223,12 @@ app.all("/api/schools/:slug/*", async (c) => {
         // Check the real content, not only the declared type.
         if (detectImage(bytes) !== m[1]) throw fail("INVALID_FILE_TYPE", 400);
         const url = (await db.query("select school_app.set_school_logo($1,$2) as url", [m[1], bytes])).rows[0].url;
+        purgePublicSchoolCache(c, c.req.param("slug"));
         return c.json({ logo: url });
       }
       if (path === "admin/settings/logo" && method === "DELETE") {
         await db.query("select school_app.clear_school_logo()");
+        purgePublicSchoolCache(c, c.req.param("slug"));
         return c.json({ ok: true });
       }
       if (path === "admin/settings" && method === "PATCH") {
@@ -2217,6 +2257,7 @@ app.all("/api/schools/:slug/*", async (c) => {
             schoolId,
           ],
         );
+        purgePublicSchoolCache(c, c.req.param("slug"));
         return c.json({ ok: true });
       }
       throw fail("NOT_FOUND", 404);
