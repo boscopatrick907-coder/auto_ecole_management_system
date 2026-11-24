@@ -22,6 +22,7 @@
     "db:migrate:tenant": "tsx src/tenant/migrate.ts",
     "tenant:bootstrap": "tsx src/tenant/bootstrap.ts",
     "tenant:import-legacy": "tsx src/tenant/import-legacy.ts",
+    "tenant:reset-test-data": "tsx src/tenant/reset-test-data.ts",
     "tenant:verify": "tsx src/tenant/verify-staging.ts",
     "tenant:rehearse": "tsx src/tenant/rehearse-migration.ts",
     "tenant:verify:e04-e05": "tsx src/tenant/verify-e04-e05.ts",
