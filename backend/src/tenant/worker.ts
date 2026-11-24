@@ -1586,8 +1586,8 @@ app.all("/api/schools/:slug/*", async (c) => {
                   notification: {
                     title: `${school.name} — Annonce`,
                     body: b.title,
-                    icon: "/icons/icon-192.png",
-                    badge: "/icons/icon-192.png",
+                    icon: "/icon-192.png",
+                    badge: "/icon-192.png",
                     tag: `announcement-${inserted.id}`,
                     data: {
                       url: `/s/${c.req.param("slug")}`,
@@ -2321,8 +2321,8 @@ export async function runDuePaymentReminders(
             notification: {
               title: `Rappel paiement — ${sc.name}`,
               body: `L'échéance "${item.installment_label}" (${formattedAmount} FCFA) arrive à terme ${daysText}.`,
-              icon: "/icons/icon-192.png",
-              badge: "/icons/icon-192.png",
+              icon: "/icon-192.png",
+              badge: "/icon-192.png",
               tag: `payment-reminder-${item.installment_id}-${milestone}`,
               renotify: true,
               data: {

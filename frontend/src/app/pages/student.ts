@@ -61,7 +61,7 @@ import type { Dossier, Payment, StudentAnnouncement } from "../core/models";
           </div>
         }
 
-        @if (notifications.pushSupported() && notifications.permission() !== 'granted' && !notifications.subscribed()) {
+        @if (notifications.pushSupported() && notifications.permission() === 'default' && !notifications.subscribed()) {
           <section class="card soft-note">
             <div class="row between">
               <div>
@@ -72,7 +72,12 @@ import type { Dossier, Payment, StudentAnnouncement } from "../core/models";
                 {{ t.enableReminders }}
               </button>
             </div>
+            @if (notifications.message()) {
+              <p class="muted small" role="status" style="margin-top: 8px">{{ notifications.message() }}</p>
+            }
           </section>
+        } @else if (notifications.message()) {
+          <p class="muted small" role="status">{{ notifications.message() }}</p>
         }
 
         <!-- Annonces du groupe ou de l'école -->

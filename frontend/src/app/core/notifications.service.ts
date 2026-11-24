@@ -212,7 +212,7 @@ export class NotificationsService {
       const key = `${slug}:${studentId}:${r.installmentId}:${r.milestone}`;
       if (fired.includes(key)) continue;
       try {
-        const options: NotificationOptions = { body: reminderText(r), tag: key, icon: "/icons/icon-192x192.png" };
+        const options: NotificationOptions = { body: reminderText(r), tag: key, icon: "/icon-192.png" };
         const reg = await navigator.serviceWorker?.getRegistration?.();
         if (reg?.showNotification) await reg.showNotification(FR.reminderTitle, options);
         else new Notification(FR.reminderTitle, options);

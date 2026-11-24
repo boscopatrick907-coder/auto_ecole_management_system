@@ -956,28 +956,36 @@ drop policy if exists backup_read on school_app.payment_reminder_logs;
 create policy backup_read on school_app.payment_reminder_logs for select to aem_backup_reader using(true);
 
 drop policy if exists tenant_isolation on school_app.announcements;
-create policy tenant_isolation on school_app.announcements
+drop policy if exists announcements_read on school_app.announcements;
+create policy announcements_read on school_app.announcements
+  for select to aem_tenant_runtime
+  using(school_id=school_app.school_id());
+drop policy if exists announcements_admin on school_app.announcements;
+create policy announcements_admin on school_app.announcements
   for all to aem_tenant_runtime
-  using(school_id=school_app.school_id())
-  with check(school_id=school_app.school_id());
+  using(school_id=school_app.school_id() and school_app.is_admin())
+  with check(school_id=school_app.school_id() and school_app.is_admin());
 
 drop policy if exists tenant_isolation on school_app.announcement_reads;
-create policy tenant_isolation on school_app.announcement_reads
+drop policy if exists announcement_reads_own on school_app.announcement_reads;
+create policy announcement_reads_own on school_app.announcement_reads
   for all to aem_tenant_runtime
-  using(exists(select 1 from school_app.announcements a where a.id=announcement_id and a.school_id=school_app.school_id()))
-  with check(exists(select 1 from school_app.announcements a where a.id=announcement_id and a.school_id=school_app.school_id()));
+  using((user_id=school_app.user_id() or school_app.is_admin()) and exists(select 1 from school_app.announcements a where a.id=announcement_id and a.school_id=school_app.school_id()))
+  with check((user_id=school_app.user_id() or school_app.is_admin()) and exists(select 1 from school_app.announcements a where a.id=announcement_id and a.school_id=school_app.school_id()));
 
 drop policy if exists tenant_isolation on school_app.push_subscriptions;
-create policy tenant_isolation on school_app.push_subscriptions
+drop policy if exists push_subscriptions_access on school_app.push_subscriptions;
+create policy push_subscriptions_access on school_app.push_subscriptions
   for all to aem_tenant_runtime
-  using(school_id=school_app.school_id())
-  with check(school_id=school_app.school_id());
+  using(school_id=school_app.school_id() and (user_id=school_app.user_id() or school_app.is_admin() or school_app.user_id() is null))
+  with check(school_id=school_app.school_id() and (user_id=school_app.user_id() or school_app.is_admin() or school_app.user_id() is null));
 
 drop policy if exists tenant_isolation on school_app.payment_reminder_logs;
-create policy tenant_isolation on school_app.payment_reminder_logs
+drop policy if exists payment_reminder_logs_access on school_app.payment_reminder_logs;
+create policy payment_reminder_logs_access on school_app.payment_reminder_logs
   for all to aem_tenant_runtime
-  using(school_id=school_app.school_id())
-  with check(school_id=school_app.school_id());
+  using(school_id=school_app.school_id() and (school_app.is_admin() or school_app.user_id() is null))
+  with check(school_id=school_app.school_id() and (school_app.is_admin() or school_app.user_id() is null));
 
 drop policy if exists admin_delete on school_app.invites;
 create policy admin_delete on school_app.invites

@@ -85,6 +85,9 @@ import type { Dossier } from "../core/models";
             <span class="badge ghost">{{ t.pushUnsupported }}</span>
           }
         </div>
+        @if (notifications.message()) {
+          <p class="muted small" role="status" style="margin-top: 8px">{{ notifications.message() }}</p>
+        }
       </section>
     }
 
