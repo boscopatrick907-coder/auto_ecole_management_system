@@ -1,4 +1,4 @@
-import { formatCode, activationLink, activationMessage } from "../core/activation";
+import { formatCode, activationLink, activationMessage, normalizePhone } from "../core/activation";
 import { Component, inject, signal, OnInit, OnDestroy } from "@angular/core";
 import {
   FormsModule,
@@ -178,6 +178,8 @@ export class StudentListComponent implements OnInit, OnDestroy {
     }
   }
 }
+const PHONE = /^\+237[26][0-9]{8}$/;
+
 @Component({
   standalone: true,
   imports: [RouterLink, ReactiveFormsModule, MoneyPipe, IconComponent],
@@ -194,7 +196,8 @@ export class StudentListComponent implements OnInit, OnDestroy {
           }}<input
             formControlName="phone"
             type="tel"
-            placeholder="+2376XXXXXXXX" /></label
+            inputmode="tel"
+            placeholder="6XX XX XX XX" /></label
         ><label
           >{{ t.group
           }}<select formControlName="group">
@@ -206,13 +209,13 @@ export class StudentListComponent implements OnInit, OnDestroy {
             }
           </select></label
         >
-        <p class="muted">{{ t.trialInfo }}</p>
+        <p class="muted">{{ t.adminStudentCreateHelp }}</p>
         @if (error()) {
-          <p class="error-box" role="alert">{{ t.conflict }}</p>
+          <p class="error-box" role="alert">{{ error() }}</p>
         }
         <button
           class="btn full"
-          [disabled]="form.invalid || busy() || !api.online()"
+          [disabled]="busy() || !api.online()"
         >
           {{ busy() ? t.loading : t.save }}
         </button>
@@ -253,13 +256,10 @@ export class NewStudentComponent implements OnInit {
   created = signal<Dossier | null>(null);
   inviteCode = signal("");
   busy = signal(false);
-  error = signal(false);
+  error = signal("");
   form = this.fb.nonNullable.group({
     name: ["", [Validators.required, Validators.minLength(2)]],
-    phone: [
-      "",
-      [Validators.required, Validators.pattern(/^\+237[26][0-9]{8}$/)],
-    ],
+    phone: ["", [Validators.required]],
     group: ["", Validators.required],
   });
   async ngOnInit() {
@@ -268,24 +268,57 @@ export class NewStudentComponent implements OnInit {
         (await this.api.groups()).groups.filter((g) => g.status === "open"),
       );
     } catch {
-      this.error.set(true);
+      this.error.set(this.t.conflict);
     }
   }
   async submit() {
-    if (this.form.invalid || this.busy()) return;
+    if (this.busy()) return;
+    this.error.set("");
+    const v = this.form.getRawValue();
+    const fullName = v.name.trim();
+    if (fullName.length < 2) {
+      this.error.set(this.t.nameRequired);
+      return;
+    }
+    const phone = normalizePhone(v.phone);
+    if (!PHONE.test(phone)) {
+      this.error.set(this.t.phoneInvalid);
+      return;
+    }
+    if (!v.group) {
+      this.error.set(this.t.groupRequired);
+      return;
+    }
     this.busy.set(true);
     try {
-      const v = this.form.getRawValue();
       const r = await this.api.tenant<Dossier & { inviteCode: string }>(
         "admin/students",
         "POST",
-        { fullName: v.name, phone: v.phone, groupId: v.group },
+        { fullName, phone, groupId: v.group },
       );
       this.created.set(r);
       this.inviteCode.set(r.inviteCode);
-      this.error.set(false);
-    } catch {
-      this.error.set(true);
+      this.error.set("");
+    } catch (e) {
+      if (e instanceof RequestError) {
+        if (e.code === "PHONE_ALREADY_REGISTERED") {
+          this.error.set(this.t.phoneTaken);
+          return;
+        }
+        if (e.code === "GROUP_FULL") {
+          this.error.set(this.t.groupFull);
+          return;
+        }
+        if (e.code === "INVALID_GROUP") {
+          this.error.set(this.t.groupRequired);
+          return;
+        }
+        if (e.code === "VALIDATION_ERROR") {
+          this.error.set(this.t.phoneInvalid);
+          return;
+        }
+      }
+      this.error.set(this.t.conflict);
     } finally {
       this.busy.set(false);
     }

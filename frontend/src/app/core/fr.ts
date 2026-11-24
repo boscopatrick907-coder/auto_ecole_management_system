@@ -287,6 +287,8 @@ export const FR = {
   all: "Tous",
   openGroups: "Groupes ouverts",
   trialInfo: "L’essai commence à l’activation de votre compte.",
+  adminStudentCreateHelp:
+    "Un code d’activation sera généré pour l’élève. Son essai commencera lorsqu’il activera son compte.",
   schoolName: "Nom de l’école",
   prefix: "Préfixe des reçus",
   primary: "Couleur principale",
