@@ -14,6 +14,8 @@ export interface TenantBindings {
   /** Static assets (index.html) when UI and API are deployed together. */
   ASSETS?: { fetch(request: Request): Promise<Response> };
   OFFLINE_PRIVATE_KEY_PEM: string;
+  VAPID_PRIVATE_JWK?: string;
+  VAPID_PUBLIC_KEY?: string;
   R2_ACCOUNT_ID: string;
   R2_ACCESS_KEY_ID: string;
   R2_SECRET_ACCESS_KEY: string;

@@ -7,6 +7,9 @@ import type {
   Payment,
   Quiz,
   Resource,
+  AppConfig,
+  AdminAnnouncement,
+  StudentAnnouncement,
 } from "./models";
 import type { AdminResource, AdminQuiz, MaterialKind } from "./content";
 export class RequestError extends Error {
@@ -170,6 +173,53 @@ export class ApiService {
     } finally {
       clearTimeout(timer);
     }
+  }
+  config() {
+    return this.request<AppConfig>("/config");
+  }
+  deleteStudent(id: string) {
+    return this.tenant<{ ok: true }>("admin/students/" + encodeURIComponent(id), "DELETE");
+  }
+  deleteGroup(id: string) {
+    return this.tenant<{ ok: true }>("admin/groups/" + encodeURIComponent(id), "DELETE");
+  }
+  adminAnnouncements(groupId?: string) {
+    return this.tenant<{ announcements: AdminAnnouncement[] }>(
+      "admin/announcements" + (groupId ? "?groupId=" + encodeURIComponent(groupId) : ""),
+    );
+  }
+  createAnnouncement(body: { groupId: string | null; title: string; body: string }) {
+    return this.tenant<{ announcement: AdminAnnouncement }>("admin/announcements", "POST", body);
+  }
+  deleteAnnouncement(id: string) {
+    return this.tenant<{ ok: true }>("admin/announcements/" + encodeURIComponent(id), "DELETE");
+  }
+  studentAnnouncements(slug = this.slug) {
+    return this.request<{ announcements: StudentAnnouncement[] }>(
+      `/schools/${encodeURIComponent(slug)}/announcements`,
+      "GET",
+      undefined,
+      this.expectedUserId ? { "X-Expected-User": this.expectedUserId } : {},
+    );
+  }
+  markAnnouncementRead(id: string) {
+    return this.tenant<{ ok: true }>("announcements/" + encodeURIComponent(id) + "/read", "POST", {});
+  }
+  savePushSubscription(slug: string, sub: { endpoint: string; keys: { p256dh: string; auth: string } }) {
+    return this.request<{ ok: true }>(
+      `/schools/${encodeURIComponent(slug)}/push-subscriptions`,
+      "POST",
+      sub,
+      this.expectedUserId ? { "X-Expected-User": this.expectedUserId } : {},
+    );
+  }
+  deletePushSubscription(slug: string, endpoint: string) {
+    return this.request<{ ok: true }>(
+      `/schools/${encodeURIComponent(slug)}/push-subscriptions`,
+      "DELETE",
+      { endpoint },
+      this.expectedUserId ? { "X-Expected-User": this.expectedUserId } : {},
+    );
   }
   resources() {
     return this.tenant<{ resources: Resource[] }>("resources");

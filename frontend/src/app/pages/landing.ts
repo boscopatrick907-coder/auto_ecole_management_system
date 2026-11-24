@@ -3,7 +3,7 @@ import { FormsModule } from "@angular/forms";
 import { RouterLink } from "@angular/router";
 import { FR } from "../core/fr";
 import { ApiService } from "../core/api.service";
-import { IconComponent } from "../shared/ui";
+import { IconComponent, SkeletonComponent } from "../shared/ui";
 import { forgetSchool, rememberedSchool, slugify } from "../core/school-memory";
 
 interface DirectorySchool {
@@ -20,7 +20,7 @@ interface DirectorySchool {
  */
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink, IconComponent],
+  imports: [FormsModule, RouterLink, IconComponent, SkeletonComponent],
   template: `<main id="main" class="auth-page">
     <section class="auth-brand">
       <img class="app-logo" src="aem-icon.svg" alt="" width="64" height="64" />
@@ -45,7 +45,7 @@ interface DirectorySchool {
           placeholder="La Marseillaise"
       /></label>
       @if (loading()) {
-        <p role="status">{{ t.loading }}</p>
+        <app-skeleton variant="list" [count]="3" />
       } @else if (error()) {
         <p class="error-box" role="alert">{{ t.networkError }}</p>
       } @else {

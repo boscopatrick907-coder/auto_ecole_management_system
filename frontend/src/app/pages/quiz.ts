@@ -12,7 +12,7 @@ import { AuthService } from "../core/auth.service";
 import { DataService } from "../core/data.service";
 import { OutboxService } from "../core/outbox.service";
 import { FR } from "../core/fr";
-import { IconComponent, EmptyComponent } from "../shared/ui";
+import { IconComponent, EmptyComponent, SkeletonComponent } from "../shared/ui";
 import type { Quiz, Attempt } from "../core/models";
 import { database } from "../core/database";
 import {
@@ -25,7 +25,7 @@ import {
 } from "../core/quiz-draft";
 @Component({
   standalone: true,
-  imports: [IconComponent, EmptyComponent, RouterLink],
+  imports: [IconComponent, EmptyComponent, SkeletonComponent, RouterLink],
   template: `@if (current()) {
       <div class="page-heading">
         <div>
@@ -43,7 +43,7 @@ import {
         <p role="status">{{ notice() }}</p>
       }
       @if (loading()) {
-        <p role="status">Chargement de vos évaluations…</p>
+        <app-skeleton variant="cards" [count]="4" />
       }
       @if (blockedDraft(); as draft) {
         <section class="card">
@@ -63,7 +63,9 @@ import {
           <h2>{{ t.result }}</h2>
           <strong>{{ r.score }} / {{ r.total }}</strong>
           <p>{{ t.serverGrade }}</p>
-          <button class="btn" (click)="reset()">{{ t.back }}</button>
+          <div class="actions quiz-result-actions">
+            <button class="btn" (click)="reset()">{{ t.back }}</button>
+          </div>
         </section>
       } @else if (submitted()) {
         <section class="card">
@@ -101,7 +103,7 @@ import {
                 </button>
               }
             </div>
-            <div class="actions">
+            <div class="actions quiz-nav-actions">
               <button
                 class="btn secondary"
                 [disabled]="index() === 0"
@@ -126,7 +128,7 @@ import {
             }
           </div>
           <button
-            class="btn full accent"
+            class="btn full accent quiz-finish"
             [disabled]="busy()"
             (click)="finish()"
           >
@@ -148,22 +150,27 @@ import {
               <span class="feature-icon amber"><app-icon name="quiz" /></span>
               <h2>{{ q.title }}</h2>
               <p>{{ q.questions.length }} · {{ q.duration_minutes }} min</p>
-              <button
-                class="btn full"
-                [disabled]="busy() || !!blockedDraft()"
-                (click)="start(q)"
-              >
-                {{ t.start }}</button
-              ><button
-                class="btn secondary full"
-                [disabled]="!api.online() || busy()"
-                (click)="downloadPack(q)"
-              >
-                {{ packs().includes(q.id) ? t.saved : t.download }}
-              </button>
+              <div class="actions quiz-card-actions">
+                <button
+                  class="btn"
+                  [disabled]="busy() || !!blockedDraft()"
+                  (click)="start(q)"
+                >
+                  {{ t.start }}
+                </button>
+                <button
+                  class="btn secondary"
+                  [disabled]="!api.online() || busy()"
+                  (click)="downloadPack(q)"
+                >
+                  {{ packs().includes(q.id) ? t.saved : t.download }}
+                </button>
+              </div>
             </article>
           } @empty {
-            <app-empty />
+            @if (!loading()) {
+              <app-empty />
+            }
           }
         </div>
       }

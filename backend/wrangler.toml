@@ -26,5 +26,8 @@ region = "aws:eu-central-1"
 name = "SIGNUP_LIMITER"
 namespace_id = "1001"
 simple = { limit = 10, period = 60 }
+
+[triggers]
+crons = ["0 7 * * *"]
 [vars]
 ENVIRONMENT = "production"

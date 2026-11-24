@@ -5,6 +5,7 @@ import { AuthService } from "../core/auth.service";
 import { DataService } from "../core/data.service";
 import { OutboxService } from "../core/outbox.service";
 import { PwaService } from "../core/pwa.service";
+import { NotificationsService } from "../core/notifications.service";
 import { FR } from "../core/fr";
 import { MoneyPipe } from "../shared/money.pipe";
 import { IconComponent } from "../shared/ui";
@@ -62,6 +63,31 @@ import type { Dossier } from "../core/models";
       <a routerLink="/" [queryParams]="{ changer: 1 }"><app-icon name="swap_horiz" /><span>{{ t.switchSchool }}</span><app-icon name="chevron_right" /></a>
     </section>
 
+    @if (auth.role() === "student") {
+      <section class="card">
+        <h2>{{ t.notifications }}</h2>
+        <p class="muted small">{{ t.remindersPrompt }}</p>
+        <div class="row between" style="margin-top: 14px">
+          <div>
+            <strong>{{ t.reminderTitle }}</strong>
+            <p class="muted small">{{ notifications.subscribed() ? t.pushEnabled : t.pushDisabled }}</p>
+          </div>
+          @if (notifications.pushSupported()) {
+            <button
+              class="btn small"
+              [class.secondary]="notifications.subscribed()"
+              [disabled]="notifications.busy()"
+              (click)="notifications.subscribed() ? notifications.disablePush(api.slug) : notifications.enablePush(api.slug)"
+            >
+              {{ notifications.subscribed() ? t.disableReminders : t.enableReminders }}
+            </button>
+          } @else {
+            <span class="badge ghost">{{ t.pushUnsupported }}</span>
+          }
+        </div>
+      </section>
+    }
+
     <button class="btn danger-outline full" type="button" [disabled]="busy()" (click)="logout()">
       <app-icon name="logout" />{{ t.logout }}
     </button>`,
@@ -73,6 +99,7 @@ export class ProfileComponent implements OnInit {
   store = inject(DataService);
   outbox = inject(OutboxService);
   pwa = inject(PwaService);
+  notifications = inject(NotificationsService);
   router = inject(Router);
   dossier = signal<Dossier | null>(null);
   busy = signal(false);

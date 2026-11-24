@@ -1654,3 +1654,189 @@ a.avatar { text-decoration: none; }
 .btn.icon-only { padding-inline: 12px; }
 .facts > div { flex-wrap: wrap; }
 .facts dd { min-width: 0; overflow-wrap: anywhere; }
+
+/* Password field with show/hide toggle */
+.pw-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+.pw-field input {
+  width: 100%;
+  padding-right: 44px !important;
+}
+.pw-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  border-radius: 8px;
+  min-width: 36px;
+  min-height: 36px;
+}
+.pw-toggle:hover,
+.pw-toggle:focus-visible {
+  color: var(--ink);
+  background: var(--surface-soft);
+  outline: none;
+}
+
+/* Quiz layout spacing */
+.quiz-card-actions {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 14px !important;
+  margin-top: 20px !important;
+}
+.quiz-card-actions .btn {
+  margin: 0 !important;
+  min-height: 44px;
+}
+.quiz-nav-actions {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 16px !important;
+  margin-top: 24px !important;
+}
+.quiz-finish {
+  margin-top: 24px !important;
+  min-height: 48px;
+}
+.quiz-result-actions {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: center !important;
+  gap: 16px !important;
+  margin-top: 24px !important;
+}
+
+/* Confirm box, reminders, announcements, and WhatsApp button */
+.confirm-box {
+  margin-top: 14px;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+}
+.confirm-box.danger {
+  border-color: #fda29b;
+  background: #fffbfa;
+}
+@media (prefers-color-scheme: dark) {
+  .confirm-box.danger {
+    border-color: #7a271a;
+    background: #2d1210;
+  }
+}
+.confirm-box p {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+}
+.confirm-box-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.reminder-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--surface-card);
+  border: 1px solid var(--line);
+  margin-bottom: 14px;
+}
+.reminder-banner.d7 {
+  border-left: 4px solid var(--primary);
+  background: var(--primary-tint);
+}
+.reminder-banner.d3 {
+  border-left: 4px solid #f79009;
+  background: #fffaeb;
+}
+.reminder-banner.d1,
+.reminder-banner.overdue {
+  border-left: 4px solid #d92d20;
+  background: #fef3f2;
+}
+@media (prefers-color-scheme: dark) {
+  .reminder-banner.d3 {
+    background: #2e1e07;
+  }
+  .reminder-banner.d1,
+  .reminder-banner.overdue {
+    background: #2e100f;
+  }
+}
+.reminder-banner .grow {
+  flex: 1;
+}
+.reminder-banner strong {
+  display: block;
+  font-size: 15px;
+  margin-bottom: 2px;
+}
+.reminder-banner p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.announcement-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--surface-card);
+  border: 1px solid var(--line);
+  margin-bottom: 12px;
+}
+.announcement-card.unread {
+  border-left: 4px solid var(--primary);
+}
+.announcement-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.announcement-body {
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.announcement-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.btn-wa {
+  background: #25d366 !important;
+  color: #ffffff !important;
+  border: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  font-weight: 600 !important;
+}
+.btn-wa:hover {
+  background: #20ba5a !important;
+}
