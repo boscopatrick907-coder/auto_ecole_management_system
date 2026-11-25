@@ -494,7 +494,18 @@ interface ExamRow {
               {{ t.ticket }}
             </button>
             @if (!p.cancelled_at) {
-              <button class="btn small danger" (click)="cancelling.set(p.id)">
+              <button
+                class="btn small secondary"
+                [disabled]="busy() || !api.online()"
+                (click)="startEditPayment(p)"
+              >
+                {{ t.editPayment }}
+              </button>
+              <button
+                class="btn small danger"
+                [disabled]="busy() || !api.online()"
+                (click)="cancelling.set(p.id); editingPayment.set(null)"
+              >
                 {{ t.cancel }}
               </button>
             }
@@ -502,7 +513,60 @@ interface ExamRow {
         } @empty {
           <app-empty />
         }
+        @if (paymentSuccess()) {
+          <p class="muted small" role="status" style="margin-top: 10px">{{ paymentSuccess() }}</p>
+        }
       </section>
+      @if (editingPayment(); as ep) {
+        <section class="card">
+          <h2>{{ t.editPaymentTitle }} — {{ ep.receipt_number }}</h2>
+          <p class="muted small">{{ t.editPaymentHelp }}</p>
+          <label>
+            {{ t.amount }}
+            <input type="number" min="1" step="1" [(ngModel)]="editAmount" />
+          </label>
+          <label>
+            {{ t.method }}
+            <select [(ngModel)]="editMethod">
+              <option value="cash">{{ t.cash }}</option>
+              <option value="mtn_momo">{{ t.momo }}</option>
+              <option value="orange_money">{{ t.orange }}</option>
+              <option value="bank">{{ t.bank }}</option>
+            </select>
+          </label>
+          <label>
+            {{ t.reference }}
+            <input [(ngModel)]="editReference" />
+          </label>
+          <label>
+            {{ t.reason }}
+            <input
+              [(ngModel)]="editReason"
+              [placeholder]="t.editPaymentReasonPlaceholder"
+            />
+          </label>
+          @if (editError()) {
+            <p class="error-box" role="alert">{{ editError() }}</p>
+          }
+          <div class="actions">
+            <button
+              class="btn"
+              [disabled]="editReason.trim().length < 3 || editAmount < 1 || busy() || !api.online()"
+              (click)="savePaymentEdit()"
+            >
+              {{ busy() ? t.loading : t.save }}
+            </button>
+            <button
+              class="btn secondary"
+              type="button"
+              [disabled]="busy()"
+              (click)="editingPayment.set(null); editError.set('')"
+            >
+              {{ t.back }}
+            </button>
+          </div>
+        </section>
+      }
       @if (cancelling()) {
         <section class="card">
           <h2>{{ t.confirmCancel }}</h2>
@@ -577,6 +641,13 @@ export class DossierComponent implements OnInit {
   deleteHasPaymentsError = signal(false);
   inviteCode = signal("");
   cancelling = signal("");
+  editingPayment = signal<Payment | null>(null);
+  editAmount = 0;
+  editMethod = "cash";
+  editReference = "";
+  editReason = "";
+  editError = signal("");
+  paymentSuccess = signal("");
   busy = signal(false);
   reason = "";
   statusLabel = installmentLabel;
@@ -655,6 +726,68 @@ export class DossierComponent implements OnInit {
         this.codeIsReset(),
       ),
     );
+  }
+  startEditPayment(p: Payment) {
+    this.cancelling.set("");
+    this.paymentSuccess.set("");
+    this.editError.set("");
+    this.editingPayment.set(p);
+    this.editAmount = Number(p.amount);
+    this.editMethod = p.method || "cash";
+    this.editReference = p.reference || "";
+    this.editReason = "";
+  }
+  async savePaymentEdit() {
+    const ep = this.editingPayment();
+    const d = this.dossier();
+    if (!ep || !d?.enrollment || this.busy()) return;
+    this.editError.set("");
+    const amt = Math.round(Number(this.editAmount));
+    const maxAllowed = Number(d.enrollment.balance) + Number(ep.amount);
+    if (!Number.isFinite(amt) || amt < 1) {
+      this.editError.set(this.t.error);
+      return;
+    }
+    if (amt > maxAllowed) {
+      this.editError.set(this.t.exceedsBalance);
+      return;
+    }
+    if (this.editReason.trim().length < 3) {
+      this.editError.set(this.t.reason);
+      return;
+    }
+    this.busy.set(true);
+    try {
+      await this.api.tenant(`admin/payments/${ep.id}/correct`, "POST", {
+        amount: amt,
+        method: this.editMethod,
+        reference: this.editReference.trim() || null,
+        reason: this.editReason.trim(),
+        clientId: crypto.randomUUID(),
+      });
+      this.editingPayment.set(null);
+      this.editReason = "";
+      this.paymentSuccess.set(this.t.paymentUpdated);
+      await this.load();
+    } catch (e) {
+      if (e instanceof RequestError) {
+        if (e.code === "EXCEEDS_BALANCE") {
+          this.editError.set(this.t.exceedsBalance);
+          return;
+        }
+        if (e.code === "REASON_REQUIRED") {
+          this.editError.set(this.t.reason);
+          return;
+        }
+        if (e.code === "PAYMENT_ALREADY_CANCELLED") {
+          this.editError.set(this.t.conflict);
+          return;
+        }
+      }
+      this.editError.set(this.t.error);
+    } finally {
+      this.busy.set(false);
+    }
   }
   async cancelPayment() {
     this.busy.set(true);

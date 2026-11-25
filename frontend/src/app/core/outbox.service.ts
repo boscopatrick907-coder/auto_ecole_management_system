@@ -119,7 +119,14 @@ export class OutboxService {
           | undefined;
 
         if (reference?.id && reference.id !== id) {
-          throw new Error("PAYMENT_OPERATION_IN_PROGRESS");
+          const prevQueued = await database.outbox.get(reference.id);
+          if (
+            prevQueued &&
+            prevQueued.scope === scope &&
+            prevQueued.kind === "payment"
+          ) {
+            throw new Error("PAYMENT_OPERATION_IN_PROGRESS");
+          }
         }
 
         const existing = await database.outbox.get(id);
@@ -162,19 +169,17 @@ export class OutboxService {
           });
         }
 
-        if (!referenceRow) {
-          await database.snapshots.add({
-            key: referenceKey,
-            scope,
-            data: {
-              id,
-              enrollmentId,
-              body: paymentBody,
-              createdAt: Date.now(),
-            },
-            updatedAt: Date.now(),
-          });
-        }
+        await database.snapshots.put({
+          key: referenceKey,
+          scope,
+          data: {
+            id,
+            enrollmentId,
+            body: paymentBody,
+            createdAt: Date.now(),
+          },
+          updatedAt: Date.now(),
+        });
       },
     );
 
@@ -294,6 +299,45 @@ export class OutboxService {
       queued,
       payment: result?.payment ?? null,
     };
+  }
+
+  async discardBlockedPayment(enrollmentId: string, id: string) {
+    const scope = this.auth.scope;
+
+    if (!scope) {
+      throw new Error("AUTH_REQUIRED");
+    }
+
+    const key = `${scope}:payment-operation:${enrollmentId}`;
+
+    await database.transaction(
+      "rw",
+      database.outbox,
+      database.snapshots,
+      async () => {
+        if (this.auth.scope !== scope) {
+          throw new Error("AUTH_CHANGED");
+        }
+
+        const item = await database.outbox.get(id);
+        if (item?.scope === scope) {
+          if (item.state !== "blocked") {
+            throw new Error("PAYMENT_OPERATION_IN_PROGRESS");
+          }
+          await database.outbox.delete(id);
+        }
+
+        const row = await database.snapshots.get(key);
+        if (row?.scope === scope) {
+          const reference = row.data as { id?: string };
+          if (reference.id === id) {
+            await database.snapshots.delete(key);
+          }
+        }
+      },
+    );
+
+    await this.refresh();
   }
 
   async clearPaymentReference(enrollmentId: string, id: string) {

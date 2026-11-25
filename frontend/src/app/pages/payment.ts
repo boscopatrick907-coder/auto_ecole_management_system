@@ -13,6 +13,7 @@ import { MoneyPipe, formatMoney } from "../shared/money.pipe";
 import { IconComponent, BadgeComponent, installmentLabel } from "../shared/ui";
 import type { Dossier, Installment, Payment } from "../core/models";
 import { nextOfflineReceipt } from "../core/database";
+import { syncError } from "./synchronisation";
 
 @Component({
   standalone: true,
@@ -108,6 +109,18 @@ import { nextOfflineReceipt } from "../core/database";
 
             @if (error()) {
               <p class="error-box" role="alert">{{ error() }}</p>
+            }
+
+            @if (blockedId()) {
+              <button
+                class="btn secondary full"
+                type="button"
+                style="margin-bottom: 10px"
+                [disabled]="busy()"
+                (click)="discardBlocked()"
+              >
+                {{ t.clearBlockedPayment }}
+              </button>
             }
 
             <button
@@ -221,6 +234,7 @@ export class PaymentComponent implements OnInit, OnDestroy {
   busy = signal(false);
   error = signal("");
   recoveryBlocked = signal(false);
+  blockedId = signal("");
 
   id = this.route.snapshot.paramMap.get("id")!;
   number = Number;
@@ -259,7 +273,7 @@ export class PaymentComponent implements OnInit, OnDestroy {
 
       this.form.controls.amount.setValue(this.nextAmount());
 
-      await this.restorePayment();
+      await this.restorePayment(true);
     } catch {
       this.error.set(this.t.error);
     }
@@ -293,7 +307,7 @@ export class PaymentComponent implements OnInit, OnDestroy {
     return this.t[installmentLabel(i.status)];
   }
 
-  private async restorePayment() {
+  private async restorePayment(initialMount = false) {
     const d = this.data();
     const enrollment = d?.enrollment;
 
@@ -309,29 +323,47 @@ export class PaymentComponent implements OnInit, OnDestroy {
 
       if (!recovered) {
         this.recoveryBlocked.set(false);
+        this.blockedId.set("");
         return;
       }
 
-      if (recovered.payment) {
-        this.payment.set({
-          ...recovered.payment,
-          pending: false,
-        });
-
+      if (recovered.payment && !recovered.queued) {
+        await this.outbox.clearPaymentReference(enrollment.id, recovered.id);
         this.recoveryBlocked.set(false);
+        this.blockedId.set("");
 
-        const updated = await this.store.read("dossier:" + this.id, () =>
-          this.api.dossier(this.id),
-        );
+        const updated = this.api.online()
+          ? await this.api.dossier(this.id).catch(() => null)
+          : await this.store.read("dossier:" + this.id, () =>
+              this.api.dossier(this.id),
+            );
 
         if (!this.destroyed && this.auth.scope === scope && updated) {
           this.data.set(updated);
+        }
+
+        if (initialMount) {
+          this.payment.set(null);
+          this.form.controls.amount.setValue(this.nextAmount());
+        } else {
+          this.payment.set({
+            ...recovered.payment,
+            pending: false,
+          });
         }
 
         return;
       }
 
       if (recovered.queued) {
+        if (recovered.queued.state === "blocked") {
+          this.payment.set(null);
+          this.blockedId.set(recovered.id);
+          this.recoveryBlocked.set(false);
+          this.error.set(syncError(recovered.queued.error));
+          return;
+        }
+
         const body = recovered.body;
 
         this.payment.set({
@@ -347,16 +379,18 @@ export class PaymentComponent implements OnInit, OnDestroy {
           pending: true,
         });
 
+        this.blockedId.set("");
         this.recoveryBlocked.set(false);
         return;
       }
 
       this.payment.set(null);
+      this.blockedId.set(recovered.id);
       this.recoveryBlocked.set(true);
-      this.error.set(this.t.error);
+      this.error.set(this.t.uncertainPayment);
     } catch {
       if (!this.destroyed && this.auth.scope === scope) {
-        this.recoveryBlocked.set(true);
+        this.recoveryBlocked.set(false);
         this.error.set(this.t.error);
       }
     }
@@ -464,6 +498,23 @@ export class PaymentComponent implements OnInit, OnDestroy {
     }
   }
 
+  async discardBlocked() {
+    const d = this.data();
+    const bid = this.blockedId();
+    if (!d?.enrollment || !bid || this.busy()) return;
+    this.busy.set(true);
+    try {
+      await this.outbox.discardBlockedPayment(d.enrollment.id, bid);
+      this.blockedId.set("");
+      this.recoveryBlocked.set(false);
+      this.error.set("");
+    } catch {
+      this.error.set(this.t.error);
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
   async startNewPayment() {
     const p = this.payment();
     const d = this.data();
@@ -478,26 +529,19 @@ export class PaymentComponent implements OnInit, OnDestroy {
     this.error.set("");
 
     try {
-      const recovered = await this.outbox.recoverPayment(enrollment.id);
-
-      if (this.auth.scope !== scope) return;
-
-      if (
-        !recovered ||
-        recovered.id !== p.id ||
-        !recovered.payment ||
-        recovered.queued
-      ) {
-        this.recoveryBlocked.set(true);
-        this.error.set(this.t.error);
-        return;
-      }
-
       await this.outbox.clearPaymentReference(enrollment.id, p.id);
 
       if (this.auth.scope !== scope) return;
 
+      if (this.api.online()) {
+        const fresh = await this.api.dossier(this.id).catch(() => null);
+        if (!this.destroyed && this.auth.scope === scope && fresh) {
+          this.data.set(fresh);
+        }
+      }
+
       this.payment.set(null);
+      this.blockedId.set("");
       this.recoveryBlocked.set(false);
 
       this.form.reset({

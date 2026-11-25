@@ -1342,6 +1342,54 @@ app.all("/api/schools/:slug/*", async (c) => {
         return c.json({ ok: true });
       }
 
+      const correct = /^admin\/payments\/([0-9a-f-]+)\/correct$/.exec(path);
+      if (correct && method === "POST") {
+        const paymentId = uuid.parse(correct[1]);
+        const b = z
+          .object({
+            amount: money,
+            method: z.enum(["cash", "mtn_momo", "orange_money", "bank"]),
+            reference: z.string().max(200).nullable().optional(),
+            reason: z.string().trim().min(3).max(500),
+            clientId: uuid,
+          })
+          .parse(await c.req.json());
+        const existing = (
+          await db.query(
+            "select id, enrollment_id, paid_at, cancelled_at from school_app.payments where id=$1",
+            [paymentId],
+          )
+        ).rows[0] as
+          | { id: string; enrollment_id: string; paid_at: string; cancelled_at: string | null }
+          | undefined;
+        if (!existing) throw fail("PAYMENT_NOT_FOUND", 404);
+        if (existing.cancelled_at) throw fail("PAYMENT_ALREADY_CANCELLED", 409);
+
+        await db.query("select school_app.cancel_payment($1,$2)", [
+          existing.id,
+          "Correction : " + b.reason,
+        ]);
+        const r = await db.query(
+          "select * from school_app.record_payment($1,$2,$3,$4,$5,$6,$7)",
+          [
+            existing.enrollment_id,
+            b.amount,
+            b.method,
+            b.reference || null,
+            b.clientId,
+            existing.paid_at,
+            null,
+          ],
+        );
+        const enriched = (
+          await db.query(
+            `select ${enrichPaymentSql("p")} from school_app.payments p join school_app.enrollment_balances b on b.school_id=p.school_id and b.enrollment_id=p.enrollment_id where p.id=$1`,
+            [r.rows[0].id],
+          )
+        ).rows[0];
+        return c.json({ payment: enriched || r.rows[0] }, 200);
+      }
+
       if (path === "admin/payments" && method === "GET") {
         const date = z
           .string()

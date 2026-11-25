@@ -92,3 +92,55 @@ it("records authentication failure without deleting the pending evidence", async
   expect(syncError(row?.error)).toContain("Reconnectez-vous");
   injector.destroy();
 });
+it("allows successive payments on the same enrollment once the previous payment flushes", async () => {
+  const { api, outbox, injector } = setup();
+  api.tenant.mockResolvedValue({ payment: { id: "p1", amount: 25000 } });
+  await outbox.enqueuePayment("enr-1", { enrollmentId: "enr-1", amount: 25000, method: "cash" }, "id-1");
+  await outbox.flush();
+  // Even without manually clearing payment-operation, a subsequent payment succeeds once outbox is empty.
+  api.tenant.mockResolvedValue({ payment: { id: "p2", amount: 25000 } });
+  await outbox.enqueuePayment("enr-1", { enrollmentId: "enr-1", amount: 25000, method: "cash" }, "id-2");
+  await outbox.flush();
+  expect(api.tenant).toHaveBeenCalledTimes(2);
+  const rec = await outbox.recoverPayment("enr-1");
+  expect(rec?.id).toBe("id-2");
+  expect(rec?.payment?.amount).toBe(25000);
+  injector.destroy();
+});
+it("preserves uncertain payment recovery and discards blocked or orphaned locks", async () => {
+  const { outbox, injector } = setup();
+  await database.snapshots.put({
+    key: "school-a:user-a:payment-operation:enr-2",
+    scope: "school-a:user-a",
+    data: { id: "ghost-id", enrollmentId: "enr-2", body: {} },
+    updatedAt: Date.now(),
+  });
+  const orphan = await outbox.recoverPayment("enr-2");
+  expect(orphan?.id).toBe("ghost-id");
+  expect(orphan?.queued).toBeNull();
+  expect(orphan?.payment).toBeNull();
+  await outbox.discardBlockedPayment("enr-2", "ghost-id");
+  expect(await outbox.recoverPayment("enr-2")).toBeNull();
+
+  await database.outbox.add({
+    id: "blk-1",
+    scope: "school-a:user-a",
+    kind: "payment",
+    body: { enrollmentId: "enr-3", amount: 999999, clientId: "blk-1" },
+    state: "blocked",
+    attempts: 1,
+    nextAt: 0,
+    createdAt: 0,
+    error: "EXCEEDS_BALANCE",
+  });
+  await database.snapshots.put({
+    key: "school-a:user-a:payment-operation:enr-3",
+    scope: "school-a:user-a",
+    data: { id: "blk-1", enrollmentId: "enr-3", body: {} },
+    updatedAt: Date.now(),
+  });
+  await outbox.discardBlockedPayment("enr-3", "blk-1");
+  expect(await database.outbox.get("blk-1")).toBeUndefined();
+  expect(await database.snapshots.get("school-a:user-a:payment-operation:enr-3")).toBeUndefined();
+  injector.destroy();
+});

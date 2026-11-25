@@ -141,6 +141,15 @@ export const FR = {
   leftToPay: "Reste",
   exceedsBalance: "Le montant dépasse le solde restant à payer.",
   tranchesStatus: "Échéancier des tranches",
+  editPayment: "Modifier",
+  editPaymentTitle: "Modifier le paiement",
+  editPaymentHelp:
+    "L’ancien reçu sera annulé avec votre motif et un nouveau reçu corrigé sera émis automatiquement.",
+  editPaymentReasonPlaceholder: "Ex. Erreur de montant ou de mode de paiement",
+  paymentUpdated: "Paiement modifié et nouveau reçu émis.",
+  clearBlockedPayment: "Effacer l’envoi bloqué et réessayer",
+  uncertainPayment:
+    "Un envoi précédent est resté sans confirmation. Vérifiez les reçus de l’élève avant de réessayer.",
   reason: "Motif obligatoire",
   journal: "Journal du jour",
   report: "Rapport mensuel",
