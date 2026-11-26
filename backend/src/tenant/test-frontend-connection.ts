@@ -4,6 +4,14 @@ import dotenv from "dotenv";
 import app from "./worker.js";
 import { type TenantBindings } from "./context.js";
 // Read when used, after any .env / .dev.vars loading. Never hardcode a real password.
+
+/** Passwords for live environments come from the environment, never from the repository. */
+function requiredEnv(name: string): string {
+  const v = process.env[name];
+  if (!v) throw new Error(`Set ${name} (never commit real passwords).`);
+  return v;
+}
+
 function adminPassword(): string {
   const value = process.env.ADMIN_PASSWORD;
   if (!value) throw new Error("Set ADMIN_PASSWORD to the admin account's password before running this script.");
@@ -86,7 +94,7 @@ async function run() {
       },
       body: JSON.stringify({
         email: "eleve.completion@lamarseillaise.cm",
-        password: "StudentLegacyPass2026!",
+        password: requiredEnv("TEST_STUDENT_PASSWORD"),
       }),
     });
     const studentCookies = studentLoginRes.headers.getSetCookie();

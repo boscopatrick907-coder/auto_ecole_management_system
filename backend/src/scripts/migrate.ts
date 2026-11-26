@@ -43,7 +43,7 @@ export async function runMigrationsAndSeed(options: { forceSeed?: boolean } = {}
     const adminEmail = process.env.INITIAL_ADMIN_EMAIL || 'direction@lamarseillaise.cm';
     const adminName = process.env.INITIAL_ADMIN_NAME || 'Direction La Marseillaise';
     const adminPassword =
-      process.env.INITIAL_ADMIN_PASSWORD || (process.env.VITEST ? 'Admin@Marseillaise2026!' : '');
+      process.env.INITIAL_ADMIN_PASSWORD || (process.env.VITEST ? 'local-test-only-Admin#2026' : '');
     if (!adminPassword) throw new Error('Set INITIAL_ADMIN_PASSWORD before seeding the initial admin.');
 
     const existingAdmin = await client.query(

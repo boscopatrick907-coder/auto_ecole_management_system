@@ -126,27 +126,34 @@ it("a new staff member activates with email + code + password and becomes admin"
   const listed = (await (await call("admin/staff", "GET", undefined, adminCookie)).json()).staff;
   expect(listed.find((s: { kind: string; email: string }) => s.kind === "invite" && s.email === email)).toBeTruthy();
 
-  const r = await activate(email.toUpperCase(), code.slice(0, 3) + " " + code.slice(3), "motdepasse");
+  const r = await activate(email.toUpperCase(), code.slice(0, 3) + " " + code.slice(3), "motdepasse-solide");
   expect(r.status).toBe(201);
   const session = await call("session", "GET", undefined, cookieOf(r));
   expect((await session.json()).role).toBe("admin");
   // Single use.
-  expect((await activate(email, code, "motdepasse")).status).toBe(400);
+  expect((await activate(email, code, "motdepasse-solide")).status).toBe(400);
   const after = (await (await call("admin/staff", "GET", undefined, adminCookie)).json()).staff;
   expect(after.find((s: { kind: string; email: string }) => s.kind === "member" && s.email === email).name).toBe("Awa Secrétaire");
+});
+
+it("a new admin account needs at least 8 characters", async () => {
+  const email = newEmail();
+  const code = (await (await call("admin/staff/invite", "POST", { name: "Court", email }, adminCookie)).json()).code;
+  expect((await activate(email, code, "court12")).status).toBe(400);
+  expect((await activate(email, code, "huitcarac")).status).toBe(201);
 });
 
 it("an existing account must prove its password; a wrong one is refused and counted", async () => {
   const email = newEmail();
   const first = await invite(email);
-  expect((await activate(email, first, "premierpasse")).status).toBe(201);
+  expect((await activate(email, first, "premierpasse-solide")).status).toBe(201);
   // Admin removes then re-invites the same person: they keep their account.
   const members = (await (await call("admin/staff", "GET", undefined, adminCookie)).json()).staff;
   const id = members.find((s: { kind: string; email: string }) => s.kind === "member" && s.email === email).id;
   expect((await call(`admin/staff/members/${id}`, "DELETE", undefined, adminCookie)).status).toBe(200);
   const second = await invite(email);
-  expect((await activate(email, second, "mauvaispasse")).status).toBe(401);
-  const ok = await activate(email, second, "premierpasse");
+  expect((await activate(email, second, "mauvaispasse-solide")).status).toBe(401);
+  const ok = await activate(email, second, "premierpasse-solide");
   expect(ok.status).toBe(200);
   expect((await (await call("session", "GET", undefined, cookieOf(ok))).json()).role).toBe("admin");
 });
@@ -154,8 +161,8 @@ it("an existing account must prove its password; a wrong one is refused and coun
 it("codes are bound to the email and the school, and only admins manage the team", async () => {
   const email = newEmail();
   const code = await invite(email);
-  expect((await activate(newEmail(), code, "motdepasse")).status).toBe(400);
-  expect((await activate(email, code, "motdepasse", otherSlug)).status).toBe(400);
+  expect((await activate(newEmail(), code, "motdepasse-solide")).status).toBe(400);
+  expect((await activate(email, code, "motdepasse-solide", otherSlug)).status).toBe(400);
   expect((await call("admin/staff", "GET")).status).toBe(401);
   // A student of the school cannot see or invite staff.
   const phone = "+2376" + String(Date.now()).slice(-8);
@@ -170,14 +177,14 @@ it("cannot remove yourself, cannot invite an existing admin, can cancel a pendin
   expect((await call(`admin/staff/members/${adminId}`, "DELETE", undefined, adminCookie)).status).toBe(409);
   const email = newEmail();
   const code = await invite(email);
-  expect((await activate(email, code, "motdepasse")).status).toBe(201);
+  expect((await activate(email, code, "motdepasse-solide")).status).toBe(201);
   expect((await call("admin/staff/invite", "POST", { email }, adminCookie)).status).toBe(409);
   const pending = newEmail();
   const pendingCode = await invite(pending);
   const list = (await (await call("admin/staff", "GET", undefined, adminCookie)).json()).staff;
   const inv = list.find((s: { kind: string; email: string }) => s.kind === "invite" && s.email === pending);
   expect((await call(`admin/staff/invites/${inv.id}`, "DELETE", undefined, adminCookie)).status).toBe(200);
-  expect((await activate(pending, pendingCode, "motdepasse")).status).toBe(400);
+  expect((await activate(pending, pendingCode, "motdepasse-solide")).status).toBe(400);
 });
 
 it("every team change is audited", async () => {

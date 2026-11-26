@@ -15,7 +15,7 @@ async function fixture(path: string, body?: any, token?: string) {
  if(!r.ok) throw new Error(`Fixture ${path}: ${r.status}`); return await r.json() as any;
 }
 const pool=getPool();
-const admin=await fixture('/auth/login',{identifier:'+237699000001',password:'Admin@Marseillaise2026!'});
+const admin=await fixture('/auth/login',{identifier:'+237699000001',password:'local-test-only-Admin#2026'});
 const cat=await fixture('/auth/catalogue');
 const category=cat.licenceCategories.find((c:any)=>c.code==='B');
 const group=(await fixture('/admin/groups',{licenceCategoryId:category.id,name:'Disposable load '+crypto.randomUUID(),capacity:10000,totalFee:120000,startDate:'2026-12-01',installments:[{position:1,label:'Load fixture',amount:120000,dueDate:'2026-12-01'}]},admin.token)).group;

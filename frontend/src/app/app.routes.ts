@@ -7,10 +7,18 @@ export const routes: Routes = [
       import("./pages/landing").then((m) => m.LandingComponent),
   },
   {
+    path: "confidentialite",
+    loadComponent: () => import("./pages/privacy").then((m) => m.PrivacyComponent),
+  },
+  {
     path: "s/:school",
     canActivate: [schoolGuard],
     loadComponent: () => import("./pages/shell").then((m) => m.ShellComponent),
     children: [
+      {
+        path: "confidentialite",
+        loadComponent: () => import("./pages/privacy").then((m) => m.PrivacyComponent),
+      },
       {
         path: "reinitialiser",
         loadComponent: () =>

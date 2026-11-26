@@ -162,7 +162,7 @@ it("reminders reach each student once, with their own remaining amount", async (
   const client = await owner.connect();
   try {
     await client.query("begin");
-    await client.query("select set_config('app.school_id',$1,true), set_config('app.user_id','',true)", [school]);
+    await client.query("select set_config('app.school_id',$1,true), set_config('app.user_id','',true), set_config('app.job','reminders',true)", [school]);
     const t = (await client.query("select enrollment_id, remaining, milestone from school_app.due_reminder_targets($1::date)", [formatDoualaYmd(new Date())])).rows;
     // A signed-in caller never gets the reminder list (other students' amounts and push keys).
     await client.query("select set_config('app.user_id','someone',true)");
@@ -227,12 +227,33 @@ it("a second account on the same phone takes the push endpoint over", async () =
   expect(rows.rows.map((r) => r.id)).toEqual([b.id]);
 });
 
+it("the app role cannot write the audit log or the reminder tables directly", async () => {
+  const c = await owner.connect();
+  try {
+    await c.query("begin");
+    await c.query("set local role aem_tenant_runtime");
+    await c.query("select set_config('app.school_id',$1,true), set_config('app.user_id','',true)", [school]);
+    await expect(c.query("insert into school_app.audit_log(school_id,actor,action,details) values($1,null,'FAKE','{}')", [school])).rejects.toThrow();
+  } finally { await c.query("rollback"); }
+  try {
+    await c.query("begin");
+    await c.query("set local role aem_tenant_runtime");
+    // anonymous context without the job marker: no reminder targets, no reminder writes
+    await c.query("select set_config('app.school_id',$1,true), set_config('app.user_id','',true)", [school]);
+    expect((await c.query("select * from school_app.due_reminder_targets(current_date)")).rowCount).toBe(0);
+    await expect(c.query("select school_app.log_payment_reminder($1,$2,'d1')", [randomUUID(), randomUUID()])).rejects.toThrow();
+  } finally { await c.query("rollback"); c.release(); }
+  // deleting a student still writes its audit entry (through the reviewed function)
+});
+
 it("safe delete: refused when payments exist, allowed otherwise", async () => {
   expect((await call(`admin/students/${a.id}`, "DELETE", undefined, adminCookie)).status).toBe(409);
   expect((await call(`admin/groups/${group}`, "DELETE", undefined, adminCookie)).status).toBe(409);
   expect((await call(`admin/students/${b.id}`, "DELETE", undefined, a.cookie)).status).toBe(403);
   expect((await call(`admin/students/${b.id}`, "DELETE", undefined, adminCookie)).status).toBe(200);
   expect((await call(`admin/students/${b.id}`, "GET", undefined, adminCookie)).status).toBe(404);
+  const audit = await owner.query("select actor from school_app.audit_log where school_id=$1 and action='DELETE_STUDENT' and row_id=$2", [school, b.id]);
+  expect(audit.rows[0].actor).toBe(adminId);
   const payments = await owner.query("select count(*)::int n from school_app.payments where school_id=$1", [school]);
   expect(payments.rows[0].n).toBe(1);
 });

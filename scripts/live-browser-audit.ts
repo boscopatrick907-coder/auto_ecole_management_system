@@ -2,6 +2,14 @@ import { chromium, type Browser, type Page } from "../frontend/node_modules/play
 import path from "node:path";
 import fs from "node:fs/promises";
 // Read when used, after any .env / .dev.vars loading. Never hardcode a real password.
+
+/** Passwords for live environments come from the environment, never from the repository. */
+function requiredEnv(name: string): string {
+  const v = process.env[name];
+  if (!v) throw new Error(`Set ${name} (never commit real passwords).`);
+  return v;
+}
+
 function adminPassword(): string {
   const value = process.env.ADMIN_PASSWORD;
   if (!value) throw new Error("Set ADMIN_PASSWORD to the admin account's password before running this script.");
@@ -168,7 +176,7 @@ async function main() {
     // -------------------------------------------------------------
     await runStep("Student Login - Valid Credentials & Portal Entry", async () => {
       await page.fill('input[type="email"]', "eleve.completion@lamarseillaise.cm");
-      await page.fill('input[type="password"]', "StudentLegacyPass2026!");
+      await page.fill('input[type="password"]', requiredEnv("TEST_STUDENT_PASSWORD"));
       await page.click('form .actions button:has-text("Connexion")');
 
       await page.waitForFunction(() => window.location.pathname.includes('/accueil'), { timeout: 35000 });

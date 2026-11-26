@@ -47,7 +47,7 @@ describe('Phase 1 TDD — Input, Identifier, Calendar Date & Throttling Guards (
       method: 'POST',
       rawBody: JSON.stringify({
         identifier: process.env.INITIAL_ADMIN_PHONE || '+237699000001',
-        password: process.env.INITIAL_ADMIN_PASSWORD || 'Admin@Marseillaise2026!',
+        password: process.env.INITIAL_ADMIN_PASSWORD || 'local-test-only-Admin#2026',
       }),
     });
     expect(loginRes.status).toBe(200);
