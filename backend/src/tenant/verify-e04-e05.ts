@@ -7,6 +7,14 @@ import dotenv from "dotenv";
 import app from "./worker.js";
 import { poolFor, type TenantBindings } from "./context.js";
 // Read when used, after any .env / .dev.vars loading. Never hardcode a real password.
+
+/** Passwords for live environments come from the environment, never from the repository. */
+function requiredEnv(name: string): string {
+  const v = process.env[name];
+  if (!v) throw new Error(`Set ${name} (never commit real passwords).`);
+  return v;
+}
+
 function adminPassword(): string {
   const value = process.env.ADMIN_PASSWORD;
   if (!value) throw new Error("Set ADMIN_PASSWORD to the admin account's password before running this script.");
@@ -174,7 +182,7 @@ async function main() {
       {
         email: newStudentEmail,
         name: "Nouvel Élève",
-        password: "StudentInitialPass2026!",
+        password: requiredEnv("TEST_STUDENT_PASSWORD"),
       },
       "",
       { "X-Turnstile-Token": uniqueReplayToken },
@@ -194,7 +202,7 @@ async function main() {
       {
         email: `replay.${randomUUID().slice(0, 8)}@lamarseillaise.cm`,
         name: "Replay User",
-        password: "StudentInitialPass2026!",
+        password: requiredEnv("TEST_STUDENT_PASSWORD"),
       },
       "",
       { "X-Turnstile-Token": uniqueReplayToken },
@@ -214,7 +222,7 @@ async function main() {
       {
         email: "ratelimited@test.local",
         name: "Rate Limited",
-        password: "StudentInitialPass2026!",
+        password: requiredEnv("TEST_STUDENT_PASSWORD"),
       },
       "",
       { "X-Turnstile-Token": "token-" + randomUUID() },

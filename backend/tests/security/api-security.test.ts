@@ -46,7 +46,7 @@ describe('Auto-école La Marseillaise — Backend & Neon PostgreSQL Security Sui
       method: 'POST',
       body: {
         identifier: process.env.INITIAL_ADMIN_PHONE || '+237699000001',
-        password: process.env.INITIAL_ADMIN_PASSWORD || 'Admin@Marseillaise2026!',
+        password: process.env.INITIAL_ADMIN_PASSWORD || 'local-test-only-Admin#2026',
       },
     });
     expect(adminLogin.status).toBe(200);

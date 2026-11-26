@@ -83,21 +83,7 @@
       }
     }
   </style>
-  <script>
-    if ('fonts' in document) {
-      Promise.all([
-        document.fonts.load('20px "Material Symbols Outlined"'),
-        document.fonts.load('20px "Material Symbols Rounded"')
-      ]).then(function() {
-        document.documentElement.classList.add('fonts-ready');
-      }).catch(function() {
-        document.documentElement.classList.add('fonts-ready');
-      });
-      setTimeout(function() { document.documentElement.classList.add('fonts-ready'); }, 1500);
-    } else {
-      document.documentElement.classList.add('fonts-ready');
-    }
-  </script>
+  <script src="boot.js"></script>
 </head>
 <body class="bg-surface text-on-surface font-sans antialiased selection:bg-aem-blue/20 selection:text-primary">
   <div id="app-boot-skeleton" aria-hidden="true" class="app-boot-skeleton">

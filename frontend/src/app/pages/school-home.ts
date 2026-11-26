@@ -64,6 +64,7 @@ import { MoneyPipe } from "../shared/money.pipe";
       </section>
     }
     <p class="muted" style="text-align:center">{{ t.trialInfo }}</p>
+    <a class="text-link center-link" [routerLink]="'confidentialite'">Politique de confidentialité</a>
   }`,
 })
 export class SchoolHomeComponent implements OnInit {

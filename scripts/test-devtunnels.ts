@@ -2,6 +2,14 @@ import { chromium, type Browser, type Page } from "../frontend/node_modules/play
 import path from "node:path";
 import fs from "node:fs/promises";
 // Read when used, after any .env / .dev.vars loading. Never hardcode a real password.
+
+/** Passwords for live environments come from the environment, never from the repository. */
+function requiredEnv(name: string): string {
+  const v = process.env[name];
+  if (!v) throw new Error(`Set ${name} (never commit real passwords).`);
+  return v;
+}
+
 function adminPassword(): string {
   const value = process.env.ADMIN_PASSWORD;
   if (!value) throw new Error("Set ADMIN_PASSWORD to the admin account's password before running this script.");
@@ -181,7 +189,7 @@ async function main() {
       const passwordInput = page.locator('input[type="password"], input[formControlName="password"]');
 
       await emailInput.fill("eleve.completion@lamarseillaise.cm");
-      await passwordInput.fill("StudentLegacyPass2026!");
+      await passwordInput.fill(requiredEnv("TEST_STUDENT_PASSWORD"));
 
       const loginBtn = page.getByRole("button", { name: /Connexion/i });
       await loginBtn.click();

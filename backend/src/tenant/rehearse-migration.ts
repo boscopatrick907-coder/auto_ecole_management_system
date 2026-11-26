@@ -314,8 +314,8 @@ async function main() {
     await copyPublicData(sourcePool, stagingOwnerPool);
 
     // Ensure the migrated student has a known test password hash in the staging copy so we can verify migrated-student login via Better Auth
-    const studentTestHash = await hashPassword("StudentLegacyPass2026!");
-    const adminTestHash = await hashPassword("Admin@Marseillaise2026!");
+    const studentTestHash = await hashPassword("local-test-only-Student#2026");
+    const adminTestHash = await hashPassword("local-test-only-Admin#2026");
     await stagingOwnerPool.query(
       "UPDATE public.users SET password_hash = $1 WHERE id = 'c9265cda-0985-4683-9693-237de9654e2e'",
       [studentTestHash],
@@ -401,7 +401,7 @@ async function main() {
     const adminSignIn = await auth.api.signInEmail({
       body: {
         email: "direction@lamarseillaise.cm",
-        password: "Admin@Marseillaise2026!",
+        password: "local-test-only-Admin#2026",
       },
       asResponse: true,
     });
@@ -412,7 +412,7 @@ async function main() {
     const studentSignIn = await auth.api.signInEmail({
       body: {
         email: "eleve.completion@lamarseillaise.cm",
-        password: "StudentLegacyPass2026!",
+        password: "local-test-only-Student#2026",
       },
       asResponse: true,
     });
@@ -440,7 +440,7 @@ async function main() {
           SCHOOL_WHATSAPP: "+237691000000",
           SCHOOL_AGREMENT: "AGR-2026-P2",
           ADMIN_EMAIL: "direction@lamarseillaise.cm",
-          ADMIN_PASSWORD: "Admin@Marseillaise2026!",
+          ADMIN_PASSWORD: "local-test-only-Admin#2026",
         },
         encoding: "utf8",
       },

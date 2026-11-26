@@ -69,6 +69,7 @@ import type { Dossier } from "../core/models";
           <app-icon name="system_update" /><span>{{ pwa.checking() ? t.checkingUpdate : t.checkUpdate }}</span><app-icon name="chevron_right" />
         </button>
       }
+      <a [routerLink]="base + '/confidentialite'"><app-icon name="shield" /><span>Confidentialité</span><app-icon name="chevron_right" /></a>
       <a routerLink="/" [queryParams]="{ changer: 1 }"><app-icon name="swap_horiz" /><span>{{ t.switchSchool }}</span><app-icon name="chevron_right" /></a>
       @if (pwa.updateStatus()) {
         <p class="muted small" role="status" style="margin: 10px 4px 0">{{ pwa.updateStatus() }}</p>
