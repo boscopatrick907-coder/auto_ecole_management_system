@@ -434,7 +434,6 @@ export class AuthPageComponent implements OnDestroy, AfterViewInit {
     if (mode === "activate" && this.staff()) {
       if (e.status === 401) return this.t.staffExistingPassword;
       if (e.code === "STAFF_EMAIL_IS_STUDENT") return this.t.staffEmailIsStudent;
-      if (e.code === "STAFF_PASSWORD_TOO_SHORT") return this.t.staffPasswordTooShort;
       if (e.code === "INVALID_INVITE" || e.status === 400) return this.t.staffActivationInvalid;
     }
     if (mode === "activate" && (e.code === "INVALID_INVITE" || e.status === 400))

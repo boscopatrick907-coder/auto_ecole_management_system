@@ -127,7 +127,7 @@ Tout se fait dans une seule transaction : en cas d’erreur, rien n’est suppri
 ## Sécurité
 
 - **Isolation des écoles** dans la base (RLS sur chaque table), paiements non supprimables, journal d’audit en ajout seul : seules des fonctions SQL revues y écrivent (`log_admin_action`, etc.).
-- **Connexion** : blocage après 5 échecs par numéro (15 min), limite de requêtes par IP, anti-robot à l’inscription, codes à 6 chiffres qui expirent, cookies sécurisés. Mot de passe : 8 caractères pour les élèves, **12 pour les administrateurs**.
+- **Connexion** : blocage après 5 échecs par numéro (15 min), limite de requêtes par IP, anti-robot à l’inscription, codes à 6 chiffres qui expirent, cookies sécurisés. Mot de passe : 8 caractères minimum (élèves et administrateurs).
 - **Navigateur** : Content-Security-Policy stricte (aucun script en ligne), HSTS, anti-iframe — dans `frontend/public/_headers` et pour les pages rendues par le Worker.
 - **Aucun mot de passe réel dans le dépôt** (public) : les scripts qui visent un environnement réel lisent `TEST_ADMIN_PASSWORD` / `TEST_STUDENT_PASSWORD`. Les anciens mots de passe restent visibles dans l’historique Git : ils doivent être changés.
 - **Comptes techniques** (GitHub, Cloudflare, Neon, e-mail) : double authentification obligatoire et au moins deux propriétaires.

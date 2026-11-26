@@ -136,13 +136,11 @@ it("a new staff member activates with email + code + password and becomes admin"
   expect(after.find((s: { kind: string; email: string }) => s.kind === "member" && s.email === email).name).toBe("Awa Secrétaire");
 });
 
-it("a new admin account needs at least 12 characters", async () => {
+it("a new admin account needs at least 8 characters", async () => {
   const email = newEmail();
   const code = (await (await call("admin/staff/invite", "POST", { name: "Court", email }, adminCookie)).json()).code;
-  const r = await activate(email, code, "court1234");
-  expect(r.status).toBe(400);
-  expect((await r.json()).error).toBe("STAFF_PASSWORD_TOO_SHORT");
-  expect((await activate(email, code, "un-mot-de-passe-long")).status).toBe(201);
+  expect((await activate(email, code, "court12")).status).toBe(400);
+  expect((await activate(email, code, "huitcarac")).status).toBe(201);
 });
 
 it("an existing account must prove its password; a wrong one is refused and counted", async () => {

@@ -493,8 +493,6 @@ app.get("/s/:slug/*", (c) => renderPublicPage(c, c.req.path));
 // a non-deliverable placeholder and password resets are issued by the desk.
 // ---------------------------------------------------------------------------
 const studentPassword = z.string().min(8).max(128);
-// Admins see and handle the school's money: longer passwords for new staff accounts.
-const staffPassword = z.string().min(12, "STAFF_PASSWORD_TOO_SHORT").max(128);
 const activationCode = z.string().trim().min(6).max(40);
 
 function inSchool<T>(
@@ -686,7 +684,7 @@ app.post("/api/schools/:slug/auth/staff-activate", async (c) => {
         return c.json({ error: "INVALID_EMAIL_OR_PASSWORD" }, 401);
       }
     } else {
-      staffPassword.parse(b.password);
+      studentPassword.parse(b.password);
       const signUp = (await auth.api.signUpEmail({
         body: { name: b.name || invite.name || b.email.split("@")[0], email: b.email, password: b.password },
         headers: c.req.raw.headers,
@@ -2250,7 +2248,6 @@ app.all("/api/schools/:slug/*", async (c) => {
 
 const statusByCode: Record<string, number> = {
   STUDENT_HAS_PAYMENTS: 409,
-  STAFF_PASSWORD_TOO_SHORT: 400,
   CAPACITY_BELOW_ENROLLED: 409,
   GROUP_HAS_STUDENTS: 409,
   FEE_BELOW_PAID: 409,
