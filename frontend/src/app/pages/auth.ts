@@ -7,6 +7,7 @@ import {
   viewChild,
   ElementRef,
 } from "@angular/core";
+import { RouterLink } from "@angular/router";
 import { ReactiveFormsModule, FormBuilder, Validators } from "@angular/forms";
 import { Router } from "@angular/router";
 import { AuthService } from "../core/auth.service";
@@ -33,7 +34,7 @@ export const MIN_PASSWORD = 8;
 
 @Component({
   standalone: true,
-  imports: [ReactiveFormsModule, IconComponent],
+  imports: [ReactiveFormsModule, IconComponent, RouterLink],
   template: `<section class="auth-layout">
     <div class="auth-brand">
       <span class="eyebrow">{{ auth.school()?.name }}</span>
@@ -197,6 +198,12 @@ export const MIN_PASSWORD = 8;
           </button>
         </div>
 
+        @if (mode() === "signup" || mode() === "activate") {
+          <p class="muted small consent">
+            En continuant, vous acceptez que l’auto-école enregistre vos données pour gérer votre formation.
+            <a [routerLink]="'/s/' + api.slug + '/confidentialite'">Politique de confidentialité</a>
+          </p>
+        }
         @if (mode() === "login") {
           @if (loginWith() === "phone") {
             <p class="muted">{{ t.forgotPasswordDesk }}</p>
@@ -216,6 +223,7 @@ export const MIN_PASSWORD = 8;
               {{ t.studentPhoneLogin }}
             </button>
           }
+          <a class="text-link center-link" [routerLink]="'/s/' + api.slug + '/confidentialite'">Confidentialité</a>
         }
       </form>
     </div>
@@ -426,6 +434,7 @@ export class AuthPageComponent implements OnDestroy, AfterViewInit {
     if (mode === "activate" && this.staff()) {
       if (e.status === 401) return this.t.staffExistingPassword;
       if (e.code === "STAFF_EMAIL_IS_STUDENT") return this.t.staffEmailIsStudent;
+      if (e.code === "STAFF_PASSWORD_TOO_SHORT") return this.t.staffPasswordTooShort;
       if (e.code === "INVALID_INVITE" || e.status === 400) return this.t.staffActivationInvalid;
     }
     if (mode === "activate" && (e.code === "INVALID_INVITE" || e.status === 400))

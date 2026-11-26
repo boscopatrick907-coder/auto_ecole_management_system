@@ -124,6 +124,15 @@ Avant que l’école saisisse ses vraies données, on retire les essais (élève
 
 Tout se fait dans une seule transaction : en cas d’erreur, rien n’est supprimé. À n’utiliser **qu’avant** la mise en service — ensuite, une erreur de paiement se corrige par une annulation motivée.
 
+## Sécurité
+
+- **Isolation des écoles** dans la base (RLS sur chaque table), paiements non supprimables, journal d’audit en ajout seul : seules des fonctions SQL revues y écrivent (`log_admin_action`, etc.).
+- **Connexion** : blocage après 5 échecs par numéro (15 min), limite de requêtes par IP, anti-robot à l’inscription, codes à 6 chiffres qui expirent, cookies sécurisés. Mot de passe : 8 caractères pour les élèves, **12 pour les administrateurs**.
+- **Navigateur** : Content-Security-Policy stricte (aucun script en ligne), HSTS, anti-iframe — dans `frontend/public/_headers` et pour les pages rendues par le Worker.
+- **Aucun mot de passe réel dans le dépôt** (public) : les scripts qui visent un environnement réel lisent `TEST_ADMIN_PASSWORD` / `TEST_STUDENT_PASSWORD`. Les anciens mots de passe restent visibles dans l’historique Git : ils doivent être changés.
+- **Comptes techniques** (GitHub, Cloudflare, Neon, e-mail) : double authentification obligatoire et au moins deux propriétaires.
+- **Données personnelles** : page « Politique de confidentialité » (`/confidentialite`), mention à l’inscription et à l’activation.
+
 ## Production
 
 Frontend et Worker sont servis sur la **même origine HTTPS** (`/api/*` routé vers le Worker) pour que les cookies de session fonctionnent. Secrets via `wrangler secret put`. Pour des temps de réponse corrects :

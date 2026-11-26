@@ -41,6 +41,14 @@ import {
 } from "./web-push.js";
 
 const app = new Hono<{ Bindings: TenantBindings }>();
+// Every HTML page (including the ones the Worker renders) gets the browser security rules.
+app.use("*", async (c, next) => {
+  await next();
+  if (!(c.res.headers.get("content-type") || "").includes("text/html")) return;
+  const res = new Response(c.res.body, c.res);
+  securePage(res.headers, new URL(c.req.url).protocol === "https:");
+  c.res = res;
+});
 const uuid = z.string().uuid();
 const money = z.number().int().positive().max(1_000_000_000);
 const phone = z.string().regex(/^\+237[26][0-9]{8}$/);
@@ -382,6 +390,18 @@ async function indexHtml(c: { env: TenantBindings; req: { url: string } }) {
   return res.text();
 }
 
+/** Browser security rules for every HTML page the Worker returns (same as public/_headers). */
+export const CSP =
+  "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.r2.cloudflarestorage.com https://challenges.cloudflare.com; media-src 'self' blob: https://*.r2.cloudflarestorage.com; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:; manifest-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests";
+export function securePage(headers: Headers, https = true) {
+  headers.set("Content-Security-Policy", https ? CSP : CSP.replace("; upgrade-insecure-requests", ""));
+  headers.set("X-Content-Type-Options", "nosniff");
+  headers.set("X-Frame-Options", "DENY");
+  headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  if (https) headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+}
+
 function htmlResponse(html: string, status: number, opts: { noindex: boolean; cacheable: boolean }) {
   const headers = new Headers({ "Content-Type": "text/html; charset=utf-8" });
   if (opts.noindex) headers.set("X-Robots-Tag", "noindex");
@@ -473,6 +493,8 @@ app.get("/s/:slug/*", (c) => renderPublicPage(c, c.req.path));
 // a non-deliverable placeholder and password resets are issued by the desk.
 // ---------------------------------------------------------------------------
 const studentPassword = z.string().min(8).max(128);
+// Admins see and handle the school's money: longer passwords for new staff accounts.
+const staffPassword = z.string().min(12, "STAFF_PASSWORD_TOO_SHORT").max(128);
 const activationCode = z.string().trim().min(6).max(40);
 
 function inSchool<T>(
@@ -664,7 +686,7 @@ app.post("/api/schools/:slug/auth/staff-activate", async (c) => {
         return c.json({ error: "INVALID_EMAIL_OR_PASSWORD" }, 401);
       }
     } else {
-      studentPassword.parse(b.password);
+      staffPassword.parse(b.password);
       const signUp = (await auth.api.signUpEmail({
         body: { name: b.name || invite.name || b.email.split("@")[0], email: b.email, password: b.password },
         headers: c.req.raw.headers,
@@ -1200,8 +1222,8 @@ app.all("/api/schools/:slug/*", async (c) => {
         }
         await db.query("delete from school_app.students where school_id=$1 and id=$2", [schoolId, studentId]);
         await db.query(
-          "insert into school_app.audit_log(school_id, actor, action, row_id, details) values($1, $2, 'DELETE_STUDENT', $3, '{}'::jsonb)",
-          [schoolId, userId, studentId],
+          "select school_app.log_admin_action('DELETE_STUDENT', $1, '{}'::jsonb)",
+          [studentId],
         );
         return c.json({ ok: true });
       }
@@ -1499,8 +1521,8 @@ app.all("/api/schools/:slug/*", async (c) => {
         const changed = Object.keys(b);
         if (changed.length)
           await db.query(
-            "insert into school_app.audit_log(school_id,actor,action,row_id,details) values($1,$2,'UPDATE_GROUP',$3,$4)",
-            [schoolId, userId, groupId, JSON.stringify({
+            "select school_app.log_admin_action('UPDATE_GROUP', $1, $2)",
+            [groupId, JSON.stringify({
               fields: changed,
               before: { name: before.name, capacity: before.capacity, total_fee: before.total_fee, status: before.status },
               after: { name: after.name, capacity: after.capacity, total_fee: after.total_fee, status: after.status },
@@ -1609,8 +1631,8 @@ app.all("/api/schools/:slug/*", async (c) => {
         await db.query("delete from school_app.announcements where school_id=$1 and group_id=$2", [schoolId, groupId]);
         await db.query("delete from school_app.groups where school_id=$1 and id=$2", [schoolId, groupId]);
         await db.query(
-          "insert into school_app.audit_log(school_id, actor, action, row_id, details) values($1, $2, 'DELETE_GROUP', $3, '{}'::jsonb)",
-          [schoolId, userId, groupId],
+          "select school_app.log_admin_action('DELETE_GROUP', $1, '{}'::jsonb)",
+          [groupId],
         );
         return c.json({ ok: true });
       }
@@ -2228,6 +2250,7 @@ app.all("/api/schools/:slug/*", async (c) => {
 
 const statusByCode: Record<string, number> = {
   STUDENT_HAS_PAYMENTS: 409,
+  STAFF_PASSWORD_TOO_SHORT: 400,
   CAPACITY_BELOW_ENROLLED: 409,
   GROUP_HAS_STUDENTS: 409,
   FEE_BELOW_PAID: 409,
@@ -2353,7 +2376,8 @@ export async function runDuePaymentReminders(
     for (const sc of schools) {
       await tenantTransaction(pool, sc.id, null, async (client) => {
         const rows = (
-          await client.query("select * from school_app.due_reminder_targets($1::date)", [todayYmd])
+          await client.query("select set_config('app.job','reminders',true)").then(() =>
+            client.query("select * from school_app.due_reminder_targets($1::date)", [todayYmd]))
         ).rows as Array<{
           enrollment_id: string;
           installment_id: string;
@@ -2430,10 +2454,7 @@ export async function runDuePaymentReminders(
               sent++;
               delivered++;
             } else if (res.gone) {
-              await client.query(
-                "delete from school_app.push_subscriptions where endpoint=$1",
-                [sub.endpoint],
-              );
+              await client.query("select school_app.drop_expired_push_subscription($1)", [sub.endpoint]);
               cleaned++;
             } else {
               errors++;
@@ -2441,12 +2462,7 @@ export async function runDuePaymentReminders(
           }
 
           if (delivered > 0) {
-            await client.query(
-              `insert into school_app.payment_reminder_logs(school_id, installment_id, enrollment_id, milestone, sent_at)
-               values($1, $2, $3, $4, now())
-               on conflict(installment_id, enrollment_id, milestone) do nothing`,
-              [sc.id, item.installment_id, item.enrollment_id, milestone],
-            );
+            await client.query("select school_app.log_payment_reminder($1, $2, $3)", [item.installment_id, item.enrollment_id, milestone]);
           }
         }
       });

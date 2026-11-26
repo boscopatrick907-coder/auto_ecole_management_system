@@ -60,6 +60,7 @@ import type { Dossier } from "../core/models";
       @if (pwa.installAvailable()) {
         <button type="button" (click)="pwa.install()"><app-icon name="install_mobile" /><span>{{ t.installApp }}</span><app-icon name="chevron_right" /></button>
       }
+      <a [routerLink]="base + '/confidentialite'"><app-icon name="shield" /><span>Confidentialité</span><app-icon name="chevron_right" /></a>
       <a routerLink="/" [queryParams]="{ changer: 1 }"><app-icon name="swap_horiz" /><span>{{ t.switchSchool }}</span><app-icon name="chevron_right" /></a>
     </section>
 

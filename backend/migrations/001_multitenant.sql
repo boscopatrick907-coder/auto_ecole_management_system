@@ -1081,3 +1081,67 @@ begin
 end $$;
 revoke all on function school_app.save_push_subscription(text,text,text) from public;
 grant execute on function school_app.save_push_subscription(text,text,text) to aem_tenant_runtime;
+
+-- Security hardening (26 Nov 2026).
+-- 1) The audit log is written only by reviewed functions again: the app role can
+--    no longer insert arbitrary rows. Admin actions go through log_admin_action,
+--    which fixes the actor to the signed-in admin and allows known actions only.
+drop policy if exists admin_insert on school_app.audit_log;
+revoke insert on school_app.audit_log from aem_tenant_runtime;
+create or replace function school_app.log_admin_action(p_action text, p_row uuid, p_details jsonb) returns void
+language plpgsql security definer set search_path=pg_catalog,school_app as $$
+begin
+ if not school_app.is_admin() then raise exception 'ADMIN_REQUIRED'; end if;
+ if p_action not in ('DELETE_STUDENT','DELETE_GROUP','UPDATE_GROUP') then raise exception 'INVALID_AUDIT_ACTION'; end if;
+ insert into school_app.audit_log(school_id,actor,action,row_id,details)
+ values(school_app.school_id(),school_app.user_id(),p_action,p_row,coalesce(p_details,'{}'::jsonb));
+end $$;
+
+-- 2) No "anonymous context" access to push subscriptions or reminder logs. The
+--    daily job marks its own transaction (app.job = 'reminders') and works only
+--    through these functions.
+drop policy if exists push_subscriptions_access on school_app.push_subscriptions;
+create policy push_subscriptions_access on school_app.push_subscriptions for all to aem_tenant_runtime
+ using(school_id=school_app.school_id() and (user_id=school_app.user_id() or school_app.is_admin()))
+ with check(school_id=school_app.school_id() and (user_id=school_app.user_id() or school_app.is_admin()));
+drop policy if exists payment_reminder_logs_access on school_app.payment_reminder_logs;
+create policy payment_reminder_logs_access on school_app.payment_reminder_logs for all to aem_tenant_runtime
+ using(school_id=school_app.school_id() and school_app.is_admin())
+ with check(school_id=school_app.school_id() and school_app.is_admin());
+
+create or replace function school_app.is_reminder_job() returns boolean language sql stable as $$
+ select coalesce(current_setting('app.job', true),'')='reminders' and school_app.user_id() is null $$;
+
+create or replace function school_app.due_reminder_targets(p_today date) returns table(enrollment_id uuid, installment_id uuid, label text, remaining bigint, due_date date, milestone text, endpoint text, p256dh text, auth text)
+language sql stable security definer set search_path=pg_catalog,school_app as $$
+ select st.enrollment_id, st.id, st.label, (st.amount - st.paid_amount)::bigint, st.due_date,
+        case st.due_date - p_today when 7 then 'd7' when 3 then 'd3' else 'd1' end,
+        p.endpoint, p.p256dh, p.auth
+   from school_app.installment_status st
+   join school_app.enrollments e on e.school_id=st.school_id and e.id=st.enrollment_id and e.status='active'
+   join school_app.students s on s.school_id=e.school_id and s.id=e.student_id and s.user_id is not null
+   join school_app.push_subscriptions p on p.school_id=s.school_id and p.user_id=s.user_id
+  where st.school_id=school_app.school_id() and school_app.is_reminder_job()
+    and st.status<>'paid' and st.due_date - p_today in (7,3,1)
+    and not exists(select 1 from school_app.payment_reminder_logs l
+                    where l.installment_id=st.id and l.enrollment_id=st.enrollment_id
+                      and l.milestone=(case st.due_date - p_today when 7 then 'd7' when 3 then 'd3' else 'd1' end)) $$;
+
+create or replace function school_app.log_payment_reminder(p_installment uuid, p_enrollment uuid, p_milestone text) returns void
+language plpgsql security definer set search_path=pg_catalog,school_app as $$
+begin
+ if not school_app.is_reminder_job() then raise exception 'FORBIDDEN'; end if;
+ insert into school_app.payment_reminder_logs(school_id,installment_id,enrollment_id,milestone,sent_at)
+ values(school_app.school_id(),p_installment,p_enrollment,p_milestone,now())
+ on conflict(installment_id,enrollment_id,milestone) do nothing;
+end $$;
+
+create or replace function school_app.drop_expired_push_subscription(p_endpoint text) returns void
+language plpgsql security definer set search_path=pg_catalog,school_app as $$
+begin
+ if not school_app.is_reminder_job() then raise exception 'FORBIDDEN'; end if;
+ delete from school_app.push_subscriptions where school_id=school_app.school_id() and endpoint=p_endpoint;
+end $$;
+
+revoke all on function school_app.log_admin_action(text,uuid,jsonb), school_app.is_reminder_job(), school_app.log_payment_reminder(uuid,uuid,text), school_app.drop_expired_push_subscription(text) from public;
+grant execute on function school_app.log_admin_action(text,uuid,jsonb), school_app.is_reminder_job(), school_app.log_payment_reminder(uuid,uuid,text), school_app.drop_expired_push_subscription(text) to aem_tenant_runtime;
